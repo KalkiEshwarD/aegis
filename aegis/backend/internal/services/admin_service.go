@@ -1,0 +1,52 @@
+package services
+
+import (
+	"github.com/balkanid/aegis-backend/internal/database"
+	"github.com/balkanid/aegis-backend/internal/models"
+)
+
+type AdminService struct{}
+
+func NewAdminService() *AdminService {
+	return &AdminService{}
+}
+
+// GetDashboardStats returns system-wide statistics
+func (as *AdminService) GetDashboardStats() (*AdminDashboard, error) {
+	db := database.GetDB()
+
+	var totalUsers int64
+	var totalFiles int64
+	var totalStorageUsed int64
+
+	// Count total users
+	db.Model(&models.User{}).Count(&totalUsers)
+
+	// Count total files
+	db.Model(&models.UserFile{}).Count(&totalFiles)
+
+	// Calculate total storage used
+	db.Model(&models.User{}).Select("COALESCE(SUM(used_storage), 0)").Scan(&totalStorageUsed)
+
+	// Get recent uploads (last 10)
+	var recentUploads []*models.UserFile
+	db.Preload("User").Preload("File").
+		Order("created_at DESC").
+		Limit(10).
+		Find(&recentUploads)
+
+	return &AdminDashboard{
+		TotalUsers:       int(totalUsers),
+		TotalFiles:       int(totalFiles),
+		TotalStorageUsed: int(totalStorageUsed),
+		RecentUploads:    recentUploads,
+	}, nil
+}
+
+// AdminDashboard represents admin dashboard data
+type AdminDashboard struct {
+	TotalUsers       int                `json:"total_users"`
+	TotalFiles       int                `json:"total_files"`
+	TotalStorageUsed int                `json:"total_storage_used"`
+	RecentUploads    []*models.UserFile `json:"recent_uploads"`
+}

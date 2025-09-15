@@ -1,0 +1,163 @@
+# GraphQL schema for Aegis File Vault
+
+scalar Time
+scalar Upload
+
+# User authentication types
+type User {
+  id: ID!
+  email: String!
+  storage_quota: Int!
+  used_storage: Int!
+  is_admin: Boolean!
+  created_at: Time!
+}
+
+type AuthPayload {
+  token: String!
+  user: User!
+}
+
+# File-related types
+type File {
+  id: ID!
+  content_hash: String!
+  size_bytes: Int!
+  created_at: Time!
+}
+
+type UserFile {
+  id: ID!
+  user_id: ID!
+  file_id: ID!
+  filename: String!
+  mime_type: String!
+  created_at: Time!
+  updated_at: Time!
+  user: User
+  file: File
+}
+
+# Room collaboration types
+enum RoomRole {
+  ADMIN
+  CONTENT_CREATOR
+  CONTENT_EDITOR
+  CONTENT_VIEWER
+}
+
+type Room {
+  id: ID!
+  name: String!
+  creator_id: ID!
+  created_at: Time!
+  creator: User
+  members: [RoomMember!]!
+  files: [UserFile!]!
+}
+
+type RoomMember {
+  id: ID!
+  room_id: ID!
+  user_id: ID!
+  role: RoomRole!
+  created_at: Time!
+  room: Room
+  user: User
+}
+
+# Input types
+input RegisterInput {
+  email: String!
+  password: String!
+}
+
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+input UploadFileInput {
+  filename: String!
+  content_hash: String!
+  size_bytes: Int!
+  mime_type: String!
+  encrypted_key: String!
+  file_data: Upload!
+}
+
+input FileFilterInput {
+  filename: String
+  mime_type: String
+  min_size: Int
+  max_size: Int
+  date_from: Time
+  date_to: Time
+}
+
+input CreateRoomInput {
+  name: String!
+}
+
+input AddRoomMemberInput {
+  room_id: ID!
+  user_id: ID!
+  role: RoomRole!
+}
+
+# Statistics and admin types
+type UserStats {
+  total_files: Int!
+  used_storage: Int!
+  storage_quota: Int!
+  storage_savings: Int!
+}
+
+type AdminDashboard {
+  total_users: Int!
+  total_files: Int!
+  total_storage_used: Int!
+  recent_uploads: [UserFile!]!
+}
+
+# Root types
+type Query {
+  # User queries
+  me: User!
+  myFiles(filter: FileFilterInput): [UserFile!]!
+  myStats: UserStats!
+  
+  # Room queries
+  myRooms: [Room!]!
+  room(id: ID!): Room
+  
+  # Admin queries
+  adminDashboard: AdminDashboard!
+  allUsers: [User!]!
+  allFiles: [UserFile!]!
+  
+  # Health check
+  health: String!
+}
+
+type Mutation {
+  # Authentication
+  register(input: RegisterInput!): AuthPayload!
+  login(input: LoginInput!): AuthPayload!
+  
+  # File operations
+  uploadFile(input: UploadFileInput!): UserFile!
+  deleteFile(id: ID!): Boolean!
+  downloadFile(id: ID!): String! # Returns download URL
+  
+  # Room operations
+  createRoom(input: CreateRoomInput!): Room!
+  addRoomMember(input: AddRoomMemberInput!): Boolean!
+  removeRoomMember(room_id: ID!, user_id: ID!): Boolean!
+  shareFileToRoom(user_file_id: ID!, room_id: ID!): Boolean!
+  removeFileFromRoom(user_file_id: ID!, room_id: ID!): Boolean!
+  
+  # Admin operations
+  promoteUserToAdmin(user_id: ID!): Boolean!
+  deleteUserAccount(user_id: ID!): Boolean!
+}
