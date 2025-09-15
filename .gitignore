@@ -1,0 +1,29 @@
+BalkanID Capstone Internship Task.pdf
+
+# Copilot
+.playwright-mcp/
+
+# Logs
+aegis/frontend/logs
+*.log
+aegis/frontend/npm-debug.log*
+aegis/frontend/yarn-debug.log*
+aegis/frontend/yarn-error.log*
+aegis/frontend/pnpm-debug.log*
+aegis/frontend/lerna-debug.log*
+
+aegis/frontend/node_modules
+aegis/frontend/dist
+aegis/frontend/dist-ssr
+*.local
+
+# Editor directories and files
+aegis/frontend/.vscode/*
+!aegis/frontend/.vscode/extensions.json
+aegis/frontend/.idea
+*.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
