@@ -74,7 +74,7 @@ func (fs *FileService) UploadFile(userID uint, filename, mimeType, contentHash, 
 	var file *models.File
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// File doesn't exist, upload to MinIO
-		storagePath := fmt.Sprintf("%s/%s", userID, contentHash)
+		storagePath := fmt.Sprintf("%d/%s", userID, contentHash)
 
 		_, err = fs.minioClient.PutObject(
 			context.Background(),

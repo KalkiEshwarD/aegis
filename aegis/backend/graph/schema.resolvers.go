@@ -20,12 +20,32 @@ func (r *fileResolver) ID(ctx context.Context, obj *models.File) (string, error)
 
 // Register is the resolver for the register field.
 func (r *mutationResolver) Register(ctx context.Context, input model.RegisterInput) (*model.AuthPayload, error) {
-	panic(fmt.Errorf("not implemented: Register - register"))
+	userService := r.Resolver.UserService
+
+	user, token, err := userService.Register(input.Email, input.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.AuthPayload{
+		Token: token,
+		User:  user,
+	}, nil
 }
 
 // Login is the resolver for the login field.
 func (r *mutationResolver) Login(ctx context.Context, input model.LoginInput) (*model.AuthPayload, error) {
-	panic(fmt.Errorf("not implemented: Login - login"))
+	userService := r.Resolver.UserService
+
+	user, token, err := userService.Login(input.Email, input.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.AuthPayload{
+		Token: token,
+		User:  user,
+	}, nil
 }
 
 // UploadFile is the resolver for the uploadFile field.
@@ -160,7 +180,7 @@ func (r *roomMemberResolver) UserID(ctx context.Context, obj *models.RoomMember)
 
 // ID is the resolver for the id field.
 func (r *userResolver) ID(ctx context.Context, obj *models.User) (string, error) {
-	panic(fmt.Errorf("not implemented: ID - id"))
+	return fmt.Sprintf("%d", obj.ID), nil
 }
 
 // ID is the resolver for the id field.

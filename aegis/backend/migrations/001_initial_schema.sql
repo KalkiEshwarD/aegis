@@ -88,10 +88,10 @@ CREATE INDEX IF NOT EXISTS idx_room_files_room_id ON room_files(room_id);
 CREATE INDEX IF NOT EXISTS idx_download_logs_user_file_id ON download_logs(user_file_id);
 CREATE INDEX IF NOT EXISTS idx_download_logs_timestamp ON download_logs(timestamp);
 
--- Create a default admin user (password: admin123)
--- Hash for 'admin123' using bcrypt
-INSERT INTO users (email, password_hash, is_admin, storage_quota) 
-VALUES ('admin@aegis.local', '$2a$10$8Wqh1R1Y1QG1vTJW5U5Oi.nxCLfcWYTFZ7wXQJ8vTJ8YZJ6Kp7uHm', TRUE, 104857600) -- 100MB for admin
+-- Create a default admin user (password: password)
+-- Hash for 'password' using bcrypt
+INSERT INTO users (email, password_hash, is_admin, storage_quota)
+VALUES ('admin@aegis.local', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', TRUE, 104857600) -- 100MB for admin
 ON CONFLICT (email) DO NOTHING;
 
 -- Create updated_at trigger function

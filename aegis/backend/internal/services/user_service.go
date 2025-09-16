@@ -27,6 +27,11 @@ func NewUserService(cfg *config.Config) *UserService {
 
 // Register creates a new user account
 func (s *UserService) Register(email, password string) (*models.User, string, error) {
+	// Validate password
+	if len(password) < 6 {
+		return nil, "", errors.New("password must be at least 6 characters long")
+	}
+
 	// Check if user already exists
 	var existingUser models.User
 	if err := database.GetDB().Where("email = ?", email).First(&existingUser).Error; err == nil {

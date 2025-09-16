@@ -11,8 +11,8 @@ aegis/frontend/yarn-debug.log*
 aegis/frontend/yarn-error.log*
 aegis/frontend/pnpm-debug.log*
 aegis/frontend/lerna-debug.log*
-
-aegis/frontend/node_modules
+aegis/frontend/node_modules/
+node_modules/
 aegis/frontend/dist
 aegis/frontend/dist-ssr
 *.local

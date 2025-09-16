@@ -31,6 +31,13 @@ func Connect(cfg *config.Config) error {
 	}
 
 	log.Println("Successfully connected to database")
+
+	// Run migrations (optional, since schema is created via SQL)
+	// Comment out to avoid GORM compatibility issues
+	// if err := AutoMigrate(); err != nil {
+	// 	log.Printf("Warning: Failed to run migrations: %v", err)
+	// }
+
 	return nil
 }
 
@@ -60,6 +67,11 @@ func AutoMigrate() error {
 // GetDB returns the database instance
 func GetDB() *gorm.DB {
 	return DB
+}
+
+// SetDB sets the database instance (primarily for testing)
+func SetDB(db *gorm.DB) {
+	DB = db
 }
 
 // Close closes the database connection
