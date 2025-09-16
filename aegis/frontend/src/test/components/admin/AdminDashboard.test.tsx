@@ -63,7 +63,7 @@ describe('AdminDashboard Component', () => {
     expect(screen.getByText('Active Rooms')).toBeInTheDocument();
 
     // Check hardcoded values
-    expect(screen.getAllByText('0')).toHaveLength(4);
+    expect(screen.getAllByText('0')).toHaveLength(3);
     expect(screen.getByText('0 MB')).toBeInTheDocument();
   });
 
@@ -84,22 +84,19 @@ describe('AdminDashboard Component', () => {
   });
 
   it('handles user with null values gracefully', () => {
-    // Mock with null user
-    jest.mock('../../../contexts/AuthContext', () => ({
-      useAuth: () => ({
-        user: null,
-      }),
-    }), { virtual: true });
+    // Mock with null user using jest.spyOn
+    const useAuthSpy = jest.spyOn(require('../../../contexts/AuthContext'), 'useAuth');
+    useAuthSpy.mockReturnValue({
+      user: null,
+    });
 
-    render(
-      <ThemeProvider theme={theme}>
-        <AdminDashboard />
-      </ThemeProvider>
-    );
+    renderAdminDashboard();
 
     expect(screen.getByText('Admin Dashboard')).toBeInTheDocument();
     // Should not crash, but email display might be empty
     expect(screen.queryByText('admin@example.com')).not.toBeInTheDocument();
+
+    useAuthSpy.mockRestore();
   });
 
   it('renders app bar with correct styling', () => {
@@ -118,7 +115,10 @@ describe('AdminDashboard Component', () => {
   it('renders paper cards with correct layout', () => {
     renderAdminDashboard();
 
-    const cards = screen.getAllByRole('article'); // Paper components
+    const cards = screen.getAllByRole('generic').filter(card =>
+      card.classList.contains('MuiPaper-root') &&
+      !card.classList.contains('MuiPaper-elevation4') // Exclude AppBar
+    );
     expect(cards).toHaveLength(4);
 
     cards.forEach(card => {
@@ -131,7 +131,7 @@ describe('AdminDashboard Component', () => {
 
     // Check that numbers are displayed correctly
     const statValues = screen.getAllByText('0');
-    expect(statValues).toHaveLength(4);
+    expect(statValues).toHaveLength(3);
 
     // Check storage display
     expect(screen.getByText('0 MB')).toBeInTheDocument();

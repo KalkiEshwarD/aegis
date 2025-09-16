@@ -6,6 +6,7 @@ interface LoadingSpinnerProps {
 }
 
 const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ message = 'Loading...' }) => {
+  const displayMessage = message || 'Loading...';
   return (
     <Box
       display="flex"
@@ -17,7 +18,7 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ message = 'Loading...' 
     >
       <CircularProgress size={60} />
       <Typography variant="h6" color="textSecondary">
-        {message}
+        {displayMessage}
       </Typography>
     </Box>
   );

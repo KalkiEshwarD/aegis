@@ -5,12 +5,12 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 
 // Mock the dependencies first
 const mockLogin = jest.fn();
-const mockNavigate = jest.fn();
+const mockHistory = { push: jest.fn() };
 
 // Mock react-router-dom
 jest.mock('react-router-dom', () => ({
   Link: ({ children, to, ...props }: any) => <a href={to} {...props}>{children}</a>,
-  useNavigate: () => mockNavigate,
+  useHistory: () => mockHistory,
 }));
 
 // Mock the AuthContext
@@ -35,6 +35,7 @@ const renderLogin = () => {
 
 describe('Login Component', () => {
   beforeEach(() => {
+    console.log('Login test setup - clearing mocks');
     jest.clearAllMocks();
   });
 
@@ -44,7 +45,7 @@ describe('Login Component', () => {
     expect(screen.getByText('Aegis File Vault')).toBeInTheDocument();
     expect(screen.getByText('Sign in to your account')).toBeInTheDocument();
     expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/password \*/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
     expect(screen.getByText("Don't have an account? Sign Up")).toBeInTheDocument();
   });
@@ -53,7 +54,7 @@ describe('Login Component', () => {
     renderLogin();
 
     const emailInput = screen.getByLabelText(/email address/i) as HTMLInputElement;
-    const passwordInput = screen.getByLabelText(/password/i) as HTMLInputElement;
+    const passwordInput = screen.getByLabelText(/password \*/i) as HTMLInputElement;
 
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
     fireEvent.change(passwordInput, { target: { value: 'password123' } });
@@ -65,7 +66,7 @@ describe('Login Component', () => {
   it('toggles password visibility when eye icon is clicked', () => {
     renderLogin();
 
-    const passwordInput = screen.getByLabelText(/password/i);
+    const passwordInput = screen.getByLabelText(/password \*/i);
     const toggleButton = screen.getByLabelText(/toggle password visibility/i);
 
     expect(passwordInput).toHaveAttribute('type', 'password');
@@ -83,7 +84,7 @@ describe('Login Component', () => {
     renderLogin();
 
     const emailInput = screen.getByLabelText(/email address/i);
-    const passwordInput = screen.getByLabelText(/password/i);
+    const passwordInput = screen.getByLabelText(/password \*/i);
     const submitButton = screen.getByRole('button', { name: /sign in/i });
 
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
@@ -101,7 +102,7 @@ describe('Login Component', () => {
     renderLogin();
 
     const emailInput = screen.getByLabelText(/email address/i);
-    const passwordInput = screen.getByLabelText(/password/i);
+    const passwordInput = screen.getByLabelText(/password \*/i);
     const submitButton = screen.getByRole('button', { name: /sign in/i });
 
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
@@ -109,7 +110,7 @@ describe('Login Component', () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/dashboard');
+      expect(mockHistory.push).toHaveBeenCalledWith('/dashboard');
     });
   });
 
@@ -119,7 +120,7 @@ describe('Login Component', () => {
     renderLogin();
 
     const emailInput = screen.getByLabelText(/email address/i);
-    const passwordInput = screen.getByLabelText(/password/i);
+    const passwordInput = screen.getByLabelText(/password \*/i);
     const submitButton = screen.getByRole('button', { name: /sign in/i });
 
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
@@ -137,7 +138,7 @@ describe('Login Component', () => {
     renderLogin();
 
     const emailInput = screen.getByLabelText(/email address/i);
-    const passwordInput = screen.getByLabelText(/password/i);
+    const passwordInput = screen.getByLabelText(/password \*/i);
     const submitButton = screen.getByRole('button', { name: /sign in/i });
 
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
@@ -159,7 +160,7 @@ describe('Login Component', () => {
     renderLogin();
 
     const emailInput = screen.getByLabelText(/email address/i);
-    const passwordInput = screen.getByLabelText(/password/i);
+    const passwordInput = screen.getByLabelText(/password \*/i);
     const submitButton = screen.getByRole('button', { name: /sign in/i });
 
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
@@ -179,7 +180,7 @@ describe('Login Component', () => {
     renderLogin();
 
     const emailInput = screen.getByLabelText(/email address/i);
-    const passwordInput = screen.getByLabelText(/password/i);
+    const passwordInput = screen.getByLabelText(/password \*/i);
     const submitButton = screen.getByRole('button', { name: /sign in/i });
 
     // First attempt - should fail

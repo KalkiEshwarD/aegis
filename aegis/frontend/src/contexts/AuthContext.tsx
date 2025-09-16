@@ -28,8 +28,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(JSON.parse(storedUser));
       } catch (error) {
         console.error('Error parsing stored user data:', error);
+        // Clear both localStorage and state on error
         localStorage.removeItem('aegis_token');
         localStorage.removeItem('aegis_user');
+        setToken(null);
+        setUser(null);
       }
     }
     setLoading(false);

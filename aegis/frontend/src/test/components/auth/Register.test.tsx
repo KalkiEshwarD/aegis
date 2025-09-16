@@ -44,8 +44,8 @@ describe('Register Component', () => {
     expect(screen.getByText('Join Aegis')).toBeInTheDocument();
     expect(screen.getByText('Create your secure file vault')).toBeInTheDocument();
     expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^password \*/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^confirm password \*$/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign up/i })).toBeInTheDocument();
     expect(screen.getByText("Already have an account? Sign In")).toBeInTheDocument();
   });
@@ -54,8 +54,8 @@ describe('Register Component', () => {
     renderRegister();
 
     const emailInput = screen.getByLabelText(/email address/i) as HTMLInputElement;
-    const passwordInput = screen.getByLabelText(/^password$/i) as HTMLInputElement;
-    const confirmPasswordInput = screen.getByLabelText(/confirm password/i) as HTMLInputElement;
+    const passwordInput = screen.getByLabelText(/^password \*/i) as HTMLInputElement;
+    const confirmPasswordInput = screen.getByLabelText(/^confirm password \*$/i) as HTMLInputElement;
 
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
     fireEvent.change(passwordInput, { target: { value: 'password123' } });
@@ -69,8 +69,8 @@ describe('Register Component', () => {
   it('toggles password visibility for both password fields', () => {
     renderRegister();
 
-    const passwordInput = screen.getByLabelText(/^password$/i);
-    const confirmPasswordInput = screen.getByLabelText(/confirm password/i);
+    const passwordInput = screen.getByLabelText(/^password \*/i);
+    const confirmPasswordInput = screen.getByLabelText(/^confirm password \*$/i);
     const togglePasswordButton = screen.getByLabelText(/toggle password visibility/i);
     const toggleConfirmPasswordButton = screen.getByLabelText(/toggle confirm password visibility/i);
 
@@ -96,8 +96,8 @@ describe('Register Component', () => {
     renderRegister();
 
     const emailInput = screen.getByLabelText(/email address/i);
-    const passwordInput = screen.getByLabelText(/^password$/i);
-    const confirmPasswordInput = screen.getByLabelText(/confirm password/i);
+    const passwordInput = screen.getByLabelText(/^password \*/i);
+    const confirmPasswordInput = screen.getByLabelText(/^confirm password \*$/i);
     const submitButton = screen.getByRole('button', { name: /sign up/i });
 
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
@@ -116,8 +116,8 @@ describe('Register Component', () => {
     renderRegister();
 
     const emailInput = screen.getByLabelText(/email address/i);
-    const passwordInput = screen.getByLabelText(/^password$/i);
-    const confirmPasswordInput = screen.getByLabelText(/confirm password/i);
+    const passwordInput = screen.getByLabelText(/^password \*/i);
+    const confirmPasswordInput = screen.getByLabelText(/^confirm password \*$/i);
     const submitButton = screen.getByRole('button', { name: /sign up/i });
 
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
@@ -134,8 +134,8 @@ describe('Register Component', () => {
     renderRegister();
 
     const emailInput = screen.getByLabelText(/email address/i);
-    const passwordInput = screen.getByLabelText(/^password$/i);
-    const confirmPasswordInput = screen.getByLabelText(/confirm password/i);
+    const passwordInput = screen.getByLabelText(/^password \*/i);
+    const confirmPasswordInput = screen.getByLabelText(/^confirm password \*$/i);
     const submitButton = screen.getByRole('button', { name: /sign up/i });
 
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
@@ -154,8 +154,8 @@ describe('Register Component', () => {
     renderRegister();
 
     const emailInput = screen.getByLabelText(/email address/i);
-    const passwordInput = screen.getByLabelText(/^password$/i);
-    const confirmPasswordInput = screen.getByLabelText(/confirm password/i);
+    const passwordInput = screen.getByLabelText(/^password \*/i);
+    const confirmPasswordInput = screen.getByLabelText(/^confirm password \*$/i);
     const submitButton = screen.getByRole('button', { name: /sign up/i });
 
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
@@ -176,8 +176,8 @@ describe('Register Component', () => {
     renderRegister();
 
     const emailInput = screen.getByLabelText(/email address/i);
-    const passwordInput = screen.getByLabelText(/^password$/i);
-    const confirmPasswordInput = screen.getByLabelText(/confirm password/i);
+    const passwordInput = screen.getByLabelText(/^password \*/i);
+    const confirmPasswordInput = screen.getByLabelText(/^confirm password \*$/i);
     const submitButton = screen.getByRole('button', { name: /sign up/i });
 
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
@@ -196,8 +196,8 @@ describe('Register Component', () => {
     renderRegister();
 
     const emailInput = screen.getByLabelText(/email address/i);
-    const passwordInput = screen.getByLabelText(/^password$/i);
-    const confirmPasswordInput = screen.getByLabelText(/confirm password/i);
+    const passwordInput = screen.getByLabelText(/^password \*/i);
+    const confirmPasswordInput = screen.getByLabelText(/^confirm password \*$/i);
     const submitButton = screen.getByRole('button', { name: /sign up/i });
 
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
@@ -220,8 +220,8 @@ describe('Register Component', () => {
     renderRegister();
 
     const emailInput = screen.getByLabelText(/email address/i);
-    const passwordInput = screen.getByLabelText(/^password$/i);
-    const confirmPasswordInput = screen.getByLabelText(/confirm password/i);
+    const passwordInput = screen.getByLabelText(/^password \*/i);
+    const confirmPasswordInput = screen.getByLabelText(/^confirm password \*$/i);
     const submitButton = screen.getByRole('button', { name: /sign up/i });
 
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
@@ -242,8 +242,8 @@ describe('Register Component', () => {
     renderRegister();
 
     const emailInput = screen.getByLabelText(/email address/i);
-    const passwordInput = screen.getByLabelText(/^password$/i);
-    const confirmPasswordInput = screen.getByLabelText(/confirm password/i);
+    const passwordInput = screen.getByLabelText(/^password \*/i);
+    const confirmPasswordInput = screen.getByLabelText(/^confirm password \*$/i);
     const submitButton = screen.getByRole('button', { name: /sign up/i });
 
     // First attempt - should fail

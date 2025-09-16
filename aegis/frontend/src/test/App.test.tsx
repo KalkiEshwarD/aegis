@@ -4,20 +4,18 @@ import '@testing-library/jest-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { BrowserRouter } from 'react-router-dom';
 
-// Mock the dependencies first
-const mockUser = {
+// Mock data
+const getMockUser = () => ({
   id: '1',
   email: 'test@example.com',
   storage_quota: 1000000,
   used_storage: 500000,
   is_admin: false,
   created_at: '2023-01-01T00:00:00Z'
-};
+});
 
-const mockAdminUser = {
-  ...mockUser,
-  is_admin: true
-};
+const mockUser = getMockUser();
+const mockAdminUser = { ...mockUser, is_admin: true };
 
 const mockNavigate = jest.fn();
 
@@ -25,6 +23,9 @@ const mockNavigate = jest.fn();
 jest.mock('react-router-dom', () => ({
   ...jest.requireActual('react-router-dom'),
   useNavigate: () => mockNavigate,
+  Navigate: ({ to }: { to: string }) => <div data-testid={`navigate-${to}`} />,
+  Routes: ({ children }: { children: React.ReactNode }) => <div data-testid="routes">{children}</div>,
+  Route: ({ path, element }: { path: string; element: React.ReactNode }) => <div data-testid={`route-${path}`}>{element}</div>,
 }));
 
 // Mock Apollo Client
@@ -39,23 +40,24 @@ jest.mock('../apollo/client', () => ({
 // Mock AuthContext
 jest.mock('../contexts/AuthContext', () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="auth-provider">{children}</div>,
-  useAuth: () => ({
-    user: mockUser,
+  useAuth: jest.fn(() => ({
+    user: getMockUser(),
     loading: false,
-  }),
+  })),
 }));
 
 // Mock components
-jest.mock('./components/auth/Login', () => () => <div data-testid="login-component">Login Component</div>);
-jest.mock('./components/auth/Register', () => () => <div data-testid="register-component">Register Component</div>);
-jest.mock('./components/dashboard/Dashboard', () => () => <div data-testid="dashboard-component">Dashboard Component</div>);
-jest.mock('./components/admin/AdminDashboard', () => () => <div data-testid="admin-dashboard-component">Admin Dashboard Component</div>);
-jest.mock('./components/common/LoadingSpinner', () => ({ message }: { message?: string }) => (
+jest.mock('../components/auth/Login', () => () => <div data-testid="login-component">Login Component</div>);
+jest.mock('../components/auth/Register', () => () => <div data-testid="register-component">Register Component</div>);
+jest.mock('../components/dashboard/Dashboard', () => () => <div data-testid="dashboard-component">Dashboard Component</div>);
+jest.mock('../components/admin/AdminDashboard', () => () => <div data-testid="admin-dashboard-component">Admin Dashboard Component</div>);
+jest.mock('../components/common/LoadingSpinner', () => ({ message }: { message?: string }) => (
   <div data-testid="loading-spinner">{message || 'Loading...'}</div>
 ));
 
 // Import the component after mocks
-import App from './App';
+import App from '../App';
+import { useAuth } from '../contexts/AuthContext';
 
 const theme = createTheme();
 
@@ -70,6 +72,10 @@ const renderApp = () => {
 describe('App Component', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (useAuth as jest.Mock).mockReturnValue({
+      user: getMockUser(),
+      loading: false,
+    });
   });
 
   it('renders with theme provider and auth provider', () => {
@@ -121,24 +127,22 @@ describe('App Component', () => {
 
 // Test ProtectedRoute component separately
 describe('ProtectedRoute Component', () => {
-  const mockUseAuth = jest.fn();
-
   beforeEach(() => {
     jest.clearAllMocks();
-    mockUseAuth.mockReturnValue({
+    (useAuth as jest.Mock).mockReturnValue({
       user: mockUser,
       loading: false,
     });
   });
 
   it('renders children when user is authenticated', () => {
-    mockUseAuth.mockReturnValue({
+    (useAuth as jest.Mock).mockReturnValue({
       user: mockUser,
       loading: false,
     });
 
     // Import and test ProtectedRoute directly
-    const { ProtectedRoute } = require('./App');
+    const { ProtectedRoute } = require('../App');
 
     render(
       <BrowserRouter>
@@ -154,12 +158,12 @@ describe('ProtectedRoute Component', () => {
   });
 
   it('renders loading spinner when loading', () => {
-    mockUseAuth.mockReturnValue({
+    (useAuth as jest.Mock).mockReturnValue({
       user: null,
       loading: true,
     });
 
-    const { ProtectedRoute } = require('./App');
+    const { ProtectedRoute } = require('../App');
 
     render(
       <BrowserRouter>
@@ -175,12 +179,12 @@ describe('ProtectedRoute Component', () => {
   });
 
   it('redirects to login when user is not authenticated', () => {
-    mockUseAuth.mockReturnValue({
+    (useAuth as jest.Mock).mockReturnValue({
       user: null,
       loading: false,
     });
 
-    const { ProtectedRoute } = require('./App');
+    const { ProtectedRoute } = require('../App');
 
     render(
       <BrowserRouter>
@@ -198,12 +202,12 @@ describe('ProtectedRoute Component', () => {
   });
 
   it('redirects to dashboard when adminOnly is true and user is not admin', () => {
-    mockUseAuth.mockReturnValue({
+    (useAuth as jest.Mock).mockReturnValue({
       user: { ...mockUser, is_admin: false },
       loading: false,
     });
 
-    const { ProtectedRoute } = require('./App');
+    const { ProtectedRoute } = require('../App');
 
     render(
       <BrowserRouter>
@@ -219,12 +223,12 @@ describe('ProtectedRoute Component', () => {
   });
 
   it('renders children when adminOnly is true and user is admin', () => {
-    mockUseAuth.mockReturnValue({
+    (useAuth as jest.Mock).mockReturnValue({
       user: mockAdminUser,
       loading: false,
     });
 
-    const { ProtectedRoute } = require('./App');
+    const { ProtectedRoute } = require('../App');
 
     render(
       <BrowserRouter>
@@ -242,23 +246,21 @@ describe('ProtectedRoute Component', () => {
 
 // Test PublicRoute component separately
 describe('PublicRoute Component', () => {
-  const mockUseAuth = jest.fn();
-
   beforeEach(() => {
     jest.clearAllMocks();
-    mockUseAuth.mockReturnValue({
+    (useAuth as jest.Mock).mockReturnValue({
       user: null,
       loading: false,
     });
   });
 
   it('renders children when user is not authenticated', () => {
-    mockUseAuth.mockReturnValue({
+    (useAuth as jest.Mock).mockReturnValue({
       user: null,
       loading: false,
     });
 
-    const { PublicRoute } = require('./App');
+    const { PublicRoute } = require('../App');
 
     render(
       <BrowserRouter>
@@ -274,12 +276,12 @@ describe('PublicRoute Component', () => {
   });
 
   it('renders loading spinner when loading', () => {
-    mockUseAuth.mockReturnValue({
+    (useAuth as jest.Mock).mockReturnValue({
       user: null,
       loading: true,
     });
 
-    const { PublicRoute } = require('./App');
+    const { PublicRoute } = require('../App');
 
     render(
       <BrowserRouter>
@@ -295,12 +297,12 @@ describe('PublicRoute Component', () => {
   });
 
   it('redirects to dashboard when user is authenticated', () => {
-    mockUseAuth.mockReturnValue({
+    (useAuth as jest.Mock).mockReturnValue({
       user: mockUser,
       loading: false,
     });
 
-    const { PublicRoute } = require('./App');
+    const { PublicRoute } = require('../App');
 
     render(
       <BrowserRouter>

@@ -34,7 +34,11 @@ export const encryptionKeyToBase64 = (key: Uint8Array): string => {
 
 // Convert base64 to encryption key
 export const base64ToEncryptionKey = (base64Key: string): Uint8Array => {
-  return decodeBase64(base64Key);
+  try {
+    return decodeBase64(base64Key);
+  } catch (error) {
+    throw new Error('Invalid base64 string');
+  }
 };
 
 // Encrypt a string (for metadata)

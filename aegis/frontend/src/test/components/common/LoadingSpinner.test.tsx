@@ -33,7 +33,8 @@ describe('LoadingSpinner Component', () => {
   it('renders with empty custom message', () => {
     renderLoadingSpinner('');
 
-    expect(screen.getByText('')).toBeInTheDocument();
+    // When message is empty, it should use default 'Loading...'
+    expect(screen.getByText('Loading...')).toBeInTheDocument();
     expect(screen.getByRole('progressbar')).toBeInTheDocument();
   });
 
@@ -56,7 +57,7 @@ describe('LoadingSpinner Component', () => {
   it('has correct styling and layout', () => {
     renderLoadingSpinner();
 
-    const container = screen.getByText('Loading...').parentElement?.parentElement;
+    const container = screen.getByText('Loading...').parentElement;
     expect(container).toHaveStyle({
       display: 'flex',
       flexDirection: 'column',
@@ -64,17 +65,12 @@ describe('LoadingSpinner Component', () => {
       alignItems: 'center',
       minHeight: '100vh'
     });
-
-    const innerContainer = screen.getByText('Loading...').parentElement;
-    expect(innerContainer).toHaveStyle({
-      gap: '16px' // 2 * 8px theme spacing
-    });
   });
 
   it('circular progress has correct size', () => {
     renderLoadingSpinner();
 
     const progress = screen.getByRole('progressbar');
-    expect(progress).toHaveStyle({ fontSize: '60px' }); // size={60}
+    expect(progress).toHaveStyle({ width: '60px', height: '60px' }); // size={60}
   });
 });

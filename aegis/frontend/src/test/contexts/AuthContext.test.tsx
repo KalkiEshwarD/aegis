@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MockedProvider } from '@apollo/client/testing';
 
@@ -37,15 +37,31 @@ import { LOGIN_MUTATION, REGISTER_MUTATION } from '../../apollo/queries';
 const TestComponent = () => {
   const { user, token, login, register, logout, loading } = useAuth();
 
+  const handleLogin = async () => {
+    try {
+      await login('test@example.com', 'password');
+    } catch (error) {
+      // Error is handled, don't throw
+    }
+  };
+
+  const handleRegister = async () => {
+    try {
+      await register('test@example.com', 'password');
+    } catch (error) {
+      // Error is handled, don't throw
+    }
+  };
+
   return (
     <div>
       <div data-testid="user">{user ? user.email : 'No user'}</div>
       <div data-testid="token">{token || 'No token'}</div>
       <div data-testid="loading">{loading ? 'Loading' : 'Not loading'}</div>
-      <button data-testid="login-btn" onClick={() => login('test@example.com', 'password')}>
+      <button data-testid="login-btn" onClick={handleLogin}>
         Login
       </button>
-      <button data-testid="register-btn" onClick={() => register('test@example.com', 'password')}>
+      <button data-testid="register-btn" onClick={handleRegister}>
         Register
       </button>
       <button data-testid="logout-btn" onClick={logout}>
@@ -116,6 +132,10 @@ describe('AuthContext', () => {
 
       await waitFor(() => {
         expect(screen.getByTestId('user')).toHaveTextContent('No user');
+      });
+
+      // After user parsing fails, both token and user should be cleared
+      await waitFor(() => {
         expect(screen.getByTestId('token')).toHaveTextContent('No token');
       });
 

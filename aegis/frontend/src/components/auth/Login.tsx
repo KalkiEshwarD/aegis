@@ -1,5 +1,10 @@
 import React, { useState } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useHistory } from 'react-router-dom';
+
+// Create a forwardRef RouterLink for MUI Link compatibility
+const RouterLinkRef = React.forwardRef<HTMLAnchorElement, any>((props, ref) => (
+  <RouterLink ref={ref} {...props} />
+));
 import {
   Box,
   Container,
@@ -23,7 +28,7 @@ const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   const { login } = useAuth();
-  const navigate = useNavigate();
+  const history = useHistory();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +37,7 @@ const Login: React.FC = () => {
 
     try {
       await login(email, password);
-      navigate('/dashboard');
+      history.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
@@ -121,7 +126,7 @@ const Login: React.FC = () => {
                 {loading ? 'Signing In...' : 'Sign In'}
               </Button>
               <Box textAlign="center">
-                <Link component={RouterLink} to="/register" variant="body2">
+                <Link component={RouterLinkRef} to="/register" variant="body2">
                   {"Don't have an account? Sign Up"}
                 </Link>
               </Box>

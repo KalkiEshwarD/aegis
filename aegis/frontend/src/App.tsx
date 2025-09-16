@@ -27,9 +27,9 @@ const theme = createTheme({
 });
 
 // Protected Route component
-const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean }> = ({ 
-  children, 
-  adminOnly = false 
+export const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean }> = ({
+  children,
+  adminOnly = false
 }) => {
   const { user, loading } = useAuth();
 
@@ -49,7 +49,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean 
 };
 
 // Public Route component (redirect if logged in)
-const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
 
   if (loading) {

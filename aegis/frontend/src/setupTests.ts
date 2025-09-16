@@ -1,29 +1,18 @@
-// Set up jsdom environment before anything else
-const { JSDOM } = require('jsdom');
-const dom = new JSDOM('<!doctype html><html><body></body></html>', {
-  url: 'http://localhost:3000',
-});
-global.window = dom.window;
-global.document = dom.window.document;
-global.navigator = dom.window.navigator;
-
-// Copy properties from window to global
-Object.keys(dom.window).forEach(key => {
-  if (!(key in global)) {
-    global[key] = dom.window[key];
-  }
-});
-
 // Add TextEncoder and TextDecoder for crypto operations
-import { TextEncoder, TextDecoder } from 'util';
-Object.defineProperty(global, 'TextEncoder', { value: TextEncoder });
-Object.defineProperty(global, 'TextDecoder', { value: TextDecoder });
+const { TextEncoder, TextDecoder } = require('util');
+global.TextEncoder = TextEncoder;
+global.TextDecoder = TextDecoder;
+
+// Note: Jest automatically sets up jsdom when testEnvironment is "jsdom"
+// Manual jsdom setup removed to avoid conflicts
+
+
 
 // jest-dom adds custom jest matchers for asserting on DOM nodes.
 // allows you to do things like:
 // expect(element).toHaveTextContent(/react/i)
 // learn more: https://github.com/testing-library/jest-dom
-import '@testing-library/jest-dom';
+require('@testing-library/jest-dom');
 
 // Mock localStorage
 const localStorageMock = {
@@ -36,42 +25,37 @@ Object.defineProperty(window, 'localStorage', {
   value: localStorageMock,
 });
 
-// Mock window.location
-const locationMock = {
-  href: '',
-  pathname: '/',
-  search: '',
-  hash: '',
-};
-Object.defineProperty(window, 'location', {
-  value: locationMock,
-  writable: true,
-});
-
-// Mock window.location methods
-Object.defineProperty(window, 'location', {
-  value: {
-    ...locationMock,
-    assign: jest.fn(),
-    replace: jest.fn(),
-    reload: jest.fn(),
-  },
-  writable: true,
-});
+// Keep window.location as provided by jsdom
+// Only mock specific location properties if needed for tests
 
 // Mock crypto.subtle for crypto utilities
 Object.defineProperty(window, 'crypto', {
   value: {
     subtle: {
-      digest: jest.fn(),
+      digest: jest.fn().mockImplementation(async (algorithm, data) => {
+        // Return a mock SHA-256 hash as ArrayBuffer (32 bytes)
+        const hash = new ArrayBuffer(32);
+        const view = new Uint8Array(hash);
+        // Fill with deterministic values based on data length for consistent testing
+        for (let i = 0; i < 32; i++) {
+          view[i] = (data.byteLength + i) % 256;
+        }
+        return hash;
+      }),
     },
-    getRandomValues: jest.fn(),
+    getRandomValues: jest.fn((array) => {
+      // Fill array with deterministic values for testing
+      for (let i = 0; i < array.length; i++) {
+        array[i] = (i * 7) % 256; // Deterministic pattern
+      }
+      return array;
+    }),
   },
 });
 
 // Mock FileReader for file utilities
 global.FileReader = jest.fn().mockImplementation(() => ({
-  readAsArrayBuffer: jest.fn(function() {
+  readAsArrayBuffer: jest.fn(function(file) {
     setTimeout(() => {
       if (this.onload) {
         this.result = new ArrayBuffer(8);
@@ -92,13 +76,20 @@ global.Blob = jest.fn().mockImplementation((parts, options) => ({
 }));
 
 // Mock File for file utilities
-global.File = jest.fn().mockImplementation((parts, filename, options) => ({
-  name: filename,
-  size: parts ? parts.reduce((total, part) => total + (part.length || 0), 0) : 0,
-  type: options?.type || '',
-  arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(8)),
-  text: jest.fn().mockResolvedValue('test content'),
-}));
+global.File = jest.fn().mockImplementation((parts, filename, options) => {
+  const content = parts && parts.length > 0 ? parts[0] : '';
+  const size = content ? content.length || 0 : 0;
+  const file = {
+    name: filename,
+    size: size,
+    type: options?.type || '',
+    arrayBuffer: jest.fn().mockResolvedValue(
+      content instanceof ArrayBuffer ? content : new ArrayBuffer(size || 8)
+    ),
+    text: jest.fn().mockResolvedValue(content || 'test content'),
+  };
+  return file;
+});
 
 // Mock URL for file utilities
 global.URL = {
@@ -106,23 +97,19 @@ global.URL = {
   revokeObjectURL: jest.fn(),
 };
 
-// Mock document methods for file download
-Object.defineProperty(document, 'createElement', {
-  value: jest.fn(() => ({
-    href: '',
-    download: '',
-    click: jest.fn(),
-    style: { display: '' },
-  })),
+// Mock Apollo Client functions
+jest.mock('@apollo/client', () => {
+  const actual = jest.requireActual('@apollo/client');
+  return {
+    ...actual,
+    setContext: jest.fn(() => ({ type: 'context' })),
+    onError: jest.fn(() => ({ type: 'error' })),
+    createHttpLink: jest.fn(() => ({ type: 'http' })),
+  };
 });
 
-Object.defineProperty(document.body, 'appendChild', {
-  value: jest.fn(),
-});
-
-Object.defineProperty(document.body, 'removeChild', {
-  value: jest.fn(),
-});
+// Keep document methods as provided by jsdom
+// Only mock specific methods if needed for file download tests
 
 // Reset all mocks before each test
 beforeEach(() => {
@@ -131,5 +118,4 @@ beforeEach(() => {
   localStorageMock.setItem.mockClear();
   localStorageMock.removeItem.mockClear();
   localStorageMock.clear.mockClear();
-  locationMock.href = '';
 });
