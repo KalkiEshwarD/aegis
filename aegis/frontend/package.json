@@ -6,22 +6,22 @@
     "@apollo/client": "^3.14.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
-    "@mui/icons-material": "^7.3.2",
-    "@mui/material": "^7.3.2",
+    "@mui/icons-material": "^5.15.0",
+    "@mui/material": "^5.15.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.8.0",
-    "@testing-library/react": "^16.3.0",
+    "@testing-library/react": "^12.1.5",
     "@testing-library/user-event": "^13.5.0",
     "@types/jest": "^27.5.2",
     "@types/node": "^16.18.126",
-    "@types/react": "^19.1.13",
-    "@types/react-dom": "^19.1.9",
+    "@types/react": "^17.0.48",
+    "@types/react-dom": "^17.0.17",
     "@types/react-router-dom": "^5.3.3",
     "graphql": "^16.11.0",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
     "react-dropzone": "^14.3.8",
-    "react-router-dom": "^7.9.1",
+    "react-router-dom": "^5.3.3",
     "react-scripts": "5.0.1",
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1",
@@ -40,6 +40,9 @@
       "react-app/jest"
     ]
   },
+  "jest": {
+    "setupFiles": ["<rootDir>/src/setupTests.ts"]
+  },
   "browserslist": {
     "production": [
       ">0.2%",
@@ -51,5 +54,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "jsdom": "^27.0.0"
   }
 }
