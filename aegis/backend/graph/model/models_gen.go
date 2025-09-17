@@ -56,6 +56,10 @@ type RegisterInput struct {
 	Password string `json:"password"`
 }
 
+type UploadFileFromMapInput struct {
+	Data string `json:"data"`
+}
+
 type UploadFileInput struct {
 	Filename     string         `json:"filename"`
 	ContentHash  string         `json:"content_hash"`

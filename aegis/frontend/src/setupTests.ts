@@ -55,7 +55,7 @@ Object.defineProperty(window, 'crypto', {
 
 // Mock FileReader for file utilities
 global.FileReader = jest.fn().mockImplementation(() => ({
-  readAsArrayBuffer: jest.fn(function(file) {
+  readAsArrayBuffer: jest.fn(function(this: any, file) {
     setTimeout(() => {
       if (this.onload) {
         this.result = new ArrayBuffer(8);

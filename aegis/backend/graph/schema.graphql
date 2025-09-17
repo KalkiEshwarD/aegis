@@ -86,6 +86,11 @@ input UploadFileInput {
   file_data: Upload!
 }
 
+# Generic input for map-based uploads (solves map[string]interface{} conversion issue)
+input UploadFileFromMapInput {
+  data: String! # JSON string containing upload data
+}
+
 input FileFilterInput {
   filename: String
   mime_type: String
@@ -147,6 +152,7 @@ type Mutation {
   
   # File operations
   uploadFile(input: UploadFileInput!): UserFile!
+  uploadFileFromMap(input: UploadFileFromMapInput!): UserFile! # Solution for map conversion
   deleteFile(id: ID!): Boolean!
   downloadFile(id: ID!): String! # Returns download URL
   

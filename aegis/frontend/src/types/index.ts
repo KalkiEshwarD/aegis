@@ -14,7 +14,7 @@ export interface AuthPayload {
 }
 
 // File types
-export interface File {
+export interface FileMetadata {
   id: string;
   content_hash: string;
   size_bytes: number;
@@ -30,7 +30,7 @@ export interface UserFile {
   created_at: string;
   updated_at: string;
   user?: User;
-  file?: File;
+  file?: FileMetadata;
 }
 
 // Room types

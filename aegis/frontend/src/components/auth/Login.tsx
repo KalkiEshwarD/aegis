@@ -1,10 +1,5 @@
 import React, { useState } from 'react';
-import { Link as RouterLink, useHistory } from 'react-router-dom';
-
-// Create a forwardRef RouterLink for MUI Link compatibility
-const RouterLinkRef = React.forwardRef<HTMLAnchorElement, any>((props, ref) => (
-  <RouterLink ref={ref} {...props} />
-));
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
   Box,
   Container,
@@ -20,6 +15,11 @@ import {
 import { Visibility, VisibilityOff, Lock, Email } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 
+// Create a forwardRef RouterLink for MUI Link compatibility
+const RouterLinkRef = React.forwardRef<HTMLAnchorElement, any>((props, ref) => (
+  <RouterLink ref={ref} {...props} />
+));
+
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,7 +28,7 @@ const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   const { login } = useAuth();
-  const history = useHistory();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +37,7 @@ const Login: React.FC = () => {
 
     try {
       await login(email, password);
-      history.push('/dashboard');
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {

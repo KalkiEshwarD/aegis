@@ -19,7 +19,7 @@ Object.defineProperty(global, 'File', {
 
 Object.defineProperty(global, 'FileReader', {
   value: jest.fn().mockImplementation(() => ({
-    readAsArrayBuffer: jest.fn(function(file) {
+    readAsArrayBuffer: jest.fn(function(this: any, file) {
       setTimeout(() => {
         if (this.onload) {
           this.result = new ArrayBuffer(8);
@@ -257,7 +257,7 @@ describe('Crypto Utils', () => {
         onerror: null,
         result: new ArrayBuffer(fileContent.length),
       };
-      mockReader.readAsArrayBuffer.mockImplementation(function() {
+      mockReader.readAsArrayBuffer.mockImplementation(function(this: any) {
         setTimeout(() => {
           if (this.onload) {
             this.onload();

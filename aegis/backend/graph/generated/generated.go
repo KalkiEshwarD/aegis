@@ -85,6 +85,7 @@ type ComplexityRoot struct {
 		RemoveRoomMember   func(childComplexity int, roomID string, userID string) int
 		ShareFileToRoom    func(childComplexity int, userFileID string, roomID string) int
 		UploadFile         func(childComplexity int, input model.UploadFileInput) int
+		UploadFileFromMap  func(childComplexity int, input model.UploadFileFromMapInput) int
 	}
 
 	Query struct {
@@ -155,6 +156,7 @@ type MutationResolver interface {
 	Register(ctx context.Context, input model.RegisterInput) (*model.AuthPayload, error)
 	Login(ctx context.Context, input model.LoginInput) (*model.AuthPayload, error)
 	UploadFile(ctx context.Context, input model.UploadFileInput) (*models.UserFile, error)
+	UploadFileFromMap(ctx context.Context, input model.UploadFileFromMapInput) (*models.UserFile, error)
 	DeleteFile(ctx context.Context, id string) (bool, error)
 	DownloadFile(ctx context.Context, id string) (string, error)
 	CreateRoom(ctx context.Context, input model.CreateRoomInput) (*models.Room, error)
@@ -180,9 +182,6 @@ type RoomResolver interface {
 	ID(ctx context.Context, obj *models.Room) (string, error)
 
 	CreatorID(ctx context.Context, obj *models.Room) (string, error)
-
-	Members(ctx context.Context, obj *models.Room) ([]*models.RoomMember, error)
-	Files(ctx context.Context, obj *models.Room) ([]*models.UserFile, error)
 }
 type RoomMemberResolver interface {
 	ID(ctx context.Context, obj *models.RoomMember) (string, error)
@@ -412,6 +411,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.UploadFile(childComplexity, args["input"].(model.UploadFileInput)), true
+	case "Mutation.uploadFileFromMap":
+		if e.complexity.Mutation.UploadFileFromMap == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_uploadFileFromMap_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UploadFileFromMap(childComplexity, args["input"].(model.UploadFileFromMapInput)), true
 
 	case "Query.adminDashboard":
 		if e.complexity.Query.AdminDashboard == nil {
@@ -694,6 +704,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputFileFilterInput,
 		ec.unmarshalInputLoginInput,
 		ec.unmarshalInputRegisterInput,
+		ec.unmarshalInputUploadFileFromMapInput,
 		ec.unmarshalInputUploadFileInput,
 	)
 	first := true
@@ -880,6 +891,11 @@ input UploadFileInput {
   file_data: Upload!
 }
 
+# Generic input for map-based uploads (solves map[string]interface{} conversion issue)
+input UploadFileFromMapInput {
+  data: String! # JSON string containing upload data
+}
+
 input FileFilterInput {
   filename: String
   mime_type: String
@@ -941,6 +957,7 @@ type Mutation {
   
   # File operations
   uploadFile(input: UploadFileInput!): UserFile!
+  uploadFileFromMap(input: UploadFileFromMapInput!): UserFile! # Solution for map conversion
   deleteFile(id: ID!): Boolean!
   downloadFile(id: ID!): String! # Returns download URL
   
@@ -1096,6 +1113,17 @@ func (ec *executionContext) field_Mutation_shareFileToRoom_args(ctx context.Cont
 		return nil, err
 	}
 	args["room_id"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_uploadFileFromMap_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUploadFileFromMapInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐUploadFileFromMapInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -1650,6 +1678,67 @@ func (ec *executionContext) fieldContext_Mutation_uploadFile(ctx context.Context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_uploadFile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_uploadFileFromMap(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_uploadFileFromMap,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().UploadFileFromMap(ctx, fc.Args["input"].(model.UploadFileFromMapInput))
+		},
+		nil,
+		ec.marshalNUserFile2ᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUserFile,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_uploadFileFromMap(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_UserFile_id(ctx, field)
+			case "user_id":
+				return ec.fieldContext_UserFile_user_id(ctx, field)
+			case "file_id":
+				return ec.fieldContext_UserFile_file_id(ctx, field)
+			case "filename":
+				return ec.fieldContext_UserFile_filename(ctx, field)
+			case "mime_type":
+				return ec.fieldContext_UserFile_mime_type(ctx, field)
+			case "created_at":
+				return ec.fieldContext_UserFile_created_at(ctx, field)
+			case "updated_at":
+				return ec.fieldContext_UserFile_updated_at(ctx, field)
+			case "user":
+				return ec.fieldContext_UserFile_user(ctx, field)
+			case "file":
+				return ec.fieldContext_UserFile_file(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type UserFile", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_uploadFileFromMap_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -2713,9 +2802,7 @@ func (ec *executionContext) _Room_members(ctx context.Context, field graphql.Col
 		ec.OperationContext,
 		field,
 		ec.fieldContext_Room_members,
-		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Room().Members(ctx, obj)
-		},
+		func(ctx context.Context) (any, error) { return obj.Members, nil },
 		nil,
 		ec.marshalNRoomMember2ᚕᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐRoomMemberᚄ,
 		true,
@@ -2727,8 +2814,8 @@ func (ec *executionContext) fieldContext_Room_members(_ context.Context, field g
 	fc = &graphql.FieldContext{
 		Object:     "Room",
 		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
+		IsMethod:   false,
+		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "id":
@@ -2758,9 +2845,7 @@ func (ec *executionContext) _Room_files(ctx context.Context, field graphql.Colle
 		ec.OperationContext,
 		field,
 		ec.fieldContext_Room_files,
-		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Room().Files(ctx, obj)
-		},
+		func(ctx context.Context) (any, error) { return obj.Files, nil },
 		nil,
 		ec.marshalNUserFile2ᚕᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUserFileᚄ,
 		true,
@@ -2772,8 +2857,8 @@ func (ec *executionContext) fieldContext_Room_files(_ context.Context, field gra
 	fc = &graphql.FieldContext{
 		Object:     "Room",
 		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
+		IsMethod:   false,
+		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "id":
@@ -5193,6 +5278,33 @@ func (ec *executionContext) unmarshalInputRegisterInput(ctx context.Context, obj
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUploadFileFromMapInput(ctx context.Context, obj any) (model.UploadFileFromMapInput, error) {
+	var it model.UploadFileFromMapInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"data"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "data":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("data"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Data = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUploadFileInput(ctx context.Context, obj any) (model.UploadFileInput, error) {
 	var it model.UploadFileInput
 	asMap := map[string]any{}
@@ -5482,6 +5594,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "uploadFile":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_uploadFile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "uploadFileFromMap":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_uploadFileFromMap(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -5913,77 +6032,15 @@ func (ec *executionContext) _Room(ctx context.Context, sel ast.SelectionSet, obj
 		case "creator":
 			out.Values[i] = ec._Room_creator(ctx, field, obj)
 		case "members":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Room_members(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
+			out.Values[i] = ec._Room_members(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
 			}
-
-			if field.Deferrable != nil {
-				dfs, ok := deferred[field.Deferrable.Label]
-				di := 0
-				if ok {
-					dfs.AddField(field)
-					di = len(dfs.Values) - 1
-				} else {
-					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
-					deferred[field.Deferrable.Label] = dfs
-				}
-				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
-					return innerFunc(ctx, dfs)
-				})
-
-				// don't run the out.Concurrently() call below
-				out.Values[i] = graphql.Null
-				continue
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "files":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Room_files(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
+			out.Values[i] = ec._Room_files(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
 			}
-
-			if field.Deferrable != nil {
-				dfs, ok := deferred[field.Deferrable.Label]
-				di := 0
-				if ok {
-					dfs.AddField(field)
-					di = len(dfs.Values) - 1
-				} else {
-					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
-					deferred[field.Deferrable.Label] = dfs
-				}
-				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
-					return innerFunc(ctx, dfs)
-				})
-
-				// don't run the out.Concurrently() call below
-				out.Values[i] = graphql.Null
-				continue
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -7100,6 +7157,11 @@ func (ec *executionContext) marshalNUpload2githubᚗcomᚋ99designsᚋgqlgenᚋg
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNUploadFileFromMapInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐUploadFileFromMapInput(ctx context.Context, v any) (model.UploadFileFromMapInput, error) {
+	res, err := ec.unmarshalInputUploadFileFromMapInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNUploadFileInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐUploadFileInput(ctx context.Context, v any) (model.UploadFileInput, error) {

@@ -5,12 +5,12 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 
 // Mock the dependencies first
 const mockLogin = jest.fn();
-const mockHistory = { push: jest.fn() };
+const mockNavigate = jest.fn();
 
 // Mock react-router-dom
 jest.mock('react-router-dom', () => ({
   Link: ({ children, to, ...props }: any) => <a href={to} {...props}>{children}</a>,
-  useHistory: () => mockHistory,
+  useNavigate: () => mockNavigate,
 }));
 
 // Mock the AuthContext
@@ -110,7 +110,7 @@ describe('Login Component', () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(mockHistory.push).toHaveBeenCalledWith('/dashboard');
+      expect(mockNavigate).toHaveBeenCalledWith('/dashboard');
     });
   });
 

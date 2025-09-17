@@ -44,12 +44,48 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Skip authentication for certain endpoints
 		path := c.Request.URL.Path
-		if path == "/health" || (c.Request.Method == "POST" && isPublicQuery(c)) {
+		if path == "/health" {
 			c.Next()
 			return
 		}
 
-		// Extract token from Authorization header
+		// For GraphQL requests, handle authentication at resolver level
+		if path == "/graphql" {
+			// Check if Authorization header is present
+			authHeader := c.GetHeader("Authorization")
+			if authHeader != "" {
+				// Expect "Bearer <token>"
+				bearerToken := strings.Split(authHeader, " ")
+				if len(bearerToken) == 2 && bearerToken[0] == "Bearer" {
+					tokenString := bearerToken[1]
+
+					// Parse and validate token
+					token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+						if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+							return nil, jwt.ErrSignatureInvalid
+						}
+						return []byte(cfg.JWTSecret), nil
+					})
+
+					if err == nil {
+						if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+							// Verify user still exists
+							var user models.User
+							if err := database.GetDB().First(&user, claims.UserID).Error; err == nil {
+								// Add user to context for GraphQL resolvers
+								ctx := context.WithValue(c.Request.Context(), "user", &user)
+								c.Request = c.Request.WithContext(ctx)
+							}
+						}
+					}
+				}
+			}
+			// Always allow GraphQL requests to proceed - authentication handled at resolver level
+			c.Next()
+			return
+		}
+
+		// For other endpoints, require authentication
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
@@ -90,7 +126,7 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 				return
 			}
 
-			// Add user to context for GraphQL resolvers
+			// Add user to context for handlers
 			ctx := context.WithValue(c.Request.Context(), "user", &user)
 			c.Request = c.Request.WithContext(ctx)
 		} else {
@@ -105,8 +141,8 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 
 // isPublicQuery checks if the GraphQL query is public (login/register)
 func isPublicQuery(c *gin.Context) bool {
-	// This is a simplified check - in production you might want to parse the actual GraphQL query
-	// For now, we'll allow all POST requests to /graphql and handle auth in resolvers
+	// For integration tests, allow all GraphQL requests to be processed
+	// Authentication will be handled at the resolver level
 	return c.Request.URL.Path == "/graphql"
 }
 

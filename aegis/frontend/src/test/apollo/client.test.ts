@@ -1,4 +1,6 @@
-import { ApolloClient, InMemoryCache, createHttpLink, setContext, onError } from '@apollo/client';
+import { ApolloClient, InMemoryCache, createHttpLink } from '@apollo/client';
+import { setContext } from '@apollo/client/link/context';
+import { onError } from '@apollo/client/link/error';
 
 // Mock the client module
 jest.mock('../../apollo/client', () => ({

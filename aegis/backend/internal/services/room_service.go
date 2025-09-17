@@ -75,6 +75,8 @@ func (rs *RoomService) GetRoom(roomID, userID uint) (*models.Room, error) {
 	var room models.Room
 	err := db.Preload("Creator").
 		Preload("Members.User").
+		Preload("Files.User").
+		Preload("Files.File").
 		First(&room, roomID).Error
 
 	if err != nil {

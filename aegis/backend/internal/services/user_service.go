@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -27,6 +28,14 @@ func NewUserService(cfg *config.Config) *UserService {
 
 // Register creates a new user account
 func (s *UserService) Register(email, password string) (*models.User, string, error) {
+	// Validate email
+	if email == "" {
+		return nil, "", errors.New("email is required")
+	}
+	if !strings.Contains(email, "@") || !strings.Contains(email, ".") {
+		return nil, "", errors.New("invalid email format")
+	}
+
 	// Validate password
 	if len(password) < 6 {
 		return nil, "", errors.New("password must be at least 6 characters long")
@@ -48,7 +57,7 @@ func (s *UserService) Register(email, password string) (*models.User, string, er
 	user := &models.User{
 		Email:        email,
 		PasswordHash: string(hashedPassword),
-		StorageQuota: 10485760, // 10MB default
+		StorageQuota: 104857600, // 100MB default
 		UsedStorage:  0,
 		IsAdmin:      false,
 	}

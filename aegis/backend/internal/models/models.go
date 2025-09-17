@@ -57,7 +57,9 @@ type Room struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Associations
-	Creator User `gorm:"foreignKey:CreatorID" json:"creator,omitempty"`
+	Creator User         `gorm:"foreignKey:CreatorID" json:"creator,omitempty"`
+	Members []*RoomMember `gorm:"foreignKey:RoomID" json:"members,omitempty"`
+	Files   []*UserFile   `gorm:"many2many:room_files;joinForeignKey:RoomID;joinReferences:UserFileID" json:"files,omitempty"`
 }
 
 // RoomMember represents a user's membership and role in a room

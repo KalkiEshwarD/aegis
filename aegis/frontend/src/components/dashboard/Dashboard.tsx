@@ -1,24 +1,44 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Container,
   AppBar,
   Toolbar,
   Typography,
-  Button,
   IconButton,
   Menu,
   MenuItem,
-  Avatar
+  Avatar,
+  Grid,
+  Paper,
+  Card,
+  CardContent,
 } from '@mui/material';
-import { AccountCircle, ExitToApp, AdminPanelSettings } from '@mui/icons-material';
+import {
+  AccountCircle,
+  ExitToApp,
+  AdminPanelSettings,
+  CloudUpload as CloudUploadIcon,
+  Folder as FolderIcon,
+  Storage as StorageIcon,
+} from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@apollo/client';
+import { GET_MY_STATS } from '../../apollo/queries';
+import FileUploadDropzone from '../common/FileUploadDropzone';
+import FileTable from '../common/FileTable';
+import { formatFileSize } from '../../utils/crypto';
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const { data: statsData, loading: statsLoading } = useQuery(GET_MY_STATS, {
+    fetchPolicy: 'cache-and-network',
+  });
 
   const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -36,6 +56,16 @@ const Dashboard: React.FC = () => {
   const handleAdminPanel = () => {
     navigate('/admin');
     handleClose();
+  };
+
+  const handleUploadComplete = () => {
+    // Trigger refresh of file list and stats
+    setRefreshTrigger(prev => prev + 1);
+  };
+
+  const handleFileDeleted = () => {
+    // Trigger refresh of file list and stats
+    setRefreshTrigger(prev => prev + 1);
   };
 
   return (
@@ -98,23 +128,107 @@ const Dashboard: React.FC = () => {
         <Typography variant="h4" gutterBottom>
           Dashboard
         </Typography>
-        
-        <Typography variant="body1" color="textSecondary">
+
+        <Typography variant="body1" color="textSecondary" sx={{ mb: 4 }}>
           Welcome to your secure file vault! Upload, manage, and share your files with end-to-end encryption.
         </Typography>
 
-        {/* TODO: Add file upload, file list, and other dashboard components */}
-        <Box sx={{ mt: 4 }}>
+        {/* Stats Cards */}
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Box display="flex" alignItems="center">
+                  <FolderIcon color="primary" sx={{ mr: 1 }} />
+                  <Box>
+                    <Typography variant="h6">
+                      {statsLoading ? '...' : statsData?.myStats?.total_files || 0}
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      Total Files
+                    </Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Box display="flex" alignItems="center">
+                  <StorageIcon color="secondary" sx={{ mr: 1 }} />
+                  <Box>
+                    <Typography variant="h6">
+                      {statsLoading ? '...' : formatFileSize(statsData?.myStats?.used_storage || 0)}
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      Storage Used
+                    </Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Box display="flex" alignItems="center">
+                  <CloudUploadIcon color="success" sx={{ mr: 1 }} />
+                  <Box>
+                    <Typography variant="h6">
+                      {statsLoading ? '...' : formatFileSize(statsData?.myStats?.storage_quota || 0)}
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      Storage Quota
+                    </Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Box display="flex" alignItems="center">
+                  <StorageIcon color="info" sx={{ mr: 1 }} />
+                  <Box>
+                    <Typography variant="h6">
+                      {statsLoading ? '...' : `${Math.round((statsData?.myStats?.storage_savings || 0) / 1024)}KB`}
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      Space Saved
+                    </Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+
+        {/* File Upload Section */}
+        <Paper sx={{ p: 3, mb: 4 }}>
           <Typography variant="h6" gutterBottom>
-            Quick Stats
+            Upload Files
           </Typography>
-          <Typography variant="body2">
-            Storage Used: {user?.used_storage} / {user?.storage_quota} bytes
+          <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+            Drag and drop files here or click to browse. Files are encrypted before upload.
           </Typography>
-          <Typography variant="body2">
-            Account Type: {user?.is_admin ? 'Administrator' : 'User'}
+          <FileUploadDropzone onUploadComplete={handleUploadComplete} />
+        </Paper>
+
+        {/* File List Section */}
+        <Paper sx={{ p: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            Your Files
           </Typography>
-        </Box>
+          <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+            Manage your encrypted files. Click download to decrypt and save locally.
+          </Typography>
+          <FileTable onFileDeleted={handleFileDeleted} key={refreshTrigger} />
+        </Paper>
       </Container>
     </Box>
   );
