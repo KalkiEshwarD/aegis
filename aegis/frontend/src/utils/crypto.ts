@@ -80,11 +80,14 @@ export const calculateFileHash = async (file: File): Promise<string> => {
 
 // Convert file to Uint8Array
 export const fileToUint8Array = (file: File): Promise<Uint8Array> => {
+  console.log(`DEBUG: Converting file ${file.name} to Uint8Array, size: ${file.size} bytes`);
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       if (reader.result instanceof ArrayBuffer) {
-        resolve(new Uint8Array(reader.result));
+        const uint8Array = new Uint8Array(reader.result);
+        console.log(`DEBUG: File converted to Uint8Array, length: ${uint8Array.length} bytes`);
+        resolve(uint8Array);
       } else {
         reject(new Error('Failed to read file as ArrayBuffer'));
       }
@@ -122,10 +125,25 @@ export const formatFileSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
+// Convert Uint8Array to base64 without causing stack overflow
+export const uint8ArrayToBase64 = (uint8Array: Uint8Array): string => {
+  // Process in chunks to avoid stack overflow with large arrays
+  const chunkSize = 8192; // 8KB chunks
+  let result = '';
+
+  for (let i = 0; i < uint8Array.length; i += chunkSize) {
+    const chunk = uint8Array.slice(i, i + chunkSize);
+    const binaryString = String.fromCharCode.apply(null, Array.from(chunk));
+    result += binaryString;
+  }
+
+  return btoa(result);
+};
+
 // Get MIME type from file extension
 export const getMimeTypeFromExtension = (filename: string): string => {
   const extension = filename.split('.').pop()?.toLowerCase();
-  
+
   const mimeTypes: { [key: string]: string } = {
     // Images
     jpg: 'image/jpeg',
@@ -134,7 +152,7 @@ export const getMimeTypeFromExtension = (filename: string): string => {
     gif: 'image/gif',
     webp: 'image/webp',
     svg: 'image/svg+xml',
-    
+
     // Documents
     pdf: 'application/pdf',
     doc: 'application/msword',
@@ -143,19 +161,19 @@ export const getMimeTypeFromExtension = (filename: string): string => {
     xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     ppt: 'application/vnd.ms-powerpoint',
     pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    
+
     // Text
     txt: 'text/plain',
     csv: 'text/csv',
     json: 'application/json',
     xml: 'application/xml',
-    
+
     // Archives
     zip: 'application/zip',
     rar: 'application/x-rar-compressed',
     tar: 'application/x-tar',
     gz: 'application/gzip',
-    
+
     // Media
     mp3: 'audio/mpeg',
     wav: 'audio/wav',
@@ -163,6 +181,6 @@ export const getMimeTypeFromExtension = (filename: string): string => {
     avi: 'video/x-msvideo',
     mov: 'video/quicktime'
   };
-  
+
   return mimeTypes[extension || ''] || 'application/octet-stream';
 };

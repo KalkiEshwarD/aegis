@@ -109,6 +109,10 @@ func (r *mutationResolver) UploadFile(ctx context.Context, input model.UploadFil
 // UploadFileFromMap is the resolver for the uploadFileFromMap field.
 // This solves the "map[string]interface {} is not an Upload" error using JSON unmarshaling
 func (r *mutationResolver) UploadFileFromMap(ctx context.Context, input model.UploadFileFromMapInput) (*models.UserFile, error) {
+	// Add debug logging
+	fmt.Printf("DEBUG: UploadFileFromMap called with input: %+v\n", input)
+	fmt.Printf("DEBUG: Input data length: %d characters\n", len(input.Data))
+
 	user, err := middleware.GetUserFromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("unauthenticated: %w", err)
@@ -119,6 +123,18 @@ func (r *mutationResolver) UploadFileFromMap(ctx context.Context, input model.Up
 	err = json.Unmarshal([]byte(input.Data), &uploadData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse upload data JSON: %w", err)
+	}
+
+	// Get map keys for logging
+	var keys []string
+	for k := range uploadData {
+		keys = append(keys, k)
+	}
+	fmt.Printf("DEBUG: Parsed upload data keys: %v\n", keys)
+
+	// Log file data size if present
+	if fileData, ok := uploadData["file_data"].(string); ok {
+		fmt.Printf("DEBUG: File data base64 length: %d characters\n", len(fileData))
 	}
 
 	// Check storage quota - extract size from the map
@@ -528,6 +544,21 @@ func (r *userFileResolver) UserID(ctx context.Context, obj *models.UserFile) (st
 // FileID is the resolver for the file_id field.
 func (r *userFileResolver) FileID(ctx context.Context, obj *models.UserFile) (string, error) {
 	return fmt.Sprintf("%d", obj.FileID), nil
+}
+
+// EncryptionKey is the resolver for the encryption_key field.
+func (r *userFileResolver) EncryptionKey(ctx context.Context, obj *models.UserFile) (string, error) {
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return "", fmt.Errorf("unauthenticated: %w", err)
+	}
+
+	// Ensure the user owns this file
+	if user.ID != obj.UserID {
+		return "", fmt.Errorf("access denied: file does not belong to user")
+	}
+
+	return obj.EncryptionKey, nil
 }
 
 // File returns generated.FileResolver implementation.

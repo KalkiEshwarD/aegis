@@ -17,6 +17,7 @@ import (
 	"github.com/balkanid/aegis-backend/graph/generated"
 	"github.com/balkanid/aegis-backend/internal/config"
 	"github.com/balkanid/aegis-backend/internal/database"
+	"github.com/balkanid/aegis-backend/internal/handlers"
 	"github.com/balkanid/aegis-backend/internal/middleware"
 	"github.com/balkanid/aegis-backend/internal/services"
 )
@@ -46,6 +47,9 @@ func main() {
 	userService := services.NewUserService(cfg)
 	roomService := services.NewRoomService()
 	adminService := services.NewAdminService()
+
+	// Initialize handlers
+	fileHandler := handlers.NewFileHandler(fileService)
 
 	// Initialize GraphQL resolver
 	resolver := &graph.Resolver{
@@ -80,6 +84,9 @@ func main() {
 	// GraphQL endpoint with authentication middleware
 	r.POST("/graphql", middleware.AuthMiddleware(cfg), gin.WrapH(srv))
 	r.GET("/graphql", middleware.AuthMiddleware(cfg), gin.WrapH(srv))
+
+	// File download endpoint with authentication middleware
+	r.GET("/api/files/:id/download", middleware.AuthMiddleware(cfg), fileHandler.DownloadFile)
 
 	// Start server
 	port := cfg.Port

@@ -3,11 +3,13 @@ package services
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"strings"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -59,13 +61,14 @@ func NewFileService(cfg *config.Config) *FileService {
 // This solves the "map[string]interface {} is not an Upload" error using JSON unmarshaling
 func (fs *FileService) UploadFileFromMap(userID uint, data map[string]interface{}) (*models.UserFile, error) {
 	// Define a temporary struct that matches the expected JSON structure
+	// Note: JSON numbers are float64, so we need to handle that
 	type UploadData struct {
-		Filename     string `json:"filename"`
-		MimeType     string `json:"mime_type"`
-		SizeBytes    int64  `json:"size_bytes"`
-		ContentHash  string `json:"content_hash"`
-		EncryptedKey string `json:"encrypted_key"`
-		FileData     []byte `json:"file_data,omitempty"` // For base64 encoded file data
+		Filename     string  `json:"filename"`
+		MimeType     string  `json:"mime_type"`
+		SizeBytes    float64 `json:"size_bytes"` // Use float64 for JSON compatibility
+		ContentHash  string  `json:"content_hash"`
+		EncryptedKey string  `json:"encrypted_key"`
+		FileData     string  `json:"file_data,omitempty"` // Base64 encoded file data as string
 	}
 
 	// Convert map to JSON bytes
@@ -81,14 +84,21 @@ func (fs *FileService) UploadFileFromMap(userID uint, data map[string]interface{
 		return nil, fmt.Errorf("failed to unmarshal upload data: %w", err)
 	}
 
-	// Convert file data if it's base64 encoded
+	// Convert base64 file data to bytes
 	var fileReader io.Reader
-	if len(uploadData.FileData) > 0 {
-		fileReader = bytes.NewReader(uploadData.FileData)
+	if uploadData.FileData != "" {
+		// Decode base64 to get the actual file bytes
+		decodedData, err := base64.StdEncoding.DecodeString(uploadData.FileData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode base64 file data: %w", err)
+		}
+		fileReader = bytes.NewReader(decodedData)
 	} else {
-		// If no file data in map, this might be for metadata-only operations
 		return nil, fmt.Errorf("file data is required for upload")
 	}
+
+	// Convert float64 size to int64
+	sizeBytes := int64(uploadData.SizeBytes)
 
 	// Now call the existing UploadFile method with the converted data
 	return fs.UploadFile(
@@ -98,7 +108,7 @@ func (fs *FileService) UploadFileFromMap(userID uint, data map[string]interface{
 		uploadData.ContentHash,
 		uploadData.EncryptedKey,
 		fileReader,
-		uploadData.SizeBytes,
+		sizeBytes,
 	)
 }
 
@@ -124,13 +134,13 @@ func (fs *FileService) ensureBucketExists() {
 func (fs *FileService) UploadFile(userID uint, filename, mimeType, contentHash, encryptionKey string, fileData io.Reader, sizeBytes int64) (*models.UserFile, error) {
 	db := database.GetDB()
 
-	// Check if file with this hash already exists
+	// Check if file with this hash already exists (including soft-deleted)
 	var existingFile models.File
-	err := db.Where("content_hash = ?", contentHash).First(&existingFile).Error
+	err := db.Unscoped().Where("content_hash = ?", contentHash).First(&existingFile).Error
 
 	var file *models.File
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		// File doesn't exist
+		// File doesn't exist at all
 		var storagePath string
 
 		// Only upload to MinIO if it's configured
@@ -172,11 +182,33 @@ func (fs *FileService) UploadFile(userID uint, filename, mimeType, contentHash, 
 	} else if err != nil {
 		return nil, fmt.Errorf("database error: %w", err)
 	} else {
-		// File already exists, use existing record
+		// File exists (either active or soft-deleted)
+		if existingFile.DeletedAt.Valid {
+			// File is soft-deleted, restore it
+			existingFile.DeletedAt = gorm.DeletedAt{}
+			if err := db.Unscoped().Save(&existingFile).Error; err != nil {
+				return nil, fmt.Errorf("failed to restore soft-deleted file: %w", err)
+			}
+		}
+		// Use the existing/restored file record
 		file = &existingFile
 	}
 
-	// Create user_file record
+	// Check if user already has this file (user-level duplicate prevention)
+	var existingUserFile models.UserFile
+	err = db.Where("user_id = ? AND file_id = ?", userID, file.ID).First(&existingUserFile).Error
+
+	if err == nil {
+		// User already has this file - return the existing record
+		// Load associations
+		db.Preload("User").Preload("File").First(&existingUserFile, existingUserFile.ID)
+		return &existingUserFile, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		// Database error
+		return nil, fmt.Errorf("database error checking for existing user file: %w", err)
+	}
+
+	// User doesn't have this file yet - create new user_file record
 	userFile := &models.UserFile{
 		UserID:        userID,
 		FileID:        file.ID,
@@ -282,25 +314,8 @@ func (fs *FileService) GetFileDownloadURL(userID, userFileID uint) (string, erro
 		return "", fmt.Errorf("file not found: %w", err)
 	}
 
-	// Generate download URL
-	var downloadURL string
-	if fs.minioClient != nil {
-		// Generate presigned URL (valid for 1 hour)
-		url, err := fs.minioClient.PresignedGetObject(
-			context.Background(),
-			fs.bucketName,
-			userFile.File.StoragePath,
-			3600, // 1 hour
-			nil,
-		)
-		if err != nil {
-			return "", fmt.Errorf("failed to generate download URL: %w", err)
-		}
-		downloadURL = url.String()
-	} else {
-		// For tests without MinIO, return a mock URL
-		downloadURL = fmt.Sprintf("mock://download/%d/%d", userID, userFileID)
-	}
+	// Generate download URL - use backend proxy instead of presigned URL
+	downloadURL := fmt.Sprintf("http://localhost:8080/api/files/%d/download", userFileID)
 
 	// Log download event
 	downloadLog := &models.DownloadLog{
@@ -357,6 +372,34 @@ func (fs *FileService) GetFile(userID, userFileID uint) ([]byte, string, error) 
 	database.GetDB().Create(downloadLog)
 
 	return fileContent, userFile.MimeType, nil
+}
+
+// StreamFile returns a reader for the file content (for direct streaming)
+func (fs *FileService) StreamFile(userID, userFileID uint) (io.ReadCloser, string, error) {
+	db := database.GetDB()
+
+	// Verify user owns the file
+	var userFile models.UserFile
+	if err := db.Preload("File").Where("id = ? AND user_id = ?", userFileID, userID).First(&userFile).Error; err != nil {
+		return nil, "", fmt.Errorf("file not found: %w", err)
+	}
+
+	// Get file from MinIO
+	if fs.minioClient != nil {
+		object, err := fs.minioClient.GetObject(
+			context.Background(),
+			fs.bucketName,
+			userFile.File.StoragePath,
+			minio.GetObjectOptions{},
+		)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get file from storage: %w", err)
+		}
+		return object, userFile.MimeType, nil
+	} else {
+		// For tests without MinIO, return mock content
+		return io.NopCloser(strings.NewReader(fmt.Sprintf("Mock file content for %s", userFile.Filename))), userFile.MimeType, nil
+	}
 }
 
 // GetAllFiles returns all files in the system (admin only)

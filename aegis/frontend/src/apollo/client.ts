@@ -2,9 +2,14 @@ import { ApolloClient, InMemoryCache, createHttpLink, from } from '@apollo/clien
 import { setContext } from '@apollo/client/link/context';
 import { onError } from '@apollo/client/link/error';
 
-// HTTP link to GraphQL endpoint
+// Create a custom HTTP link that does NOT process uploads automatically
+// This prevents Apollo from trying to handle File objects and redirecting to uploadFile
 const httpLink = createHttpLink({
   uri: process.env.REACT_APP_GRAPHQL_ENDPOINT || 'http://localhost:8080/graphql',
+  // Explicitly disable file upload handling to prevent interference
+  fetchOptions: {
+    method: 'POST',
+  },
 });
 
 // Auth link to add authorization header

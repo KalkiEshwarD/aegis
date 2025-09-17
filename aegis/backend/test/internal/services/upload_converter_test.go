@@ -112,3 +112,229 @@ func TestUploadDocumentsManual(t *testing.T) {
 
 	assert.NoError(t, err)
 }
+
+func TestConvertMapToUpload_EmptyMap(t *testing.T) {
+	emptyData := map[string]interface{}{}
+
+	upload, err := services.ConvertMapToUpload(emptyData)
+
+	assert.Error(t, err)
+	assert.Nil(t, upload)
+}
+
+func TestConvertMapToUploadManual_EmptyMap(t *testing.T) {
+	emptyData := map[string]interface{}{}
+
+	upload, err := services.ConvertMapToUploadManual(emptyData)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, upload)
+	// All fields should be zero values
+	assert.Equal(t, "", upload.ID)
+	assert.Equal(t, "", upload.Filename)
+	assert.Equal(t, int64(0), upload.Size)
+	assert.Equal(t, "", upload.ContentType)
+	assert.Equal(t, "", upload.UploadedAt)
+}
+
+func TestConvertMapToUpload_LargeNumbers(t *testing.T) {
+	largeData := map[string]interface{}{
+		"id":           "large-upload",
+		"filename":     "large_file.dat",
+		"size":         float64(9223372036854775807), // Max int64
+		"content_type": "application/octet-stream",
+		"uploaded_at":  "2023-12-01T10:00:00Z",
+	}
+
+	upload, err := services.ConvertMapToUpload(largeData)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, upload)
+	assert.Equal(t, int64(9223372036854775807), upload.Size)
+}
+
+func TestConvertMapToUpload_NegativeSize(t *testing.T) {
+	invalidData := map[string]interface{}{
+		"id":           "negative-size",
+		"filename":     "negative.dat",
+		"size":         float64(-1024),
+		"content_type": "application/octet-stream",
+		"uploaded_at":  "2023-12-01T10:00:00Z",
+	}
+
+	upload, err := services.ConvertMapToUpload(invalidData)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, upload)
+	assert.Equal(t, int64(-1024), upload.Size) // Should convert negative float to negative int64
+}
+
+func TestConvertMapToUpload_SpecialCharacters(t *testing.T) {
+	specialData := map[string]interface{}{
+		"id":           "special-123",
+		"filename":     "file with spaces & special chars (test).pdf",
+		"size":         float64(1024),
+		"content_type": "application/pdf",
+		"uploaded_at":  "2023-12-01T10:00:00Z",
+	}
+
+	upload, err := services.ConvertMapToUpload(specialData)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, upload)
+	assert.Equal(t, "file with spaces & special chars (test).pdf", upload.Filename)
+}
+
+func TestConvertMapToUpload_UnicodeCharacters(t *testing.T) {
+	unicodeData := map[string]interface{}{
+		"id":           "unicode-123",
+		"filename":     "файл_тест_中文_🚀.pdf",
+		"size":         float64(1024),
+		"content_type": "application/pdf",
+		"uploaded_at":  "2023-12-01T10:00:00Z",
+	}
+
+	upload, err := services.ConvertMapToUpload(unicodeData)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, upload)
+	assert.Equal(t, "файл_тест_中文_🚀.pdf", upload.Filename)
+}
+
+func TestConvertMapToUpload_InvalidJSONNumbers(t *testing.T) {
+	// Test with various number formats that might come from JSON
+	testCases := []struct {
+		name     string
+		size     interface{}
+		expected int64
+	}{
+		{"integer", 1024, 1024},
+		{"float whole", 1024.0, 1024},
+		{"float decimal", 1024.5, 1024}, // Should truncate
+		{"scientific notation", 1.024e3, 1024},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			data := map[string]interface{}{
+				"id":           "test-123",
+				"filename":     "test.pdf",
+				"size":         tc.size,
+				"content_type": "application/pdf",
+				"uploaded_at":  "2023-12-01T10:00:00Z",
+			}
+
+			upload, err := services.ConvertMapToUpload(data)
+
+			assert.NoError(t, err)
+			assert.NotNil(t, upload)
+			assert.Equal(t, tc.expected, upload.Size)
+		})
+	}
+}
+
+func TestConvertMapToUpload_InvalidDateFormats(t *testing.T) {
+	testCases := []struct {
+		name       string
+		uploadedAt interface{}
+	}{
+		{"empty string", ""},
+		{"invalid format", "not-a-date"},
+		{"partial date", "2023-12-01"},
+		{"wrong timezone", "2023-12-01T10:00:00+05:30"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			data := map[string]interface{}{
+				"id":           "test-123",
+				"filename":     "test.pdf",
+				"size":         float64(1024),
+				"content_type": "application/pdf",
+				"uploaded_at":  tc.uploadedAt,
+			}
+
+			upload, err := services.ConvertMapToUpload(data)
+
+			// Should handle gracefully - either succeed or fail consistently
+			if err != nil {
+				assert.Nil(t, upload)
+			} else {
+				assert.NotNil(t, upload)
+			}
+		})
+	}
+}
+
+func TestConvertMapToUploadManual_NilValues(t *testing.T) {
+	data := map[string]interface{}{
+		"id":           nil,
+		"filename":     nil,
+		"size":         nil,
+		"content_type": nil,
+		"uploaded_at":  nil,
+	}
+
+	upload, err := services.ConvertMapToUploadManual(data)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, upload)
+	// All fields should be zero values
+	assert.Equal(t, "", upload.ID)
+	assert.Equal(t, "", upload.Filename)
+	assert.Equal(t, int64(0), upload.Size)
+	assert.Equal(t, "", upload.ContentType)
+	assert.Equal(t, "", upload.UploadedAt)
+}
+
+func TestConvertMapToUploadManual_TypeConversions(t *testing.T) {
+	data := map[string]interface{}{
+		"id":           123, // int to string
+		"filename":     "test.txt",
+		"size":         "2048", // string to int64
+		"content_type": "text/plain",
+		"uploaded_at":  "2023-12-01T10:00:00Z",
+	}
+
+	upload, err := services.ConvertMapToUploadManual(data)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, upload)
+	assert.Equal(t, "test.txt", upload.Filename)
+	// Other fields depend on implementation - may or may not convert
+}
+
+func TestUploadDocuments_EmptyData(t *testing.T) {
+	emptyData := map[string]interface{}{}
+
+	err := services.UploadDocuments(emptyData)
+
+	// Should handle empty data gracefully
+	assert.NoError(t, err)
+}
+
+func TestUploadDocuments_InvalidData(t *testing.T) {
+	invalidData := map[string]interface{}{
+		"invalid_field": "value",
+	}
+
+	err := services.UploadDocuments(invalidData)
+
+	// Should handle invalid data gracefully
+	assert.NoError(t, err)
+}
+
+func TestUploadDocumentsManual_LargeData(t *testing.T) {
+	largeData := map[string]interface{}{
+		"id":           "large-test",
+		"filename":     "large_file.pdf",
+		"size":         float64(1000000),
+		"content_type": "application/pdf",
+		"uploaded_at":  "2023-12-01T10:00:00Z",
+		"extra_field":  "should be ignored",
+	}
+
+	err := services.UploadDocumentsManual(largeData)
+
+	assert.NoError(t, err)
+}

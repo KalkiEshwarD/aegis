@@ -33,6 +33,9 @@ func CreateTestUser(db *gorm.DB, email, password string, isAdmin bool) (*models.
 		return nil, fmt.Errorf("failed to create test user: %w", err)
 	}
 
+	// Ensure IsAdmin is set correctly after creation
+	user.IsAdmin = isAdmin
+
 	return user, nil
 }
 

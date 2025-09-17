@@ -378,10 +378,8 @@ func (suite *AdminIntegrationTestSuite) TestAdminAccessControl() {
 	var dashboardResponse map[string]interface{}
 
 	err = suite.Server.MakeAuthenticatedRequest(ctx, token, dashboardQuery, nil, &dashboardResponse)
-	suite.NoError(err, "Request should not fail")
-
-	// Should contain admin access error
-	suite.AssertGraphQLError(dashboardResponse, "admin")
+	suite.Error(err, "Request should fail with GraphQL error")
+	suite.Contains(err.Error(), "admin", "Error should contain admin access message")
 
 	// Try to promote another user (should fail)
 	userID := fmt.Sprintf("%d", suite.TestData.AnotherUser.ID)
@@ -399,10 +397,8 @@ func (suite *AdminIntegrationTestSuite) TestAdminAccessControl() {
 	var promoteResponse map[string]interface{}
 
 	err = suite.Server.MakeAuthenticatedRequest(ctx, token, promoteQuery, promoteVariables, &promoteResponse)
-	suite.NoError(err, "Request should not fail")
-
-	// Should contain admin access error
-	suite.AssertGraphQLError(promoteResponse, "admin")
+	suite.Error(err, "Request should fail with GraphQL error")
+	suite.Contains(err.Error(), "admin", "Error should contain admin access message")
 
 	// Try to delete another user (should fail)
 	deleteQuery := `
@@ -418,10 +414,8 @@ func (suite *AdminIntegrationTestSuite) TestAdminAccessControl() {
 	var deleteResponse map[string]interface{}
 
 	err = suite.Server.MakeAuthenticatedRequest(ctx, token, deleteQuery, deleteVariables, &deleteResponse)
-	suite.NoError(err, "Request should not fail")
-
-	// Should contain admin access error
-	suite.AssertGraphQLError(deleteResponse, "admin")
+	suite.Error(err, "Request should fail with GraphQL error")
+	suite.Contains(err.Error(), "admin", "Error should contain admin access message")
 }
 
 // TestAllUsersQuery tests querying all users (admin only)

@@ -3,6 +3,7 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -296,22 +297,30 @@ func (suite *ErrorIntegrationTestSuite) TestStorageQuotaExceeded() {
 	largeContent := strings.Repeat("x", 150*1024*1024) // 150MB
 
 	uploadQuery := `
-		mutation UploadFile($input: UploadFileInput!) {
-			uploadFile(input: $input) {
+		mutation UploadFileFromMap($input: UploadFileFromMapInput!) {
+			uploadFileFromMap(input: $input) {
 				id
 				filename
 			}
 		}
 	`
 
+	// Prepare upload data as JSON for uploadFileFromMap
+	uploadData := map[string]interface{}{
+		"filename":      "large_file.txt",
+		"content_hash":  fmt.Sprintf("hash_%d", len(largeContent)),
+		"size_bytes":    float64(len(largeContent)),
+		"mime_type":     "text/plain",
+		"encrypted_key": "test_key",
+		"file_data":     []byte(largeContent),
+	}
+
+	jsonData, err := json.Marshal(uploadData)
+	suite.NoError(err, "JSON marshaling should succeed")
+
 	uploadVariables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"filename":     "large_file.txt",
-			"content_hash": fmt.Sprintf("hash_%d", len(largeContent)),
-			"size_bytes":   len(largeContent),
-			"mime_type":    "text/plain",
-			"encrypted_key": "test_key",
-			"file_data":    largeContent,
+			"data": string(jsonData),
 		},
 	}
 

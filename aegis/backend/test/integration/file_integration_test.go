@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -70,9 +71,22 @@ func (suite *FileIntegrationTestSuite) TestFileUploadSuccess() {
 	mimeType := "text/plain"
 	encryptionKey := "test_encryption_key_123"
 
+	// Prepare upload data as JSON for uploadFileFromMap
+	uploadData := map[string]interface{}{
+		"filename":      filename,
+		"content_hash":  contentHash,
+		"size_bytes":    float64(len(content)),
+		"mime_type":     mimeType,
+		"encrypted_key": encryptionKey,
+		"file_data":     []byte(content),
+	}
+
+	jsonData, err := json.Marshal(uploadData)
+	suite.NoError(err, "JSON marshaling should succeed")
+
 	uploadQuery := `
-		mutation UploadFile($input: UploadFileInput!) {
-			uploadFile(input: $input) {
+		mutation UploadFileFromMap($input: UploadFileFromMapInput!) {
+			uploadFileFromMap(input: $input) {
 				id
 				filename
 				mime_type
@@ -84,23 +98,18 @@ func (suite *FileIntegrationTestSuite) TestFileUploadSuccess() {
 
 	uploadVariables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"filename":     filename,
-			"content_hash": contentHash,
-			"size_bytes":   len(content),
-			"mime_type":    mimeType,
-			"encrypted_key": encryptionKey,
-			"file_data":    content, // In real implementation, this would be a file upload
+			"data": string(jsonData),
 		},
 	}
 
 	var uploadResponse struct {
-		UploadFile struct {
+		UploadFileFromMap struct {
 			ID       string `json:"id"`
 			Filename string `json:"filename"`
 			MimeType string `json:"mime_type"`
 			UserID   string `json:"user_id"`
 			FileID   string `json:"file_id"`
-		} `json:"uploadFile"`
+		} `json:"uploadFileFromMap"`
 	}
 
 	err = suite.Server.MakeAuthenticatedRequest(ctx, token, uploadQuery, uploadVariables, &uploadResponse)
@@ -108,9 +117,9 @@ func (suite *FileIntegrationTestSuite) TestFileUploadSuccess() {
 
 	// Validate response
 	suite.AssertGraphQLSuccess(uploadResponse)
-	suite.Equal(filename, uploadResponse.UploadFile.Filename, "Filename should match")
-	suite.Equal(mimeType, uploadResponse.UploadFile.MimeType, "MIME type should match")
-	suite.Equal(loginResponse.Login.User.ID, uploadResponse.UploadFile.UserID, "User ID should match")
+	suite.Equal(filename, uploadResponse.UploadFileFromMap.Filename, "Filename should match")
+	suite.Equal(mimeType, uploadResponse.UploadFileFromMap.MimeType, "MIME type should match")
+	suite.Equal(loginResponse.Login.User.ID, uploadResponse.UploadFileFromMap.UserID, "User ID should match")
 
 	// Validate database state
 	suite.AssertFileExistsInDB(contentHash)
@@ -165,9 +174,22 @@ func (suite *FileIntegrationTestSuite) TestFileUploadDeduplication() {
 	mimeType := "text/plain"
 	encryptionKey := "test_encryption_key_456"
 
+	// Prepare upload data as JSON for uploadFileFromMap
+	uploadData := map[string]interface{}{
+		"filename":      "duplicate_test.txt",
+		"content_hash":  existingContentHash,
+		"size_bytes":    float64(len(content)),
+		"mime_type":     mimeType,
+		"encrypted_key": encryptionKey,
+		"file_data":     []byte(content),
+	}
+
+	jsonData, err := json.Marshal(uploadData)
+	suite.NoError(err, "JSON marshaling should succeed")
+
 	uploadQuery := `
-		mutation UploadFile($input: UploadFileInput!) {
-			uploadFile(input: $input) {
+		mutation UploadFileFromMap($input: UploadFileFromMapInput!) {
+			uploadFileFromMap(input: $input) {
 				id
 				filename
 				file_id
@@ -177,21 +199,16 @@ func (suite *FileIntegrationTestSuite) TestFileUploadDeduplication() {
 
 	uploadVariables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"filename":     "duplicate_test.txt",
-			"content_hash": existingContentHash,
-			"size_bytes":   len(content),
-			"mime_type":    mimeType,
-			"encrypted_key": encryptionKey,
-			"file_data":    content,
+			"data": string(jsonData),
 		},
 	}
 
 	var uploadResponse struct {
-		UploadFile struct {
+		UploadFileFromMap struct {
 			ID     string `json:"id"`
 			Filename string `json:"filename"`
 			FileID string `json:"file_id"`
-		} `json:"uploadFile"`
+		} `json:"uploadFileFromMap"`
 	}
 
 	err = suite.Server.MakeAuthenticatedRequest(ctx, token, uploadQuery, uploadVariables, &uploadResponse)
@@ -199,7 +216,7 @@ func (suite *FileIntegrationTestSuite) TestFileUploadDeduplication() {
 
 	// Validate that it reused the existing file
 	suite.AssertGraphQLSuccess(uploadResponse)
-	suite.Equal(fmt.Sprintf("%d", suite.TestData.File1.ID), uploadResponse.UploadFile.FileID, "Should reuse existing file ID")
+	suite.Equal(fmt.Sprintf("%d", suite.TestData.File1.ID), uploadResponse.UploadFileFromMap.FileID, "Should reuse existing file ID")
 }
 
 // TestFileDownload tests file download functionality
@@ -455,9 +472,22 @@ func (suite *FileIntegrationTestSuite) TestStorageQuotaEnforcement() {
 	largeContent := strings.Repeat("x", 200*1024*1024) // 200MB
 	contentHash := generateSHA256Hash(largeContent)
 
+	// Prepare upload data as JSON for uploadFileFromMap
+	uploadData := map[string]interface{}{
+		"filename":      "large_file.txt",
+		"content_hash":  contentHash,
+		"size_bytes":    float64(len(largeContent)),
+		"mime_type":     "text/plain",
+		"encrypted_key": "test_key",
+		"file_data":     []byte(largeContent),
+	}
+
+	jsonData, err := json.Marshal(uploadData)
+	suite.NoError(err, "JSON marshaling should succeed")
+
 	uploadQuery := `
-		mutation UploadFile($input: UploadFileInput!) {
-			uploadFile(input: $input) {
+		mutation UploadFileFromMap($input: UploadFileFromMapInput!) {
+			uploadFileFromMap(input: $input) {
 				id
 				filename
 			}
@@ -466,12 +496,7 @@ func (suite *FileIntegrationTestSuite) TestStorageQuotaEnforcement() {
 
 	uploadVariables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"filename":     "large_file.txt",
-			"content_hash": contentHash,
-			"size_bytes":   len(largeContent),
-			"mime_type":    "text/plain",
-			"encrypted_key": "test_key",
-			"file_data":    largeContent,
+			"data": string(jsonData),
 		},
 	}
 
@@ -671,9 +696,22 @@ func (suite *FileIntegrationTestSuite) TestFileUploadValidation() {
 
 	for _, tc := range testCases {
 		suite.Run(tc.name, func() {
+			// Prepare upload data as JSON for uploadFileFromMap
+			uploadData := map[string]interface{}{
+				"filename":      tc.filename,
+				"content_hash":  tc.contentHash,
+				"size_bytes":    float64(tc.sizeBytes),
+				"mime_type":     tc.mimeType,
+				"encrypted_key": "test_key",
+				"file_data":     []byte("test content"),
+			}
+
+			jsonData, err := json.Marshal(uploadData)
+			suite.NoError(err, "JSON marshaling should succeed")
+
 			uploadQuery := `
-				mutation UploadFile($input: UploadFileInput!) {
-					uploadFile(input: $input) {
+				mutation UploadFileFromMap($input: UploadFileFromMapInput!) {
+					uploadFileFromMap(input: $input) {
 						id
 						filename
 					}
@@ -682,18 +720,13 @@ func (suite *FileIntegrationTestSuite) TestFileUploadValidation() {
 
 			uploadVariables := map[string]interface{}{
 				"input": map[string]interface{}{
-					"filename":     tc.filename,
-					"content_hash": tc.contentHash,
-					"size_bytes":   tc.sizeBytes,
-					"mime_type":    tc.mimeType,
-					"encrypted_key": "test_key",
-					"file_data":    "test content",
+					"data": string(jsonData),
 				},
 			}
 
 			var uploadResponse map[string]interface{}
 
-			err := suite.Server.MakeAuthenticatedRequest(ctx, token, uploadQuery, uploadVariables, &uploadResponse)
+			err = suite.Server.MakeAuthenticatedRequest(ctx, token, uploadQuery, uploadVariables, &uploadResponse)
 			suite.NoError(err, "Request should not fail")
 
 			// Should contain validation error
@@ -750,9 +783,22 @@ func (suite *FileIntegrationTestSuite) TestConcurrentFileOperations() {
 		content := fmt.Sprintf("Content for %s", filename)
 		contentHash := generateSHA256Hash(content)
 
+		// Prepare upload data as JSON for uploadFileFromMap
+		uploadData := map[string]interface{}{
+			"filename":      filename,
+			"content_hash":  contentHash,
+			"size_bytes":    float64(len(content)),
+			"mime_type":     "text/plain",
+			"encrypted_key": fmt.Sprintf("key_%s", filename),
+			"file_data":     []byte(content),
+		}
+
+		jsonData, err := json.Marshal(uploadData)
+		suite.NoError(err, "JSON marshaling should succeed")
+
 		uploadQuery := `
-			mutation UploadFile($input: UploadFileInput!) {
-				uploadFile(input: $input) {
+			mutation UploadFileFromMap($input: UploadFileFromMapInput!) {
+				uploadFileFromMap(input: $input) {
 					id
 					filename
 				}
@@ -761,26 +807,21 @@ func (suite *FileIntegrationTestSuite) TestConcurrentFileOperations() {
 
 		uploadVariables := map[string]interface{}{
 			"input": map[string]interface{}{
-				"filename":     filename,
-				"content_hash": contentHash,
-				"size_bytes":   len(content),
-				"mime_type":    "text/plain",
-				"encrypted_key": fmt.Sprintf("key_%s", filename),
-				"file_data":    content,
+				"data": string(jsonData),
 			},
 		}
 
 		var uploadResponse struct {
-			UploadFile struct {
+			UploadFileFromMap struct {
 				ID       string `json:"id"`
 				Filename string `json:"filename"`
-			} `json:"uploadFile"`
+			} `json:"uploadFileFromMap"`
 		}
 
-		err := suite.Server.MakeAuthenticatedRequest(ctx, token, uploadQuery, uploadVariables, &uploadResponse)
+		err = suite.Server.MakeAuthenticatedRequest(ctx, token, uploadQuery, uploadVariables, &uploadResponse)
 		suite.NoError(err, "Concurrent file upload should succeed")
 		suite.AssertGraphQLSuccess(uploadResponse)
-		suite.Equal(filename, uploadResponse.UploadFile.Filename, "Filename should match")
+		suite.Equal(filename, uploadResponse.UploadFileFromMap.Filename, "Filename should match")
 	}
 
 	// Verify all files were created

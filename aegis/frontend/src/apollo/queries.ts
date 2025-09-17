@@ -75,9 +75,28 @@ export const GET_MY_STATS = gql`
 `;
 
 // File Mutations
+// TEMPORARILY COMMENTED OUT TO TEST APOLLO REDIRECTION ISSUE
+/*
 export const UPLOAD_FILE_MUTATION = gql`
   mutation UploadFile($input: UploadFileInput!) {
     uploadFile(input: $input) {
+      id
+      filename
+      mime_type
+      created_at
+      file {
+        id
+        size_bytes
+        content_hash
+      }
+    }
+  }
+`;
+*/
+
+export const UPLOAD_FILE_FROM_MAP_MUTATION = gql`
+  mutation UploadFileFromMap($input: UploadFileFromMapInput!) {
+    uploadFileFromMap(input: $input) {
       id
       filename
       mime_type

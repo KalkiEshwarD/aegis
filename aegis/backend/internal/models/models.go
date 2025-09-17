@@ -13,7 +13,7 @@ type User struct {
 	PasswordHash string         `gorm:"not null" json:"-"`
 	StorageQuota int64          `gorm:"default:10485760" json:"storage_quota"` // 10MB default
 	UsedStorage  int64          `gorm:"default:0" json:"used_storage"`
-	IsAdmin      bool           `gorm:"default:false" json:"is_admin"`
+	IsAdmin      bool           `json:"is_admin"`
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`

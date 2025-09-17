@@ -14,7 +14,7 @@ import {
   Close as CloseIcon,
 } from '@mui/icons-material';
 import { useMutation } from '@apollo/client';
-import { UPLOAD_FILE_MUTATION } from '../../apollo/queries';
+import { UPLOAD_FILE_FROM_MAP_MUTATION } from '../../apollo/queries';
 import {
   generateEncryptionKey,
   encryptFile,
@@ -22,6 +22,7 @@ import {
   fileToUint8Array,
   formatFileSize,
   getMimeTypeFromExtension,
+  uint8ArrayToBase64,
 } from '../../utils/crypto';
 import { FileUploadProgress } from '../../types';
 
@@ -39,7 +40,7 @@ const FileUploadDropzone: React.FC<FileUploadDropzoneProps> = ({
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [uploadFileMutation] = useMutation(UPLOAD_FILE_MUTATION);
+  const [uploadFileMutation] = useMutation(UPLOAD_FILE_FROM_MAP_MUTATION);
 
   const validateFile = (file: File): string | null => {
     if (file.size > maxFileSize) {
@@ -51,8 +52,7 @@ const FileUploadDropzone: React.FC<FileUploadDropzoneProps> = ({
     return null;
   };
 
-  const processFile = async (file: File): Promise<void> => {
-    const uploadId = `${file.name}-${Date.now()}`;
+  const processFile = useCallback(async (file: File): Promise<void> => {
     const validationError = validateFile(file);
 
     if (validationError) {
@@ -92,33 +92,49 @@ const FileUploadDropzone: React.FC<FileUploadDropzoneProps> = ({
 
       // Convert file to Uint8Array and encrypt
       const fileData = await fileToUint8Array(file);
-      const { encryptedData, nonce } = encryptFile(fileData, encryptionKey.key);
+      const { encryptedData } = encryptFile(fileData, encryptionKey.key);
       setUploads(prev => prev.map(u =>
         u.file === file ? { ...u, progress: 70 } : u
       ));
 
-      // Create encrypted file blob for upload
-      const encryptedBlob = new Blob([encryptedData]);
+      // Convert encrypted data to base64 for JSON transmission
+      console.log(`DEBUG: File ${file.name} - Original size: ${file.size} bytes, Encrypted size: ${encryptedData.length} bytes`);
+
+      // Check if encrypted data is too large for base64 conversion
+      if (encryptedData.length > 100 * 1024 * 1024) { // 100MB threshold
+        throw new Error(`Encrypted data too large for base64 conversion: ${encryptedData.length} bytes`);
+      }
+
+      // Use chunked base64 conversion to avoid stack overflow
+      const encryptedDataBase64 = uint8ArrayToBase64(encryptedData);
+      console.log(`DEBUG: File ${file.name} - Base64 length: ${encryptedDataBase64.length} characters`);
 
       // Determine MIME type
       const mimeType = file.type || getMimeTypeFromExtension(file.name);
 
       // Prepare encrypted key for storage (we'll store it encrypted with user's key in a real implementation)
       // For now, we'll store it as base64 (in production, this should be encrypted with user's master key)
-      const encryptedKeyBase64 = btoa(String.fromCharCode(...Array.from(encryptionKey.key)));
+      const encryptedKeyBase64 = uint8ArrayToBase64(encryptionKey.key);
 
-      // Upload file
-      const result = await uploadFileMutation({
-        variables: {
-          input: {
-            filename: file.name,
-            content_hash: contentHash,
-            size_bytes: file.size,
-            mime_type: mimeType,
-            encrypted_key: encryptedKeyBase64,
-            file_data: encryptedBlob,
-          },
+      // Prepare upload data as JSON string for uploadFileFromMap mutation
+      const uploadData = {
+        filename: file.name,
+        content_hash: contentHash,
+        size_bytes: file.size,
+        mime_type: mimeType,
+        encrypted_key: encryptedKeyBase64,
+        file_data: encryptedDataBase64,
+      };
+
+      const mutationVars = {
+        input: {
+          data: JSON.stringify(uploadData),
         },
+      };
+
+      // Upload file using the new uploadFileFromMap mutation
+      const result = await uploadFileMutation({
+        variables: mutationVars,
       });
 
       setUploads(prev => prev.map(u =>
@@ -137,10 +153,12 @@ const FileUploadDropzone: React.FC<FileUploadDropzoneProps> = ({
         u.file === file ? { ...u, status: 'error', error: errorMessage } : u
       ));
     }
-  };
+  }, [uploadFileMutation, onUploadComplete, validateFile]);
 
   const handleFiles = useCallback(async (files: FileList | null) => {
-    if (!files) return;
+    if (!files) {
+      return;
+    }
 
     setError(null);
     const fileArray = Array.from(files);
@@ -149,7 +167,7 @@ const FileUploadDropzone: React.FC<FileUploadDropzoneProps> = ({
     for (const file of fileArray) {
       await processFile(file);
     }
-  }, [uploadFileMutation, onUploadComplete]);
+  }, [processFile]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();

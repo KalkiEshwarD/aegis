@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/balkanid/aegis-backend/internal/database"
-	"github.com/balkanid/aegis-backend/internal/models"
 	"gorm.io/gorm"
 )
 
@@ -14,16 +13,8 @@ func SetupTestDatabase(db *gorm.DB) error {
 	// Set the test database globally for services to use
 	database.SetDB(db)
 
-	// Run auto-migration for models
-	if err := db.AutoMigrate(
-		&models.User{},
-		&models.File{},
-		&models.UserFile{},
-		&models.Room{},
-		&models.RoomMember{},
-		&models.RoomFile{},
-		&models.DownloadLog{},
-	); err != nil {
+	// Run auto-migration for models using the global database function
+	if err := database.AutoMigrate(); err != nil {
 		return fmt.Errorf("failed to migrate test database: %w", err)
 	}
 

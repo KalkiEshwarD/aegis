@@ -88,6 +88,9 @@ const FileTable: React.FC<FileTableProps> = ({ onFileDeleted }) => {
     setError(null);
 
     try {
+      // Get the authentication token
+      const token = localStorage.getItem('aegis_token');
+
       // Get download URL from server
       const result = await downloadFileMutation({
         variables: { id: file.id },
@@ -99,41 +102,29 @@ const FileTable: React.FC<FileTableProps> = ({ onFileDeleted }) => {
         throw new Error('No download URL received');
       }
 
-      // Fetch the encrypted file
-      const response = await fetch(downloadUrl);
+      // Fetch the encrypted file with authentication headers
+      const response = await fetch(downloadUrl, {
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+      });
+
       if (!response.ok) {
         throw new Error('Failed to download file');
       }
 
       const encryptedData = new Uint8Array(await response.arrayBuffer());
 
-      // Decrypt the file
-      // Note: In a real implementation, the encrypted key would be decrypted with user's master key
-      // For now, we're using the stored base64 key directly
-      const encryptionKey = base64ToEncryptionKey(file.filename); // This is a placeholder - in reality, we'd have the proper key
+      // TODO: Implement proper encryption key management
+      // The encryption key is stored in the database but not exposed via GraphQL for security
+      // For now, we'll download the encrypted file directly
 
-      // For demo purposes, we'll try to decrypt with a known key
-      // In production, this would be properly managed
-      let decryptedData: Uint8Array | null = null;
-      try {
-        // This is a simplified version - in reality, you'd need the proper nonce and key
-        decryptedData = decryptFile(encryptedData, new Uint8Array(24), encryptionKey);
-      } catch (decryptError) {
-        console.warn('Decryption failed, downloading encrypted file:', decryptError);
-        // Fallback: download the encrypted file
-        const encryptedBlob = new Blob([encryptedData]);
-        downloadFile(encryptedBlob, `encrypted_${file.filename}`);
-        setDownloadingFile(null);
-        return;
-      }
+      console.log('DEBUG: Skipping decryption - encryption key not available via GraphQL');
+      console.log('DEBUG: Downloading encrypted file directly');
 
-      if (!decryptedData) {
-        throw new Error('Decryption failed');
-      }
-
-      // Create download blob and trigger download
-      const blob = createDownloadBlob(decryptedData, file.mime_type);
-      downloadFile(blob, file.filename);
+      // Create download blob from encrypted data and trigger download
+      const blob = createDownloadBlob(encryptedData, file.mime_type);
+      downloadFile(blob, `encrypted_${file.filename}`);
 
     } catch (err: any) {
       console.error('Download error:', err);

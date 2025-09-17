@@ -1,8 +1,11 @@
 package integration
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"time"
@@ -85,19 +88,51 @@ func (t *TestGraphQLServer) SetAuthToken(token string) {
 
 // MakeRequest executes a GraphQL query/mutation
 func (t *TestGraphQLServer) MakeRequest(ctx context.Context, query string, variables map[string]interface{}, response interface{}) error {
-	req := graphql.NewRequest(query)
+	// Create request payload
+	payload := map[string]interface{}{
+		"query": query,
+	}
 	if variables != nil {
-		for key, value := range variables {
-			req.Var(key, value)
-		}
+		payload["variables"] = variables
 	}
 
-	// Set timeout for request
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal GraphQL request: %w", err)
+	}
+
+	// Create HTTP request
+	req, err := http.NewRequestWithContext(ctx, "POST", t.Server.URL+"/graphql", bytes.NewReader(payloadBytes))
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", "application/json")
+
+	// Set timeout
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+	req = req.WithContext(ctx)
 
-	if err := t.Client.Run(ctx, req, response); err != nil {
+	// Make HTTP request
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(req)
+	if err != nil {
 		return fmt.Errorf("GraphQL request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// Decode the response into the provided response struct
+	// This allows GraphQL errors to be in response.Errors without returning a Go error
+	if err := json.Unmarshal(respBytes, response); err != nil {
+		return fmt.Errorf("failed to decode GraphQL response: %w", err)
 	}
 
 	return nil
@@ -105,25 +140,52 @@ func (t *TestGraphQLServer) MakeRequest(ctx context.Context, query string, varia
 
 // MakeAuthenticatedRequest executes an authenticated GraphQL query/mutation
 func (t *TestGraphQLServer) MakeAuthenticatedRequest(ctx context.Context, token string, query string, variables map[string]interface{}, response interface{}) error {
-	// Create a new client for this request
-	client := graphql.NewClient(t.Server.URL + "/graphql")
-
-	req := graphql.NewRequest(query)
+	// Create request payload
+	payload := map[string]interface{}{
+		"query": query,
+	}
 	if variables != nil {
-		for key, value := range variables {
-			req.Var(key, value)
-		}
+		payload["variables"] = variables
 	}
 
-	// Set authorization header
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal GraphQL request: %w", err)
+	}
+
+	// Create HTTP request
+	req, err := http.NewRequestWithContext(ctx, "POST", t.Server.URL+"/graphql", bytes.NewReader(payloadBytes))
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	// Set timeout for request
+	// Set timeout
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+	req = req.WithContext(ctx)
 
-	if err := client.Run(ctx, req, response); err != nil {
+	// Make HTTP request
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(req)
+	if err != nil {
 		return fmt.Errorf("authenticated GraphQL request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// Decode the response into the provided response struct
+	// This allows GraphQL errors to be in response.Errors without returning a Go error
+	if err := json.Unmarshal(respBytes, response); err != nil {
+		return fmt.Errorf("failed to decode GraphQL response: %w", err)
 	}
 
 	return nil
