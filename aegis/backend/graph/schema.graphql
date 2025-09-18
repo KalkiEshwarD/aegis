@@ -99,6 +99,7 @@ input FileFilterInput {
   max_size: Int
   date_from: Time
   date_to: Time
+  includeTrashed: Boolean
 }
 
 input CreateRoomInput {
@@ -131,17 +132,18 @@ type Query {
   # User queries
   me: User!
   myFiles(filter: FileFilterInput): [UserFile!]!
+  myTrashedFiles: [UserFile!]!
   myStats: UserStats!
-  
+
   # Room queries
   myRooms: [Room!]!
   room(id: ID!): Room
-  
+
   # Admin queries
   adminDashboard: AdminDashboard!
   allUsers: [User!]!
   allFiles: [UserFile!]!
-  
+
   # Health check
   health: String!
 }
@@ -150,20 +152,22 @@ type Mutation {
   # Authentication
   register(input: RegisterInput!): AuthPayload!
   login(input: LoginInput!): AuthPayload!
-  
+
   # File operations
   uploadFile(input: UploadFileInput!): UserFile!
   uploadFileFromMap(input: UploadFileFromMapInput!): UserFile! # Solution for map conversion
   deleteFile(id: ID!): Boolean!
+  restoreFile(fileID: ID!): Boolean!
+  permanentlyDeleteFile(fileID: ID!): Boolean!
   downloadFile(id: ID!): String! # Returns download URL
-  
+
   # Room operations
   createRoom(input: CreateRoomInput!): Room!
   addRoomMember(input: AddRoomMemberInput!): Boolean!
   removeRoomMember(room_id: ID!, user_id: ID!): Boolean!
   shareFileToRoom(user_file_id: ID!, room_id: ID!): Boolean!
   removeFileFromRoom(user_file_id: ID!, room_id: ID!): Boolean!
-  
+
   # Admin operations
   promoteUserToAdmin(user_id: ID!): Boolean!
   deleteUserAccount(user_id: ID!): Boolean!

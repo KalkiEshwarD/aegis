@@ -34,7 +34,6 @@ aegis/
 - **Secure session management** with automatic token refresh
 
 ### Data Protection
-- **SHA-256 file deduplication** prevents storage bloat
 - **MIME type validation** prevents content mismatches
 - **SQL injection prevention** via parameterized queries
 - **Input validation** at API and service layers
@@ -56,7 +55,7 @@ aegis/
 
 ### ✅ File Management Core
 - [x] **End-to-end encryption utilities** (encrypt/decrypt/hash)
-- [x] **File upload service layer** with deduplication logic
+- [x] **File upload service layer** with encryption and validation
 - [x] **MinIO integration** for scalable object storage
 - [x] **Database models** for file relationships and metadata
 

@@ -73,19 +73,21 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		AddRoomMember      func(childComplexity int, input model.AddRoomMemberInput) int
-		CreateRoom         func(childComplexity int, input model.CreateRoomInput) int
-		DeleteFile         func(childComplexity int, id string) int
-		DeleteUserAccount  func(childComplexity int, userID string) int
-		DownloadFile       func(childComplexity int, id string) int
-		Login              func(childComplexity int, input model.LoginInput) int
-		PromoteUserToAdmin func(childComplexity int, userID string) int
-		Register           func(childComplexity int, input model.RegisterInput) int
-		RemoveFileFromRoom func(childComplexity int, userFileID string, roomID string) int
-		RemoveRoomMember   func(childComplexity int, roomID string, userID string) int
-		ShareFileToRoom    func(childComplexity int, userFileID string, roomID string) int
-		UploadFile         func(childComplexity int, input model.UploadFileInput) int
-		UploadFileFromMap  func(childComplexity int, input model.UploadFileFromMapInput) int
+		AddRoomMember         func(childComplexity int, input model.AddRoomMemberInput) int
+		CreateRoom            func(childComplexity int, input model.CreateRoomInput) int
+		DeleteFile            func(childComplexity int, id string) int
+		DeleteUserAccount     func(childComplexity int, userID string) int
+		DownloadFile          func(childComplexity int, id string) int
+		Login                 func(childComplexity int, input model.LoginInput) int
+		PermanentlyDeleteFile func(childComplexity int, fileID string) int
+		PromoteUserToAdmin    func(childComplexity int, userID string) int
+		Register              func(childComplexity int, input model.RegisterInput) int
+		RemoveFileFromRoom    func(childComplexity int, userFileID string, roomID string) int
+		RemoveRoomMember      func(childComplexity int, roomID string, userID string) int
+		RestoreFile           func(childComplexity int, fileID string) int
+		ShareFileToRoom       func(childComplexity int, userFileID string, roomID string) int
+		UploadFile            func(childComplexity int, input model.UploadFileInput) int
+		UploadFileFromMap     func(childComplexity int, input model.UploadFileFromMapInput) int
 	}
 
 	Query struct {
@@ -97,6 +99,7 @@ type ComplexityRoot struct {
 		MyFiles        func(childComplexity int, filter *model.FileFilterInput) int
 		MyRooms        func(childComplexity int) int
 		MyStats        func(childComplexity int) int
+		MyTrashedFiles func(childComplexity int) int
 		Room           func(childComplexity int, id string) int
 	}
 
@@ -159,6 +162,8 @@ type MutationResolver interface {
 	UploadFile(ctx context.Context, input model.UploadFileInput) (*models.UserFile, error)
 	UploadFileFromMap(ctx context.Context, input model.UploadFileFromMapInput) (*models.UserFile, error)
 	DeleteFile(ctx context.Context, id string) (bool, error)
+	RestoreFile(ctx context.Context, fileID string) (bool, error)
+	PermanentlyDeleteFile(ctx context.Context, fileID string) (bool, error)
 	DownloadFile(ctx context.Context, id string) (string, error)
 	CreateRoom(ctx context.Context, input model.CreateRoomInput) (*models.Room, error)
 	AddRoomMember(ctx context.Context, input model.AddRoomMemberInput) (bool, error)
@@ -171,6 +176,7 @@ type MutationResolver interface {
 type QueryResolver interface {
 	Me(ctx context.Context) (*models.User, error)
 	MyFiles(ctx context.Context, filter *model.FileFilterInput) ([]*models.UserFile, error)
+	MyTrashedFiles(ctx context.Context) ([]*models.UserFile, error)
 	MyStats(ctx context.Context) (*model.UserStats, error)
 	MyRooms(ctx context.Context) ([]*models.Room, error)
 	Room(ctx context.Context, id string) (*models.Room, error)
@@ -348,6 +354,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.Login(childComplexity, args["input"].(model.LoginInput)), true
+	case "Mutation.permanentlyDeleteFile":
+		if e.complexity.Mutation.PermanentlyDeleteFile == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_permanentlyDeleteFile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.PermanentlyDeleteFile(childComplexity, args["fileID"].(string)), true
 	case "Mutation.promoteUserToAdmin":
 		if e.complexity.Mutation.PromoteUserToAdmin == nil {
 			break
@@ -392,6 +409,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.RemoveRoomMember(childComplexity, args["room_id"].(string), args["user_id"].(string)), true
+	case "Mutation.restoreFile":
+		if e.complexity.Mutation.RestoreFile == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_restoreFile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.RestoreFile(childComplexity, args["fileID"].(string)), true
 	case "Mutation.shareFileToRoom":
 		if e.complexity.Mutation.ShareFileToRoom == nil {
 			break
@@ -479,6 +507,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.MyStats(childComplexity), true
+	case "Query.myTrashedFiles":
+		if e.complexity.Query.MyTrashedFiles == nil {
+			break
+		}
+
+		return e.complexity.Query.MyTrashedFiles(childComplexity), true
 	case "Query.room":
 		if e.complexity.Query.Room == nil {
 			break
@@ -913,6 +947,7 @@ input FileFilterInput {
   max_size: Int
   date_from: Time
   date_to: Time
+  includeTrashed: Boolean
 }
 
 input CreateRoomInput {
@@ -945,17 +980,18 @@ type Query {
   # User queries
   me: User!
   myFiles(filter: FileFilterInput): [UserFile!]!
+  myTrashedFiles: [UserFile!]!
   myStats: UserStats!
-  
+
   # Room queries
   myRooms: [Room!]!
   room(id: ID!): Room
-  
+
   # Admin queries
   adminDashboard: AdminDashboard!
   allUsers: [User!]!
   allFiles: [UserFile!]!
-  
+
   # Health check
   health: String!
 }
@@ -964,20 +1000,22 @@ type Mutation {
   # Authentication
   register(input: RegisterInput!): AuthPayload!
   login(input: LoginInput!): AuthPayload!
-  
+
   # File operations
   uploadFile(input: UploadFileInput!): UserFile!
   uploadFileFromMap(input: UploadFileFromMapInput!): UserFile! # Solution for map conversion
   deleteFile(id: ID!): Boolean!
+  restoreFile(fileID: ID!): Boolean!
+  permanentlyDeleteFile(fileID: ID!): Boolean!
   downloadFile(id: ID!): String! # Returns download URL
-  
+
   # Room operations
   createRoom(input: CreateRoomInput!): Room!
   addRoomMember(input: AddRoomMemberInput!): Boolean!
   removeRoomMember(room_id: ID!, user_id: ID!): Boolean!
   shareFileToRoom(user_file_id: ID!, room_id: ID!): Boolean!
   removeFileFromRoom(user_file_id: ID!, room_id: ID!): Boolean!
-  
+
   # Admin operations
   promoteUserToAdmin(user_id: ID!): Boolean!
   deleteUserAccount(user_id: ID!): Boolean!
@@ -1056,6 +1094,17 @@ func (ec *executionContext) field_Mutation_login_args(ctx context.Context, rawAr
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_permanentlyDeleteFile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "fileID", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["fileID"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_promoteUserToAdmin_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -1107,6 +1156,17 @@ func (ec *executionContext) field_Mutation_removeRoomMember_args(ctx context.Con
 		return nil, err
 	}
 	args["user_id"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_restoreFile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "fileID", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["fileID"] = arg0
 	return args, nil
 }
 
@@ -1820,6 +1880,88 @@ func (ec *executionContext) fieldContext_Mutation_deleteFile(ctx context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_restoreFile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_restoreFile,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().RestoreFile(ctx, fc.Args["fileID"].(string))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_restoreFile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_restoreFile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_permanentlyDeleteFile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_permanentlyDeleteFile,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().PermanentlyDeleteFile(ctx, fc.Args["fileID"].(string))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_permanentlyDeleteFile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_permanentlyDeleteFile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_downloadFile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -2266,6 +2408,57 @@ func (ec *executionContext) fieldContext_Query_myFiles(ctx context.Context, fiel
 	if fc.Args, err = ec.field_Query_myFiles_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_myTrashedFiles(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_myTrashedFiles,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Query().MyTrashedFiles(ctx)
+		},
+		nil,
+		ec.marshalNUserFile2ᚕᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUserFileᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_myTrashedFiles(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_UserFile_id(ctx, field)
+			case "user_id":
+				return ec.fieldContext_UserFile_user_id(ctx, field)
+			case "file_id":
+				return ec.fieldContext_UserFile_file_id(ctx, field)
+			case "filename":
+				return ec.fieldContext_UserFile_filename(ctx, field)
+			case "mime_type":
+				return ec.fieldContext_UserFile_mime_type(ctx, field)
+			case "encryption_key":
+				return ec.fieldContext_UserFile_encryption_key(ctx, field)
+			case "created_at":
+				return ec.fieldContext_UserFile_created_at(ctx, field)
+			case "updated_at":
+				return ec.fieldContext_UserFile_updated_at(ctx, field)
+			case "user":
+				return ec.fieldContext_UserFile_user(ctx, field)
+			case "file":
+				return ec.fieldContext_UserFile_file(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type UserFile", field.Name)
+		},
 	}
 	return fc, nil
 }
@@ -5294,7 +5487,7 @@ func (ec *executionContext) unmarshalInputFileFilterInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"filename", "mime_type", "min_size", "max_size", "date_from", "date_to"}
+	fieldsInOrder := [...]string{"filename", "mime_type", "min_size", "max_size", "date_from", "date_to", "includeTrashed"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -5343,6 +5536,13 @@ func (ec *executionContext) unmarshalInputFileFilterInput(ctx context.Context, o
 				return it, err
 			}
 			it.DateTo = data
+		case "includeTrashed":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("includeTrashed"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IncludeTrashed = data
 		}
 	}
 
@@ -5751,6 +5951,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "restoreFile":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_restoreFile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "permanentlyDeleteFile":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_permanentlyDeleteFile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "downloadFile":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_downloadFile(ctx, field)
@@ -5881,6 +6095,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_myFiles(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "myTrashedFiles":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_myTrashedFiles(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}

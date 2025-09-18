@@ -127,98 +127,6 @@ func (suite *FileIntegrationTestSuite) TestFileUploadSuccess() {
 	suite.AssertUserFileCount(user.ID, 3) // Should have 2 existing + 1 new
 }
 
-// TestFileUploadDeduplication tests file deduplication with existing hash
-func (suite *FileIntegrationTestSuite) TestFileUploadDeduplication() {
-	ctx := context.Background()
-
-	// Login first
-	email := suite.TestData.RegularUser.Email
-	password := "password123"
-
-	loginQuery := `
-		mutation Login($input: LoginInput!) {
-			login(input: $input) {
-				token
-				user {
-					id
-					email
-				}
-			}
-		}
-	`
-
-	variables := map[string]interface{}{
-		"input": map[string]interface{}{
-			"email":    email,
-			"password": password,
-		},
-	}
-
-	var loginResponse struct {
-		Login struct {
-			Token string `json:"token"`
-			User  struct {
-				ID    string `json:"id"`
-				Email string `json:"email"`
-			} `json:"user"`
-		} `json:"login"`
-	}
-
-	err := suite.Server.MakeRequest(ctx, loginQuery, variables, &loginResponse)
-	suite.NoError(err, "Login should succeed")
-	token := loginResponse.Login.Token
-
-	// Use existing file's content hash for deduplication test
-	existingContentHash := suite.TestData.File1.ContentHash
-	content := "This is test file content" // Same content as File1
-	mimeType := "text/plain"
-	encryptionKey := "test_encryption_key_456"
-
-	// Prepare upload data as JSON for uploadFileFromMap
-	uploadData := map[string]interface{}{
-		"filename":      "duplicate_test.txt",
-		"content_hash":  existingContentHash,
-		"size_bytes":    float64(len(content)),
-		"mime_type":     mimeType,
-		"encrypted_key": encryptionKey,
-		"file_data":     []byte(content),
-	}
-
-	jsonData, err := json.Marshal(uploadData)
-	suite.NoError(err, "JSON marshaling should succeed")
-
-	uploadQuery := `
-		mutation UploadFileFromMap($input: UploadFileFromMapInput!) {
-			uploadFileFromMap(input: $input) {
-				id
-				filename
-				file_id
-			}
-		}
-	`
-
-	uploadVariables := map[string]interface{}{
-		"input": map[string]interface{}{
-			"data": string(jsonData),
-		},
-	}
-
-	var uploadResponse struct {
-		UploadFileFromMap struct {
-			ID     string `json:"id"`
-			Filename string `json:"filename"`
-			FileID string `json:"file_id"`
-		} `json:"uploadFileFromMap"`
-	}
-
-	err = suite.Server.MakeAuthenticatedRequest(ctx, token, uploadQuery, uploadVariables, &uploadResponse)
-	suite.NoError(err, "File upload with existing hash should succeed")
-
-	// Validate that it reused the existing file
-	suite.AssertGraphQLSuccess(uploadResponse)
-	suite.Equal(fmt.Sprintf("%d", suite.TestData.File1.ID), uploadResponse.UploadFileFromMap.FileID, "Should reuse existing file ID")
-}
-
 // TestFileDownload tests file download functionality
 func (suite *FileIntegrationTestSuite) TestFileDownload() {
 	ctx := context.Background()
@@ -246,19 +154,23 @@ func (suite *FileIntegrationTestSuite) TestFileDownload() {
 		},
 	}
 
-	var loginResponse struct {
-		Login struct {
-			Token string `json:"token"`
-			User  struct {
-				ID    string `json:"id"`
-				Email string `json:"email"`
-			} `json:"user"`
-		} `json:"login"`
+	type LoginResponse struct {
+		Data struct {
+			Login struct {
+				Token string `json:"token"`
+				User  struct {
+					ID    string `json:"id"`
+					Email string `json:"email"`
+				} `json:"user"`
+			} `json:"login"`
+		} `json:"data"`
 	}
+
+	var loginResponse LoginResponse
 
 	err := suite.Server.MakeRequest(ctx, loginQuery, variables, &loginResponse)
 	suite.NoError(err, "Login should succeed")
-	token := loginResponse.Login.Token
+	token := loginResponse.Data.Login.Token
 
 	// Test file download
 	userFileID := fmt.Sprintf("%d", suite.TestData.UserFile1.ID)
@@ -284,9 +196,9 @@ func (suite *FileIntegrationTestSuite) TestFileDownload() {
 	suite.AssertGraphQLSuccess(downloadResponse)
 	suite.NotEmpty(downloadResponse.DownloadFile, "Download URL should be returned")
 	suite.True(strings.Contains(downloadResponse.DownloadFile, "download") ||
-	          strings.Contains(downloadResponse.DownloadFile, "presigned") ||
-	          strings.Contains(downloadResponse.DownloadFile, "url"),
-	          "Response should contain download URL")
+		strings.Contains(downloadResponse.DownloadFile, "presigned") ||
+		strings.Contains(downloadResponse.DownloadFile, "url"),
+		"Response should contain download URL")
 }
 
 // TestFileDeletion tests file deletion functionality
@@ -316,19 +228,24 @@ func (suite *FileIntegrationTestSuite) TestFileDeletion() {
 		},
 	}
 
-	var loginResponse struct {
-		Login struct {
-			Token string `json:"token"`
-			User  struct {
-				ID    string `json:"id"`
-				Email string `json:"email"`
-			} `json:"user"`
-		} `json:"login"`
+	type LoginResponse struct {
+		Data struct {
+			Login struct {
+				Token string `json:"token"`
+				User  struct {
+					ID    string `json:"id"`
+					Email string `json:"email"`
+				} `json:"user"`
+			} `json:"login"`
+		} `json:"data"`
 	}
+
+	var loginResponse LoginResponse
 
 	err := suite.Server.MakeRequest(ctx, loginQuery, variables, &loginResponse)
 	suite.NoError(err, "Login should succeed")
-	token := loginResponse.Login.Token
+	token := loginResponse.Data.Login.Token
+	fmt.Printf("DEBUG: After login, token: '%s'\n", token)
 
 	// Get initial file count
 	user := suite.AssertUserExistsInDB(email)
@@ -349,7 +266,9 @@ func (suite *FileIntegrationTestSuite) TestFileDeletion() {
 	}
 
 	var deleteResponse struct {
-		DeleteFile bool `json:"deleteFile"`
+		Data struct {
+			DeleteFile bool `json:"deleteFile"`
+		} `json:"data"`
 	}
 
 	err = suite.Server.MakeAuthenticatedRequest(ctx, token, deleteQuery, deleteVariables, &deleteResponse)
@@ -357,7 +276,7 @@ func (suite *FileIntegrationTestSuite) TestFileDeletion() {
 
 	// Validate response
 	suite.AssertGraphQLSuccess(deleteResponse)
-	suite.True(deleteResponse.DeleteFile, "Delete operation should return true")
+	suite.True(deleteResponse.Data.DeleteFile, "Delete operation should return true")
 
 	// Validate database state - file count should decrease
 	suite.AssertUserFileCount(user.ID, initialCount-1)
@@ -390,19 +309,28 @@ func (suite *FileIntegrationTestSuite) TestFileDeletionUnauthorized() {
 		},
 	}
 
-	var loginResponse struct {
-		Login struct {
-			Token string `json:"token"`
-			User  struct {
-				ID    string `json:"id"`
-				Email string `json:"email"`
-			} `json:"user"`
-		} `json:"login"`
+	type LoginResponse struct {
+		Data struct {
+			Login struct {
+				Token string `json:"token"`
+				User  struct {
+					ID    string `json:"id"`
+					Email string `json:"email"`
+				} `json:"user"`
+			} `json:"login"`
+		} `json:"data"`
 	}
 
+	var loginResponse LoginResponse
+
+	fmt.Printf("DEBUG: Before MakeRequest\n")
 	err := suite.Server.MakeRequest(ctx, loginQuery, variables, &loginResponse)
+	fmt.Printf("DEBUG: After MakeRequest, err: %v\n", err)
 	suite.NoError(err, "Login should succeed")
-	token := loginResponse.Login.Token
+	fmt.Printf("DEBUG: loginResponse.Data.Login.Token: '%s'\n", loginResponse.Data.Login.Token)
+	fmt.Printf("DEBUG: About to extract token\n")
+	token := loginResponse.Data.Login.Token
+	fmt.Printf("DEBUG: Extracted token: '%s' (length: %d)\n", token, len(token))
 
 	// Try to delete another user's file
 	userFileID := fmt.Sprintf("%d", suite.TestData.UserFile1.ID) // This belongs to RegularUser
@@ -453,19 +381,23 @@ func (suite *FileIntegrationTestSuite) TestStorageQuotaEnforcement() {
 		},
 	}
 
-	var loginResponse struct {
-		Login struct {
-			Token string `json:"token"`
-			User  struct {
-				ID    string `json:"id"`
-				Email string `json:"email"`
-			} `json:"user"`
-		} `json:"login"`
+	type LoginResponse struct {
+		Data struct {
+			Login struct {
+				Token string `json:"token"`
+				User  struct {
+					ID    string `json:"id"`
+					Email string `json:"email"`
+				} `json:"user"`
+			} `json:"login"`
+		} `json:"data"`
 	}
+
+	var loginResponse LoginResponse
 
 	err := suite.Server.MakeRequest(ctx, loginQuery, variables, &loginResponse)
 	suite.NoError(err, "Login should succeed")
-	token := loginResponse.Login.Token
+	token := loginResponse.Data.Login.Token
 
 	// Try to upload a file that would exceed quota
 	// User has 100MB quota, let's try to upload a 200MB file
@@ -536,19 +468,23 @@ func (suite *FileIntegrationTestSuite) TestFileFilteringAndSearch() {
 		},
 	}
 
-	var loginResponse struct {
-		Login struct {
-			Token string `json:"token"`
-			User  struct {
-				ID    string `json:"id"`
-				Email string `json:"email"`
-			} `json:"user"`
-		} `json:"login"`
+	type LoginResponse struct {
+		Data struct {
+			Login struct {
+				Token string `json:"token"`
+				User  struct {
+					ID    string `json:"id"`
+					Email string `json:"email"`
+				} `json:"user"`
+			} `json:"login"`
+		} `json:"data"`
 	}
+
+	var loginResponse LoginResponse
 
 	err := suite.Server.MakeRequest(ctx, loginQuery, variables, &loginResponse)
 	suite.NoError(err, "Login should succeed")
-	token := loginResponse.Login.Token
+	token := loginResponse.Data.Login.Token
 
 	// Test file listing with filters
 	filesQuery := `
@@ -638,19 +574,23 @@ func (suite *FileIntegrationTestSuite) TestFileUploadValidation() {
 		},
 	}
 
-	var loginResponse struct {
-		Login struct {
-			Token string `json:"token"`
-			User  struct {
-				ID    string `json:"id"`
-				Email string `json:"email"`
-			} `json:"user"`
-		} `json:"login"`
+	type LoginResponse struct {
+		Data struct {
+			Login struct {
+				Token string `json:"token"`
+				User  struct {
+					ID    string `json:"id"`
+					Email string `json:"email"`
+				} `json:"user"`
+			} `json:"login"`
+		} `json:"data"`
 	}
+
+	var loginResponse LoginResponse
 
 	err := suite.Server.MakeRequest(ctx, loginQuery, variables, &loginResponse)
 	suite.NoError(err, "Login should succeed")
-	token := loginResponse.Login.Token
+	token := loginResponse.Data.Login.Token
 
 	testCases := []struct {
 		name        string
@@ -827,6 +767,569 @@ func (suite *FileIntegrationTestSuite) TestConcurrentFileOperations() {
 	// Verify all files were created
 	user := suite.AssertUserExistsInDB(email)
 	suite.AssertUserFileCount(user.ID, 2+len(files)) // 2 original + 3 new
+}
+
+// TestTrashOperationsGraphQL tests GraphQL trash operations
+func (suite *FileIntegrationTestSuite) TestTrashOperationsGraphQL() {
+	ctx := context.Background()
+
+	// Login first
+	email := suite.TestData.RegularUser.Email
+	password := "password123"
+
+	loginQuery := `
+		mutation Login($input: LoginInput!) {
+			login(input: $input) {
+				token
+				user {
+					id
+					email
+				}
+			}
+		}
+	`
+
+	variables := map[string]interface{}{
+		"input": map[string]interface{}{
+			"email":    email,
+			"password": password,
+		},
+	}
+
+	var loginResponse struct {
+		Login struct {
+			Token string `json:"token"`
+			User  struct {
+				ID    string `json:"id"`
+				Email string `json:"email"`
+			} `json:"user"`
+		} `json:"login"`
+	}
+
+	err := suite.Server.MakeRequest(ctx, loginQuery, variables, &loginResponse)
+	suite.NoError(err, "Login should succeed")
+	token := loginResponse.Login.Token
+
+	// Delete file (move to trash)
+	userFileID := fmt.Sprintf("%d", suite.TestData.UserFile1.ID)
+
+	deleteQuery := `
+		mutation DeleteFile($id: ID!) {
+			deleteFile(id: $id)
+		}
+	`
+
+	deleteVariables := map[string]interface{}{
+		"id": userFileID,
+	}
+
+	var deleteResponse struct {
+		DeleteFile bool `json:"deleteFile"`
+	}
+
+	err = suite.Server.MakeAuthenticatedRequest(ctx, token, deleteQuery, deleteVariables, &deleteResponse)
+	suite.NoError(err, "File deletion should succeed")
+	suite.AssertGraphQLSuccess(deleteResponse)
+	suite.True(deleteResponse.DeleteFile, "Delete operation should return true")
+
+	// Verify file is in trash
+	myTrashedFilesQuery := `
+		query MyTrashedFiles {
+			myTrashedFiles {
+				id
+				filename
+				mime_type
+			}
+		}
+	`
+
+	var trashedFilesResponse struct {
+		MyTrashedFiles []struct {
+			ID       string `json:"id"`
+			Filename string `json:"filename"`
+			MimeType string `json:"mime_type"`
+		} `json:"myTrashedFiles"`
+	}
+
+	err = suite.Server.MakeAuthenticatedRequest(ctx, token, myTrashedFilesQuery, nil, &trashedFilesResponse)
+	suite.NoError(err, "Getting trashed files should succeed")
+	suite.AssertGraphQLSuccess(trashedFilesResponse)
+	suite.Len(trashedFilesResponse.MyTrashedFiles, 1, "Should have one trashed file")
+	suite.Equal(suite.TestData.UserFile1.Filename, trashedFilesResponse.MyTrashedFiles[0].Filename, "Filename should match")
+
+	// Verify file is not in regular files list
+	myFilesQuery := `
+		query MyFiles {
+			myFiles {
+				id
+				filename
+			}
+		}
+	`
+
+	var myFilesResponse struct {
+		MyFiles []struct {
+			ID       string `json:"id"`
+			Filename string `json:"filename"`
+		} `json:"myFiles"`
+	}
+
+	err = suite.Server.MakeAuthenticatedRequest(ctx, token, myFilesQuery, nil, &myFilesResponse)
+	suite.NoError(err, "Getting user files should succeed")
+	suite.AssertGraphQLSuccess(myFilesResponse)
+	// Should have 1 less file (originally 2, now 1 after deletion)
+	suite.Len(myFilesResponse.MyFiles, 1, "Should have one file remaining")
+}
+
+// TestRestoreFileGraphQL tests restoring files from trash via GraphQL
+func (suite *FileIntegrationTestSuite) TestRestoreFileGraphQL() {
+	ctx := context.Background()
+
+	// Login first
+	email := suite.TestData.RegularUser.Email
+	password := "password123"
+
+	loginQuery := `
+		mutation Login($input: LoginInput!) {
+			login(input: $input) {
+				token
+				user {
+					id
+					email
+				}
+			}
+		}
+	`
+
+	variables := map[string]interface{}{
+		"input": map[string]interface{}{
+			"email":    email,
+			"password": password,
+		},
+	}
+
+	var loginResponse struct {
+		Login struct {
+			Token string `json:"token"`
+			User  struct {
+				ID    string `json:"id"`
+				Email string `json:"email"`
+			} `json:"user"`
+		} `json:"login"`
+	}
+
+	err := suite.Server.MakeRequest(ctx, loginQuery, variables, &loginResponse)
+	suite.NoError(err, "Login should succeed")
+	token := loginResponse.Login.Token
+
+	// First delete file (move to trash)
+	userFileID := fmt.Sprintf("%d", suite.TestData.UserFile1.ID)
+
+	deleteQuery := `
+		mutation DeleteFile($id: ID!) {
+			deleteFile(id: $id)
+		}
+	`
+
+	deleteVariables := map[string]interface{}{
+		"id": userFileID,
+	}
+
+	var deleteResponse struct {
+		DeleteFile bool `json:"deleteFile"`
+	}
+
+	err = suite.Server.MakeAuthenticatedRequest(ctx, token, deleteQuery, deleteVariables, &deleteResponse)
+	suite.NoError(err, "File deletion should succeed")
+
+	// Restore file from trash
+	restoreQuery := `
+		mutation RestoreFile($fileID: ID!) {
+			restoreFile(fileID: $fileID)
+		}
+	`
+
+	restoreVariables := map[string]interface{}{
+		"fileID": userFileID,
+	}
+
+	var restoreResponse struct {
+		RestoreFile bool `json:"restoreFile"`
+	}
+
+	err = suite.Server.MakeAuthenticatedRequest(ctx, token, restoreQuery, restoreVariables, &restoreResponse)
+	suite.NoError(err, "File restoration should succeed")
+	suite.AssertGraphQLSuccess(restoreResponse)
+	suite.True(restoreResponse.RestoreFile, "Restore operation should return true")
+
+	// Verify file is back in regular files list
+	myFilesQuery := `
+		query MyFiles {
+			myFiles {
+				id
+				filename
+			}
+		}
+	`
+
+	var myFilesResponse struct {
+		MyFiles []struct {
+			ID       string `json:"id"`
+			Filename string `json:"filename"`
+		} `json:"myFiles"`
+	}
+
+	err = suite.Server.MakeAuthenticatedRequest(ctx, token, myFilesQuery, nil, &myFilesResponse)
+	suite.NoError(err, "Getting user files should succeed")
+	suite.AssertGraphQLSuccess(myFilesResponse)
+	suite.Len(myFilesResponse.MyFiles, 2, "Should have both files back")
+
+	// Verify file is no longer in trash
+	myTrashedFilesQuery := `
+		query MyTrashedFiles {
+			myTrashedFiles {
+				id
+				filename
+			}
+		}
+	`
+
+	var trashedFilesResponse struct {
+		MyTrashedFiles []struct {
+			ID       string `json:"id"`
+			Filename string `json:"filename"`
+		} `json:"myTrashedFiles"`
+	}
+
+	err = suite.Server.MakeAuthenticatedRequest(ctx, token, myTrashedFilesQuery, nil, &trashedFilesResponse)
+	suite.NoError(err, "Getting trashed files should succeed")
+	suite.AssertGraphQLSuccess(trashedFilesResponse)
+	suite.Len(trashedFilesResponse.MyTrashedFiles, 0, "Should have no trashed files")
+}
+
+// TestPermanentlyDeleteFileGraphQL tests permanently deleting files from trash via GraphQL
+func (suite *FileIntegrationTestSuite) TestPermanentlyDeleteFileGraphQL() {
+	ctx := context.Background()
+
+	// Login first
+	email := suite.TestData.RegularUser.Email
+	password := "password123"
+
+	loginQuery := `
+		mutation Login($input: LoginInput!) {
+			login(input: $input) {
+				token
+				user {
+					id
+					email
+				}
+			}
+		}
+	`
+
+	variables := map[string]interface{}{
+		"input": map[string]interface{}{
+			"email":    email,
+			"password": password,
+		},
+	}
+
+	var loginResponse struct {
+		Login struct {
+			Token string `json:"token"`
+			User  struct {
+				ID    string `json:"id"`
+				Email string `json:"email"`
+			} `json:"user"`
+		} `json:"login"`
+	}
+
+	err := suite.Server.MakeRequest(ctx, loginQuery, variables, &loginResponse)
+	suite.NoError(err, "Login should succeed")
+	token := loginResponse.Login.Token
+
+	// First delete file (move to trash)
+	userFileID := fmt.Sprintf("%d", suite.TestData.UserFile1.ID)
+
+	deleteQuery := `
+		mutation DeleteFile($id: ID!) {
+			deleteFile(id: $id)
+		}
+	`
+
+	deleteVariables := map[string]interface{}{
+		"id": userFileID,
+	}
+
+	var deleteResponse struct {
+		DeleteFile bool `json:"deleteFile"`
+	}
+
+	err = suite.Server.MakeAuthenticatedRequest(ctx, token, deleteQuery, deleteVariables, &deleteResponse)
+	suite.NoError(err, "File deletion should succeed")
+
+	// Permanently delete file from trash
+	permanentDeleteQuery := `
+		mutation PermanentlyDeleteFile($fileID: ID!) {
+			permanentlyDeleteFile(fileID: $fileID)
+		}
+	`
+
+	permanentDeleteVariables := map[string]interface{}{
+		"fileID": userFileID,
+	}
+
+	var permanentDeleteResponse struct {
+		PermanentlyDeleteFile bool `json:"permanentlyDeleteFile"`
+	}
+
+	err = suite.Server.MakeAuthenticatedRequest(ctx, token, permanentDeleteQuery, permanentDeleteVariables, &permanentDeleteResponse)
+	suite.NoError(err, "Permanent file deletion should succeed")
+	suite.AssertGraphQLSuccess(permanentDeleteResponse)
+	suite.True(permanentDeleteResponse.PermanentlyDeleteFile, "Permanent delete operation should return true")
+
+	// Verify file is completely gone from both regular files and trash
+	myFilesQuery := `
+		query MyFiles {
+			myFiles {
+				id
+				filename
+			}
+		}
+	`
+
+	var myFilesResponse struct {
+		MyFiles []struct {
+			ID       string `json:"id"`
+			Filename string `json:"filename"`
+		} `json:"myFiles"`
+	}
+
+	err = suite.Server.MakeAuthenticatedRequest(ctx, token, myFilesQuery, nil, &myFilesResponse)
+	suite.NoError(err, "Getting user files should succeed")
+	suite.AssertGraphQLSuccess(myFilesResponse)
+	suite.Len(myFilesResponse.MyFiles, 1, "Should have one file remaining")
+
+	// Verify file is not in trash
+	myTrashedFilesQuery := `
+		query MyTrashedFiles {
+			myTrashedFiles {
+				id
+				filename
+			}
+		}
+	`
+
+	var trashedFilesResponse struct {
+		MyTrashedFiles []struct {
+			ID       string `json:"id"`
+			Filename string `json:"filename"`
+		} `json:"myTrashedFiles"`
+	}
+
+	err = suite.Server.MakeAuthenticatedRequest(ctx, token, myTrashedFilesQuery, nil, &trashedFilesResponse)
+	suite.NoError(err, "Getting trashed files should succeed")
+	suite.AssertGraphQLSuccess(trashedFilesResponse)
+	suite.Len(trashedFilesResponse.MyTrashedFiles, 0, "Should have no trashed files")
+}
+
+// TestMyTrashedFilesGraphQL tests the myTrashedFiles query
+func (suite *FileIntegrationTestSuite) TestMyTrashedFilesGraphQL() {
+	ctx := context.Background()
+
+	// Login first
+	email := suite.TestData.RegularUser.Email
+	password := "password123"
+
+	loginQuery := `
+		mutation Login($input: LoginInput!) {
+			login(input: $input) {
+				token
+				user {
+					id
+					email
+				}
+			}
+		}
+	`
+
+	variables := map[string]interface{}{
+		"input": map[string]interface{}{
+			"email":    email,
+			"password": password,
+		},
+	}
+
+	var loginResponse struct {
+		Login struct {
+			Token string `json:"token"`
+			User  struct {
+				ID    string `json:"id"`
+				Email string `json:"email"`
+			} `json:"user"`
+		} `json:"login"`
+	}
+
+	err := suite.Server.MakeRequest(ctx, loginQuery, variables, &loginResponse)
+	suite.NoError(err, "Login should succeed")
+	token := loginResponse.Login.Token
+
+	// Delete one file (move to trash)
+	userFileID := fmt.Sprintf("%d", suite.TestData.UserFile1.ID)
+
+	deleteQuery := `
+		mutation DeleteFile($id: ID!) {
+			deleteFile(id: $id)
+		}
+	`
+
+	deleteVariables := map[string]interface{}{
+		"id": userFileID,
+	}
+
+	var deleteResponse struct {
+		DeleteFile bool `json:"deleteFile"`
+	}
+
+	err = suite.Server.MakeAuthenticatedRequest(ctx, token, deleteQuery, deleteVariables, &deleteResponse)
+	suite.NoError(err, "File deletion should succeed")
+
+	// Test myTrashedFiles query
+	myTrashedFilesQuery := `
+		query MyTrashedFiles {
+			myTrashedFiles {
+				id
+				filename
+				mime_type
+				file {
+					size_bytes
+				}
+			}
+		}
+	`
+
+	var trashedFilesResponse struct {
+		MyTrashedFiles []struct {
+			ID       string `json:"id"`
+			Filename string `json:"filename"`
+			MimeType string `json:"mime_type"`
+			File     struct {
+				SizeBytes int64 `json:"size_bytes"`
+			} `json:"file"`
+		} `json:"myTrashedFiles"`
+	}
+
+	err = suite.Server.MakeAuthenticatedRequest(ctx, token, myTrashedFilesQuery, nil, &trashedFilesResponse)
+	suite.NoError(err, "Getting trashed files should succeed")
+	suite.AssertGraphQLSuccess(trashedFilesResponse)
+	suite.Len(trashedFilesResponse.MyTrashedFiles, 1, "Should have one trashed file")
+
+	// Verify the trashed file details
+	trashedFile := trashedFilesResponse.MyTrashedFiles[0]
+	suite.Equal(suite.TestData.UserFile1.Filename, trashedFile.Filename, "Filename should match")
+	suite.Equal(suite.TestData.UserFile1.MimeType, trashedFile.MimeType, "MIME type should match")
+	suite.Equal(suite.TestData.File1.SizeBytes, trashedFile.File.SizeBytes, "File size should match")
+}
+
+// TestTrashOperationsUnauthorized tests unauthorized access to trash operations
+func (suite *FileIntegrationTestSuite) TestTrashOperationsUnauthorized() {
+	ctx := context.Background()
+
+	// Login as another user (not the owner)
+	email := suite.TestData.AnotherUser.Email
+	password := "password123"
+
+	loginQuery := `
+		mutation Login($input: LoginInput!) {
+			login(input: $input) {
+				token
+				user {
+					id
+					email
+				}
+			}
+		}
+	`
+
+	variables := map[string]interface{}{
+		"input": map[string]interface{}{
+			"email":    email,
+			"password": password,
+		},
+	}
+
+	var loginResponse struct {
+		Login struct {
+			Token string `json:"token"`
+			User  struct {
+				ID    string `json:"id"`
+				Email string `json:"email"`
+			} `json:"user"`
+		} `json:"login"`
+	}
+
+	err := suite.Server.MakeRequest(ctx, loginQuery, variables, &loginResponse)
+	suite.NoError(err, "Login should succeed")
+	token := loginResponse.Login.Token
+
+	// Try to delete another user's file
+	userFileID := fmt.Sprintf("%d", suite.TestData.UserFile1.ID) // This belongs to RegularUser
+
+	deleteQuery := `
+		mutation DeleteFile($id: ID!) {
+			deleteFile(id: $id)
+		}
+	`
+
+	deleteVariables := map[string]interface{}{
+		"id": userFileID,
+	}
+
+	var deleteResponse map[string]interface{}
+
+	err = suite.Server.MakeAuthenticatedRequest(ctx, token, deleteQuery, deleteVariables, &deleteResponse)
+	suite.NoError(err, "Request should not fail")
+
+	// Should contain authorization error
+	suite.AssertGraphQLError(deleteResponse, "unauthorized")
+
+	// Try to restore another user's file
+	restoreQuery := `
+		mutation RestoreFile($fileID: ID!) {
+			restoreFile(fileID: $fileID)
+		}
+	`
+
+	restoreVariables := map[string]interface{}{
+		"fileID": userFileID,
+	}
+
+	var restoreResponse map[string]interface{}
+
+	err = suite.Server.MakeAuthenticatedRequest(ctx, token, restoreQuery, restoreVariables, &restoreResponse)
+	suite.NoError(err, "Request should not fail")
+
+	// Should contain authorization error
+	suite.AssertGraphQLError(restoreResponse, "unauthorized")
+
+	// Try to permanently delete another user's file
+	permanentDeleteQuery := `
+		mutation PermanentlyDeleteFile($fileID: ID!) {
+			permanentlyDeleteFile(fileID: $fileID)
+		}
+	`
+
+	permanentDeleteVariables := map[string]interface{}{
+		"fileID": userFileID,
+	}
+
+	var permanentDeleteResponse map[string]interface{}
+
+	err = suite.Server.MakeAuthenticatedRequest(ctx, token, permanentDeleteQuery, permanentDeleteVariables, &permanentDeleteResponse)
+	suite.NoError(err, "Request should not fail")
+
+	// Should contain authorization error
+	suite.AssertGraphQLError(permanentDeleteResponse, "unauthorized")
 }
 
 // Helper function to generate SHA-256 hash

@@ -14,6 +14,7 @@ import (
 
 	"github.com/balkanid/aegis-backend/graph/generated"
 	"github.com/balkanid/aegis-backend/graph/model"
+	"github.com/balkanid/aegis-backend/internal/database"
 	"github.com/balkanid/aegis-backend/internal/middleware"
 	"github.com/balkanid/aegis-backend/internal/models"
 	"github.com/balkanid/aegis-backend/internal/services"
@@ -41,12 +42,15 @@ func (r *mutationResolver) Register(ctx context.Context, input model.RegisterInp
 
 // Login is the resolver for the login field.
 func (r *mutationResolver) Login(ctx context.Context, input model.LoginInput) (*model.AuthPayload, error) {
+	fmt.Printf("DEBUG: Login resolver called with email=%s\n", input.Email)
 	userService := r.Resolver.UserService
 
 	user, token, err := userService.Login(input.Email, input.Password)
 	if err != nil {
+		fmt.Printf("DEBUG: Login failed: %v\n", err)
 		return nil, err
 	}
+	fmt.Printf("DEBUG: Login succeeded, token length=%d\n", len(token))
 
 	return &model.AuthPayload{
 		Token: token,
@@ -93,12 +97,6 @@ func (r *mutationResolver) UploadFile(ctx context.Context, input model.UploadFil
 		fileReader,
 		sizeBytes,
 	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Update user's storage usage
-	err = r.Resolver.UserService.UpdateStorageUsage(user.ID, sizeBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -154,34 +152,81 @@ func (r *mutationResolver) UploadFileFromMap(ctx context.Context, input model.Up
 		return nil, err
 	}
 
-	// Update user's storage usage
-	err = r.Resolver.UserService.UpdateStorageUsage(user.ID, sizeBytes)
-	if err != nil {
-		return nil, err
-	}
-
 	return userFile, nil
 }
 
 // DeleteFile is the resolver for the deleteFile field.
 func (r *mutationResolver) DeleteFile(ctx context.Context, id string) (bool, error) {
+	fmt.Printf("DEBUG: DeleteFile resolver called with id=%s\n", id)
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		fmt.Printf("DEBUG: Authentication failed: %v\n", err)
+		return false, fmt.Errorf("unauthenticated: %w", err)
+	}
+	fmt.Printf("DEBUG: User ID=%d\n", user.ID)
+
+	userFileID, err := strconv.ParseUint(id, 10, 32)
+	if err != nil {
+		fmt.Printf("DEBUG: Invalid file ID: %v\n", err)
+		return false, fmt.Errorf("invalid file ID: %w", err)
+	}
+	fmt.Printf("DEBUG: Parsed userFileID=%d\n", userFileID)
+
+	// Get the user file to retrieve file size before deletion
+	var userFile models.UserFile
+	db := database.GetDB()
+	if err := db.Preload("File").Where("id = ? AND user_id = ?", uint(userFileID), user.ID).First(&userFile).Error; err != nil {
+		fmt.Printf("DEBUG: File not found: %v\n", err)
+		return false, fmt.Errorf("file not found: %w", err)
+	}
+	fmt.Printf("DEBUG: Found userFile ID=%d, file ID=%d, size=%d\n", userFile.ID, userFile.FileID, userFile.File.SizeBytes)
+
+	// Log file size for debugging
+	fmt.Printf("DEBUG: Deleting file ID %d, size %d bytes for user %d\n", userFileID, userFile.File.SizeBytes, user.ID)
+
+	err = r.Resolver.FileService.DeleteFile(user.ID, uint(userFileID))
+	if err != nil {
+		fmt.Printf("DEBUG: DeleteFile service failed: %v\n", err)
+		return false, err
+	}
+	fmt.Printf("DEBUG: DeleteFile service succeeded\n")
+
+	return true, nil
+}
+
+// RestoreFile is the resolver for the restoreFile field.
+func (r *mutationResolver) RestoreFile(ctx context.Context, fileID string) (bool, error) {
 	user, err := middleware.GetUserFromContext(ctx)
 	if err != nil {
 		return false, fmt.Errorf("unauthenticated: %w", err)
 	}
 
-	userFileID, err := strconv.ParseUint(id, 10, 32)
+	userFileID, err := strconv.ParseUint(fileID, 10, 32)
 	if err != nil {
 		return false, fmt.Errorf("invalid file ID: %w", err)
 	}
 
-	err = r.Resolver.FileService.DeleteFile(user.ID, uint(userFileID))
+	err = r.Resolver.FileService.RestoreFile(user.ID, uint(userFileID))
 	if err != nil {
 		return false, err
 	}
 
-	// Update storage usage (negative delta for deletion)
-	err = r.Resolver.UserService.UpdateStorageUsage(user.ID, -int64(0)) // TODO: Get actual file size
+	return true, nil
+}
+
+// PermanentlyDeleteFile is the resolver for the permanentlyDeleteFile field.
+func (r *mutationResolver) PermanentlyDeleteFile(ctx context.Context, fileID string) (bool, error) {
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return false, fmt.Errorf("unauthenticated: %w", err)
+	}
+
+	userFileID, err := strconv.ParseUint(fileID, 10, 32)
+	if err != nil {
+		return false, fmt.Errorf("invalid file ID: %w", err)
+	}
+
+	err = r.Resolver.FileService.PermanentlyDeleteFile(user.ID, uint(userFileID))
 	if err != nil {
 		return false, err
 	}
@@ -406,9 +451,24 @@ func (r *queryResolver) MyFiles(ctx context.Context, filter *model.FileFilterInp
 			dateTo := interface{}(*filter.DateTo)
 			fileFilter.DateTo = &dateTo
 		}
+		// TODO: Add IncludeTrashed handling after gqlgen regeneration
+		// if filter.IncludeTrashed != nil {
+		// 	includeTrashed := *filter.IncludeTrashed
+		// 	fileFilter.IncludeTrashed = &includeTrashed
+		// }
 	}
 
 	return r.Resolver.FileService.GetUserFiles(user.ID, fileFilter)
+}
+
+// MyTrashedFiles is the resolver for the myTrashedFiles field.
+func (r *queryResolver) MyTrashedFiles(ctx context.Context) ([]*models.UserFile, error) {
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("unauthenticated: %w", err)
+	}
+
+	return r.Resolver.FileService.GetTrashedFiles(user.ID)
 }
 
 // MyStats is the resolver for the myStats field.

@@ -131,9 +131,12 @@ func (t *TestGraphQLServer) MakeRequest(ctx context.Context, query string, varia
 
 	// Decode the response into the provided response struct
 	// This allows GraphQL errors to be in response.Errors without returning a Go error
+	fmt.Printf("DEBUG: Raw GraphQL response: %s\n", string(respBytes))
 	if err := json.Unmarshal(respBytes, response); err != nil {
+		fmt.Printf("DEBUG: Failed to unmarshal response: %v\n", err)
 		return fmt.Errorf("failed to decode GraphQL response: %w", err)
 	}
+	fmt.Printf("DEBUG: Successfully unmarshaled response\n")
 
 	return nil
 }

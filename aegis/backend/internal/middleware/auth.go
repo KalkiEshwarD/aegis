@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -53,11 +54,14 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 		if path == "/graphql" {
 			// Check if Authorization header is present
 			authHeader := c.GetHeader("Authorization")
+			fmt.Printf("DEBUG: Authorization header: '%s'\n", authHeader)
 			if authHeader != "" {
 				// Expect "Bearer <token>"
 				bearerToken := strings.Split(authHeader, " ")
+				fmt.Printf("DEBUG: Bearer token parts: %d, first: '%s'\n", len(bearerToken), bearerToken[0])
 				if len(bearerToken) == 2 && bearerToken[0] == "Bearer" {
 					tokenString := bearerToken[1]
+					fmt.Printf("DEBUG: Token string length: %d\n", len(tokenString))
 
 					// Parse and validate token
 					token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
@@ -67,18 +71,28 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 						return []byte(cfg.JWTSecret), nil
 					})
 
-					if err == nil {
-						if claims, ok := token.Claims.(*Claims); ok && token.Valid {
-							// Verify user still exists
-							var user models.User
-							if err := database.GetDB().First(&user, claims.UserID).Error; err == nil {
-								// Add user to context for GraphQL resolvers
-								ctx := context.WithValue(c.Request.Context(), "user", &user)
-								c.Request = c.Request.WithContext(ctx)
-							}
+					if err != nil {
+						// Log the error for debugging
+						fmt.Printf("DEBUG: Token parsing failed: %v\n", err)
+					} else if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+						// Verify user still exists
+						var user models.User
+						if err := database.GetDB().First(&user, claims.UserID).Error; err == nil {
+							// Add user to context for GraphQL resolvers
+							ctx := context.WithValue(c.Request.Context(), "user", &user)
+							c.Request = c.Request.WithContext(ctx)
+							fmt.Printf("DEBUG: User added to context: ID=%d\n", user.ID)
+						} else {
+							fmt.Printf("DEBUG: User not found in DB: %v\n", err)
 						}
+					} else {
+						fmt.Printf("DEBUG: Token claims invalid or token not valid\n")
 					}
+				} else {
+					fmt.Printf("DEBUG: Invalid bearer token format\n")
 				}
+			} else {
+				fmt.Printf("DEBUG: No Authorization header\n")
 			}
 			// Always allow GraphQL requests to proceed - authentication handled at resolver level
 			c.Next()

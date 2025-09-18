@@ -123,26 +123,24 @@ func (s *UserService) GetUserStats(userID uint) (*UserStats, error) {
 		return nil, fmt.Errorf("user not found: %w", err)
 	}
 
-	// Count total files
+	// Count total files (excluding soft-deleted)
 	var fileCount int64
-	database.GetDB().Model(&models.UserFile{}).Where("user_id = ?", userID).Count(&fileCount)
+	database.GetDB().Model(&models.UserFile{}).Where("user_id = ? AND deleted_at IS NULL", userID).Count(&fileCount)
 
-	// Calculate storage savings (original size vs actual storage used)
-	var totalOriginalSize int64
+	// Calculate actual storage used (sum of all file sizes the user has access to, excluding soft-deleted)
+	var usedStorage int64
 	database.GetDB().Table("user_files").
 		Select("COALESCE(SUM(files.size_bytes), 0)").
 		Joins("JOIN files ON user_files.file_id = files.id").
-		Where("user_files.user_id = ?", userID).
-		Scan(&totalOriginalSize)
+		Where("user_files.user_id = ? AND user_files.deleted_at IS NULL", userID).
+		Scan(&usedStorage)
 
-	storageSavings := totalOriginalSize - user.UsedStorage
-	if storageSavings < 0 {
-		storageSavings = 0
-	}
+	// No deduplication - each file upload creates a separate copy
+	storageSavings := int64(0)
 
 	return &UserStats{
 		TotalFiles:     int(fileCount),
-		UsedStorage:    int(user.UsedStorage),
+		UsedStorage:    int(usedStorage),
 		StorageQuota:   int(user.StorageQuota),
 		StorageSavings: int(storageSavings),
 	}, nil
@@ -162,7 +160,15 @@ func (s *UserService) CheckStorageQuota(userID uint, additionalBytes int64) erro
 		return fmt.Errorf("user not found: %w", err)
 	}
 
-	if user.UsedStorage+additionalBytes > user.StorageQuota {
+	// Calculate current storage usage dynamically (excluding soft-deleted files)
+	var currentUsage int64
+	database.GetDB().Table("user_files").
+		Select("COALESCE(SUM(files.size_bytes), 0)").
+		Joins("JOIN files ON user_files.file_id = files.id").
+		Where("user_files.user_id = ? AND user_files.deleted_at IS NULL", userID).
+		Scan(&currentUsage)
+
+	if currentUsage+additionalBytes > user.StorageQuota {
 		return errors.New("storage quota exceeded")
 	}
 

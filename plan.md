@@ -11,9 +11,9 @@ This section synthesizes the core requirements from the project document and the
 
 #### File Operations:
 - Single and multiple file uploads with drag-and-drop support
-- Content hashing (SHA-256) for file deduplication on the backend
+- Content hashing (SHA-256) for integrity verification
 - MIME type validation to prevent content mismatches
-- List, view, and delete owned files (respecting deduplication reference counts)
+- List, view, and delete owned files
 
 #### Search & Filtering:
 - Performant search by filename
@@ -30,7 +30,7 @@ This section synthesizes the core requirements from the project document and the
 - View detailed analytics like download counts and user access lists
 
 #### Statistics:
-- Users can view their storage usage, including total used, original size (pre-deduplication), and savings percentage
+- Users can view their storage usage and file counts
 
 ### Non-Functional Requirements
 
@@ -175,7 +175,7 @@ enum Role {
 ## 5. Development Plan (7-Day Schedule)
 This is an aggressive timeline focused on delivering a Minimum Viable Product (MVP) first, then layering on advanced features.
 
-**MVP Definition**: A user can register, log in, upload files (with deduplication and E2EE), view their own files, and delete them. All within a Dockerized environment.
+**MVP Definition**: A user can register, log in, upload files (with E2EE), view their own files, and delete them. All within a Dockerized environment.
 
 ### Day 1: Project Scaffolding & Foundation
 **Goal**: Create a runnable "hello world" across the entire stack.
@@ -257,7 +257,6 @@ This is an aggressive timeline focused on delivering a Minimum Viable Product (M
 
 #### File Management:
 - [ ] A user can upload a file via drag-and-drop
-- [ ] Uploading the same file twice results in deduplication (verify storage stats)
 - [ ] A user can download their own file, and it decrypts correctly
 - [ ] A user can delete their own file
 

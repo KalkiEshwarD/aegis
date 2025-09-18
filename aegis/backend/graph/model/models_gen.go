@@ -32,12 +32,13 @@ type CreateRoomInput struct {
 }
 
 type FileFilterInput struct {
-	Filename *string    `json:"filename,omitempty"`
-	MimeType *string    `json:"mime_type,omitempty"`
-	MinSize  *int       `json:"min_size,omitempty"`
-	MaxSize  *int       `json:"max_size,omitempty"`
-	DateFrom *time.Time `json:"date_from,omitempty"`
-	DateTo   *time.Time `json:"date_to,omitempty"`
+	Filename       *string    `json:"filename,omitempty"`
+	MimeType       *string    `json:"mime_type,omitempty"`
+	MinSize        *int       `json:"min_size,omitempty"`
+	MaxSize        *int       `json:"max_size,omitempty"`
+	DateFrom       *time.Time `json:"date_from,omitempty"`
+	DateTo         *time.Time `json:"date_to,omitempty"`
+	IncludeTrashed *bool      `json:"includeTrashed,omitempty"`
 }
 
 type LoginInput struct {

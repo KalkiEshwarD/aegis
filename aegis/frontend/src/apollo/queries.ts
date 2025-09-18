@@ -120,6 +120,35 @@ export const DOWNLOAD_FILE_MUTATION = gql`
   }
 `;
 
+// Trash Operations
+export const GET_MY_TRASHED_FILES = gql`
+  query GetMyTrashedFiles {
+    myTrashedFiles {
+      id
+      filename
+      mime_type
+      created_at
+      file {
+        id
+        size_bytes
+        content_hash
+      }
+    }
+  }
+`;
+
+export const RESTORE_FILE_MUTATION = gql`
+  mutation RestoreFile($fileID: ID!) {
+    restoreFile(fileID: $fileID)
+  }
+`;
+
+export const PERMANENTLY_DELETE_FILE_MUTATION = gql`
+  mutation PermanentlyDeleteFile($fileID: ID!) {
+    permanentlyDeleteFile(fileID: $fileID)
+  }
+`;
+
 // Room Queries
 export const GET_MY_ROOMS = gql`
   query GetMyRooms {

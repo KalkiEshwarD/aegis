@@ -111,7 +111,7 @@ func (fs *FileService) UploadFileFromMap(userID uint, data map[string]interface{
 	sizeBytes := int64(uploadData.SizeBytes)
 
 	// Now call the existing UploadFile method with the converted data
-	return fs.UploadFile(
+	userFile, err := fs.UploadFile(
 		userID,
 		uploadData.Filename,
 		uploadData.MimeType,
@@ -120,6 +120,7 @@ func (fs *FileService) UploadFileFromMap(userID uint, data map[string]interface{
 		fileReader,
 		sizeBytes,
 	)
+	return userFile, err
 }
 
 // ensureBucketExists creates the bucket if it doesn't exist
@@ -144,33 +145,67 @@ func (fs *FileService) ensureBucketExists() {
 	}
 }
 
-// UploadFile handles file upload with deduplication
+// UploadFile handles file upload with user-specific deduplication
 func (fs *FileService) UploadFile(userID uint, filename, mimeType, contentHash, encryptionKey string, fileData io.Reader, sizeBytes int64) (*models.UserFile, error) {
 	db := database.GetDB()
 
-	// Check if file with this hash already exists (including soft-deleted)
+	log.Printf("DEBUG: UploadFile called - userID: %d, filename: %s, contentHash: %s", userID, filename, contentHash)
+
+	// First, let's check what files exist for this user
+	var userFiles []models.UserFile
+	err := db.Where("user_id = ?", userID).Preload("File").Find(&userFiles).Error
+	if err != nil {
+		log.Printf("DEBUG: Error fetching user files: %v", err)
+	} else {
+		log.Printf("DEBUG: User %d has %d files:", userID, len(userFiles))
+		for i, uf := range userFiles {
+			log.Printf("DEBUG: File %d: ID=%d, filename=%s, contentHash=%s", i+1, uf.ID, uf.Filename, uf.File.ContentHash)
+		}
+	}
+
+	// Check if this user already has a file with the same content hash and filename
+	// This prevents user-level duplicates while allowing different users to have the same file
+	var existingUserFile models.UserFile
+	err = db.Joins("JOIN files ON user_files.file_id = files.id").
+		Where("user_files.user_id = ? AND files.content_hash = ? AND user_files.filename = ?",
+			userID, contentHash, filename).
+		Preload("User").Preload("File").
+		First(&existingUserFile).Error
+
+	if err == nil {
+		// User already has this exact file - return the existing record
+		log.Printf("DEBUG: Found existing user file - returning existing record with ID: %d", existingUserFile.ID)
+		return &existingUserFile, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		// Database error
+		log.Printf("DEBUG: Database error checking for existing user file: %v", err)
+		return nil, fmt.Errorf("database error checking for existing user file: %w", err)
+	}
+
+	log.Printf("DEBUG: No existing user file found for contentHash=%s, filename=%s", contentHash, filename)
+
+	log.Printf("DEBUG: No existing user file found, checking for file with same content_hash")
+
+	// User doesn't have this file yet - check if we can reuse an existing file record
 	var existingFile models.File
-	err := db.Unscoped().Where("content_hash = ?", contentHash).First(&existingFile).Error
+	err = db.Where("content_hash = ?", contentHash).First(&existingFile).Error
 
 	var file *models.File
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		// File doesn't exist at all
-		var storagePath string
+	var storagePath string
 
-		// Only upload to MinIO if it's configured
+	if err == nil {
+		// File with same content hash exists - reuse it (storage deduplication)
+		log.Printf("DEBUG: Found existing file with ID: %d, reusing it", existingFile.ID)
+		file = &existingFile
+		storagePath = existingFile.StoragePath
+	} else if errors.Is(err, gorm.ErrRecordNotFound) {
+		// No existing file with this content hash - create new file record and upload to storage
+		log.Printf("DEBUG: No existing file found, creating new file record and uploading to storage")
 		if fs.minioClient != nil {
 			storagePath = fmt.Sprintf("%d/%s", userID, contentHash)
-
-			_, err = fs.minioClient.PutObject(
-				context.Background(),
-				fs.bucketName,
-				storagePath,
-				fileData,
-				sizeBytes,
-				minio.PutObjectOptions{
-					ContentType: mimeType,
-				},
-			)
+			_, err := fs.minioClient.PutObject(context.Background(), fs.bucketName, storagePath, fileData, sizeBytes, minio.PutObjectOptions{
+				ContentType: mimeType,
+			})
 			if err != nil {
 				return nil, fmt.Errorf("failed to upload file to storage: %w", err)
 			}
@@ -179,7 +214,7 @@ func (fs *FileService) UploadFile(userID uint, filename, mimeType, contentHash, 
 			storagePath = fmt.Sprintf("mock/%d/%s", userID, contentHash)
 		}
 
-		// Create file record
+		// Create new file record
 		file = &models.File{
 			ContentHash: contentHash,
 			SizeBytes:   sizeBytes,
@@ -193,36 +228,14 @@ func (fs *FileService) UploadFile(userID uint, filename, mimeType, contentHash, 
 			}
 			return nil, fmt.Errorf("failed to create file record: %w", err)
 		}
-	} else if err != nil {
-		return nil, fmt.Errorf("database error: %w", err)
+		log.Printf("DEBUG: Created new file record with ID: %d", file.ID)
 	} else {
-		// File exists (either active or soft-deleted)
-		if existingFile.DeletedAt.Valid {
-			// File is soft-deleted, restore it
-			existingFile.DeletedAt = gorm.DeletedAt{}
-			if err := db.Unscoped().Save(&existingFile).Error; err != nil {
-				return nil, fmt.Errorf("failed to restore soft-deleted file: %w", err)
-			}
-		}
-		// Use the existing/restored file record
-		file = &existingFile
-	}
-
-	// Check if user already has this file (user-level duplicate prevention)
-	var existingUserFile models.UserFile
-	err = db.Where("user_id = ? AND file_id = ?", userID, file.ID).First(&existingUserFile).Error
-
-	if err == nil {
-		// User already has this file - return the existing record
-		// Load associations
-		db.Preload("User").Preload("File").First(&existingUserFile, existingUserFile.ID)
-		return &existingUserFile, nil
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		// Database error
-		return nil, fmt.Errorf("database error checking for existing user file: %w", err)
+		log.Printf("DEBUG: Database error checking for existing file: %v", err)
+		return nil, fmt.Errorf("database error checking for existing file: %w", err)
 	}
 
-	// User doesn't have this file yet - create new user_file record
+	// Create user_file record linking user to the file (existing or new)
 	userFile := &models.UserFile{
 		UserID:        userID,
 		FileID:        file.ID,
@@ -230,6 +243,8 @@ func (fs *FileService) UploadFile(userID uint, filename, mimeType, contentHash, 
 		MimeType:      mimeType,
 		EncryptionKey: encryptionKey,
 	}
+
+	log.Printf("DEBUG: Creating user_file record - UserID: %d, FileID: %d, Filename: %s", userFile.UserID, userFile.FileID, userFile.Filename)
 
 	if err := db.Create(userFile).Error; err != nil {
 		return nil, fmt.Errorf("failed to create user file record: %w", err)
@@ -244,9 +259,17 @@ func (fs *FileService) UploadFile(userID uint, filename, mimeType, contentHash, 
 // GetUserFiles returns files owned by a user with optional filtering
 func (fs *FileService) GetUserFiles(userID uint, filter *FileFilter) ([]*models.UserFile, error) {
 	db := database.GetDB()
+
+	// Use Unscoped if we want to include trashed files
 	query := db.Where("user_id = ?", userID).Preload("File")
+	includeTrashed := false
 
 	if filter != nil {
+		if filter.IncludeTrashed != nil && *filter.IncludeTrashed {
+			includeTrashed = true
+			query = db.Unscoped().Where("user_id = ?", userID).Preload("File")
+		}
+
 		if filter.Filename != nil {
 			// Use LIKE for SQLite compatibility (ILIKE is PostgreSQL-specific)
 			query = query.Where("filename LIKE ?", "%"+*filter.Filename+"%")
@@ -254,13 +277,14 @@ func (fs *FileService) GetUserFiles(userID uint, filter *FileFilter) ([]*models.
 		if filter.MimeType != nil {
 			query = query.Where("mime_type = ?", *filter.MimeType)
 		}
-		if filter.MinSize != nil {
-			query = query.Joins("JOIN files ON user_files.file_id = files.id").
-				Where("files.size_bytes >= ?", *filter.MinSize)
-		}
-		if filter.MaxSize != nil {
-			query = query.Joins("JOIN files ON user_files.file_id = files.id").
-				Where("files.size_bytes <= ?", *filter.MaxSize)
+		if filter.MinSize != nil || filter.MaxSize != nil {
+			query = query.Joins("JOIN files ON user_files.file_id = files.id")
+			if filter.MinSize != nil {
+				query = query.Where("files.size_bytes >= ?", *filter.MinSize)
+			}
+			if filter.MaxSize != nil {
+				query = query.Where("files.size_bytes <= ?", *filter.MaxSize)
+			}
 		}
 		if filter.DateFrom != nil {
 			query = query.Where("user_files.created_at >= ?", *filter.DateFrom)
@@ -270,52 +294,149 @@ func (fs *FileService) GetUserFiles(userID uint, filter *FileFilter) ([]*models.
 		}
 	}
 
+	// If not including trashed files, exclude soft-deleted files
+	if !includeTrashed {
+		query = query.Where("user_files.deleted_at IS NULL")
+	}
+
 	var userFiles []*models.UserFile
 	err := query.Find(&userFiles).Error
 	return userFiles, err
 }
 
-// DeleteFile deletes a user's file (handles deduplication)
+// DeleteFile soft deletes a user's file (moves to trash)
 func (fs *FileService) DeleteFile(userID, userFileID uint) error {
+	log.Printf("DEBUG: DeleteFile called with userID=%d, userFileID=%d", userID, userFileID)
 	db := database.GetDB()
 
 	// Get the user file
 	var userFile models.UserFile
 	if err := db.Preload("File").Where("id = ? AND user_id = ?", userFileID, userID).First(&userFile).Error; err != nil {
+		log.Printf("DEBUG: Failed to find user file: %v", err)
+		return fmt.Errorf("file not found: %w", err)
+	}
+	log.Printf("DEBUG: Found user file ID=%d, file ID=%d", userFile.ID, userFile.FileID)
+
+	// Remove file from all rooms first (to avoid foreign key constraint issues)
+	if err := db.Where("user_file_id = ?", userFileID).Delete(&models.RoomFile{}).Error; err != nil {
+		log.Printf("DEBUG: Failed to remove file from rooms: %v", err)
+		return fmt.Errorf("failed to remove file from rooms: %w", err)
+	}
+	log.Printf("DEBUG: Removed file from rooms")
+
+	// Soft delete the user_file record (sets deleted_at timestamp)
+	if err := db.Delete(&userFile).Error; err != nil {
+		log.Printf("DEBUG: Failed to soft delete user file record: %v", err)
+		return fmt.Errorf("failed to soft delete user file record: %w", err)
+	}
+	log.Printf("DEBUG: Soft deleted user file record")
+
+	return nil
+}
+
+// RestoreFile restores a soft-deleted file
+func (fs *FileService) RestoreFile(userID, userFileID uint) error {
+	log.Printf("DEBUG: RestoreFile called with userID=%d, userFileID=%d", userID, userFileID)
+	db := database.GetDB()
+
+	// Find the soft-deleted user file using Unscoped to include deleted records
+	var userFile models.UserFile
+	if err := db.Unscoped().Preload("File").Where("id = ? AND user_id = ?", userFileID, userID).First(&userFile).Error; err != nil {
+		log.Printf("DEBUG: Failed to find user file (including soft-deleted): %v", err)
 		return fmt.Errorf("file not found: %w", err)
 	}
 
-	// Delete the user_file record
-	if err := db.Delete(&userFile).Error; err != nil {
-		return fmt.Errorf("failed to delete user file record: %w", err)
+	// Check if the file is actually soft-deleted
+	if userFile.DeletedAt.Valid == false {
+		log.Printf("DEBUG: File is not soft-deleted")
+		return fmt.Errorf("file is not in trash")
 	}
 
-	// Check if other users still reference this file
+	log.Printf("DEBUG: Found soft-deleted user file ID=%d, file ID=%d", userFile.ID, userFile.FileID)
+
+	// Restore the file by setting deleted_at to NULL using raw SQL
+	if err := db.Exec("UPDATE user_files SET deleted_at = NULL WHERE id = ? AND user_id = ?", userFileID, userID).Error; err != nil {
+		log.Printf("DEBUG: Failed to restore user file record: %v", err)
+		return fmt.Errorf("failed to restore user file record: %w", err)
+	}
+	log.Printf("DEBUG: Restored user file record")
+
+	return nil
+}
+
+// PermanentlyDeleteFile permanently deletes a soft-deleted file from storage and database
+func (fs *FileService) PermanentlyDeleteFile(userID, userFileID uint) error {
+	log.Printf("DEBUG: PermanentlyDeleteFile called with userID=%d, userFileID=%d", userID, userFileID)
+	db := database.GetDB()
+
+	// Find the soft-deleted user file using Unscoped to include deleted records
+	var userFile models.UserFile
+	if err := db.Unscoped().Preload("File").Where("id = ? AND user_id = ?", userFileID, userID).First(&userFile).Error; err != nil {
+		log.Printf("DEBUG: Failed to find user file (including soft-deleted): %v", err)
+		return fmt.Errorf("file not found: %w", err)
+	}
+
+	// Check if the file is actually soft-deleted
+	if userFile.DeletedAt.Valid == false {
+		log.Printf("DEBUG: File is not soft-deleted")
+		return fmt.Errorf("file is not in trash - use DeleteFile first")
+	}
+
+	log.Printf("DEBUG: Found soft-deleted user file ID=%d, file ID=%d", userFile.ID, userFile.FileID)
+
+	// Delete from MinIO storage (only if configured)
+	if fs.minioClient != nil {
+		err := fs.minioClient.RemoveObject(
+			context.Background(),
+			fs.bucketName,
+			userFile.File.StoragePath,
+			minio.RemoveObjectOptions{},
+		)
+		if err != nil {
+			log.Printf("Warning: Failed to delete file from storage: %v", err)
+			// Continue with database deletion even if storage deletion fails
+		}
+	}
+
+	// Hard delete the user_file record using Unscoped
+	if err := db.Unscoped().Delete(&userFile).Error; err != nil {
+		log.Printf("DEBUG: Failed to permanently delete user file record: %v", err)
+		return fmt.Errorf("failed to permanently delete user file record: %w", err)
+	}
+	log.Printf("DEBUG: Permanently deleted user file record")
+
+	// Check if any other user_files (including soft-deleted) reference this file
 	var count int64
-	db.Model(&models.UserFile{}).Where("file_id = ?", userFile.FileID).Count(&count)
+	if err := db.Unscoped().Model(&models.UserFile{}).Where("file_id = ?", userFile.FileID).Count(&count).Error; err != nil {
+		log.Printf("Warning: Failed to check for other file references: %v", err)
+		return nil // Don't fail the operation if we can't check
+	}
 
-	// If no other users reference this file, delete from storage and file table
+	// If no other references, permanently delete the file record
 	if count == 0 {
-		// Delete from MinIO (only if configured)
-		if fs.minioClient != nil {
-			err := fs.minioClient.RemoveObject(
-				context.Background(),
-				fs.bucketName,
-				userFile.File.StoragePath,
-				minio.RemoveObjectOptions{},
-			)
-			if err != nil {
-				log.Printf("Warning: Failed to delete file from storage: %v", err)
-			}
+		if err := db.Unscoped().Delete(&models.File{}, userFile.FileID).Error; err != nil {
+			log.Printf("Warning: Failed to permanently delete file record: %v", err)
+		} else {
+			log.Printf("DEBUG: Permanently deleted file record (no more references)")
 		}
-
-		// Delete file record
-		if err := db.Delete(&models.File{}, userFile.FileID).Error; err != nil {
-			log.Printf("Warning: Failed to delete file record: %v", err)
-		}
+	} else {
+		log.Printf("DEBUG: File record still has %d references, keeping it", count)
 	}
 
 	return nil
+}
+
+// GetTrashedFiles returns soft-deleted files for a user
+func (fs *FileService) GetTrashedFiles(userID uint) ([]*models.UserFile, error) {
+	db := database.GetDB()
+
+	var userFiles []*models.UserFile
+	err := db.Unscoped().
+		Where("user_id = ? AND deleted_at IS NOT NULL", userID).
+		Preload("File").
+		Find(&userFiles).Error
+
+	return userFiles, err
 }
 
 // GetFileDownloadURL generates a presigned URL for file download
@@ -425,10 +546,11 @@ func (fs *FileService) GetAllFiles() ([]*models.UserFile, error) {
 
 // FileFilter represents filters for file queries
 type FileFilter struct {
-	Filename *string
-	MimeType *string
-	MinSize  *int64
-	MaxSize  *int64
-	DateFrom *interface{} // Time
-	DateTo   *interface{} // Time
+	Filename      *string
+	MimeType      *string
+	MinSize       *int64
+	MaxSize       *int64
+	DateFrom      *interface{} // Time
+	DateTo        *interface{} // Time
+	IncludeTrashed *bool
 }

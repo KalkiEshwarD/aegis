@@ -12,7 +12,7 @@ import {
   InputAdornment,
   IconButton
 } from '@mui/material';
-import { Visibility, VisibilityOff, PersonAdd, Email } from '@mui/icons-material';
+import { Visibility, VisibilityOff, Storage, Email } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 
 const Register: React.FC = () => {
@@ -55,23 +55,39 @@ const Register: React.FC = () => {
   };
 
   return (
-    <Container component="main" maxWidth="sm">
-      <Box
-        sx={{
-          marginTop: 8,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-        }}
-      >
-        <Paper elevation={3} sx={{ padding: 4, width: '100%' }}>
+    <Box sx={{ 
+      minHeight: '100vh',
+      backgroundColor: '#f8fafc',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center'
+    }}>
+      <Container component="main" maxWidth="sm">
+        <Paper elevation={1} sx={{ 
+          padding: 4, 
+          width: '100%',
+          backgroundColor: 'white',
+          border: '1px solid #e5e7eb',
+          borderRadius: 3
+        }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <PersonAdd sx={{ fontSize: 40, color: 'primary.main', mb: 2 }} />
-            <Typography component="h1" variant="h4" gutterBottom>
-              Join Aegis
+            <Box sx={{ 
+              width: 60, 
+              height: 60, 
+              borderRadius: 3, 
+              background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              mb: 3
+            }}>
+              <Storage sx={{ fontSize: 32, color: 'white' }} />
+            </Box>
+            <Typography component="h1" variant="h4" gutterBottom sx={{ fontWeight: 600, color: '#1f2937' }}>
+              Join AegisDrive
             </Typography>
-            <Typography variant="h6" color="textSecondary" gutterBottom>
-              Create your secure file vault
+            <Typography variant="h6" color="#6b7280" gutterBottom>
+              Create your secure vault
             </Typography>
 
             {error && (
@@ -80,7 +96,7 @@ const Register: React.FC = () => {
               </Alert>
             )}
 
-            <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1, width: '100%' }}>
+            <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3, width: '100%' }}>
               <TextField
                 margin="normal"
                 required
@@ -95,9 +111,22 @@ const Register: React.FC = () => {
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <Email />
+                      <Email sx={{ color: '#6b7280' }} />
                     </InputAdornment>
                   ),
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': {
+                      borderColor: '#d1d5db',
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#3b82f6',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#3b82f6',
+                    },
+                  },
                 }}
               />
               <TextField
@@ -118,11 +147,25 @@ const Register: React.FC = () => {
                         aria-label="toggle password visibility"
                         onClick={() => setShowPassword(!showPassword)}
                         edge="end"
+                        sx={{ color: '#6b7280' }}
                       >
                         {showPassword ? <VisibilityOff /> : <Visibility />}
                       </IconButton>
                     </InputAdornment>
                   ),
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': {
+                      borderColor: '#d1d5db',
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#3b82f6',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#3b82f6',
+                    },
+                  },
                 }}
               />
               <TextField
@@ -143,11 +186,25 @@ const Register: React.FC = () => {
                         aria-label="toggle confirm password visibility"
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                         edge="end"
+                        sx={{ color: '#6b7280' }}
                       >
                         {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
                       </IconButton>
                     </InputAdornment>
                   ),
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': {
+                      borderColor: '#d1d5db',
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#3b82f6',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#3b82f6',
+                    },
+                  },
                 }}
               />
               <Button
@@ -155,20 +212,48 @@ const Register: React.FC = () => {
                 fullWidth
                 variant="contained"
                 disabled={loading}
-                sx={{ mt: 3, mb: 2 }}
+                sx={{ 
+                  mt: 3, 
+                  mb: 2,
+                  backgroundColor: '#3b82f6',
+                  color: 'white',
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  py: 1.5,
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  '&:hover': {
+                    backgroundColor: '#2563eb',
+                  },
+                  '&:disabled': {
+                    backgroundColor: '#9ca3af',
+                    color: 'white'
+                  }
+                }}
               >
-                {loading ? 'Creating Account...' : 'Sign Up'}
+                {loading ? 'Creating Account...' : 'Create Account'}
               </Button>
               <Box textAlign="center">
-                <Link component={RouterLink} to="/login" variant="body2">
-                  {"Already have an account? Sign In"}
+                <Link 
+                  component={RouterLink} 
+                  to="/login" 
+                  variant="body2"
+                  sx={{ 
+                    color: '#3b82f6',
+                    textDecoration: 'none',
+                    '&:hover': {
+                      textDecoration: 'underline'
+                    }
+                  }}
+                >
+                  {"Already have an account? Sign in"}
                 </Link>
               </Box>
             </Box>
           </Box>
         </Paper>
-      </Box>
-    </Container>
+      </Container>
+    </Box>
   );
 };
 
