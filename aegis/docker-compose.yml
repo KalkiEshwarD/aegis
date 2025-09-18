@@ -42,7 +42,7 @@ services:
     container_name: aegis_backend
     environment:
       DATABASE_URL: postgres://aegis_user:aegis_password@postgres:5432/aegis?sslmode=disable
-      MINIO_ENDPOINT: host.docker.internal:9000
+      MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin123
       MINIO_BUCKET: aegis-files

@@ -53,6 +53,7 @@ export const GET_MY_FILES = gql`
       id
       filename
       mime_type
+      encryption_key
       created_at
       file {
         id
@@ -75,8 +76,6 @@ export const GET_MY_STATS = gql`
 `;
 
 // File Mutations
-// TEMPORARILY COMMENTED OUT TO TEST APOLLO REDIRECTION ISSUE
-/*
 export const UPLOAD_FILE_MUTATION = gql`
   mutation UploadFile($input: UploadFileInput!) {
     uploadFile(input: $input) {
@@ -92,7 +91,6 @@ export const UPLOAD_FILE_MUTATION = gql`
     }
   }
 `;
-*/
 
 export const UPLOAD_FILE_FROM_MAP_MUTATION = gql`
   mutation UploadFileFromMap($input: UploadFileFromMapInput!) {
@@ -161,6 +159,7 @@ export const GET_ROOM = gql`
         id
         filename
         mime_type
+        encryption_key
         created_at
         file {
           id
@@ -247,6 +246,7 @@ export const GET_ALL_FILES = gql`
       id
       filename
       mime_type
+      encryption_key
       created_at
       user {
         id

@@ -27,6 +27,7 @@ export interface UserFile {
   file_id: string;
   filename: string;
   mime_type: string;
+  encryption_key: string;
   created_at: string;
   updated_at: string;
   user?: User;

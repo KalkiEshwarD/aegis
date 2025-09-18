@@ -34,6 +34,7 @@ import {
   createDownloadBlob,
   downloadFile,
   formatFileSize,
+  extractNonceAndData,
 } from '../../utils/crypto';
 import { UserFile, FileFilterInput } from '../../types';
 
@@ -88,6 +89,11 @@ const FileTable: React.FC<FileTableProps> = ({ onFileDeleted }) => {
     setError(null);
 
     try {
+      // Validate that we have the encryption key
+      if (!file.encryption_key) {
+        throw new Error('No encryption key available for this file');
+      }
+
       // Get the authentication token
       const token = localStorage.getItem('aegis_token');
 
@@ -113,18 +119,24 @@ const FileTable: React.FC<FileTableProps> = ({ onFileDeleted }) => {
         throw new Error('Failed to download file');
       }
 
-      const encryptedData = new Uint8Array(await response.arrayBuffer());
+      const encryptedDataWithNonce = new Uint8Array(await response.arrayBuffer());
 
-      // TODO: Implement proper encryption key management
-      // The encryption key is stored in the database but not exposed via GraphQL for security
-      // For now, we'll download the encrypted file directly
+      // Extract nonce and encrypted data
+      const { nonce, encryptedData } = extractNonceAndData(encryptedDataWithNonce);
 
-      console.log('DEBUG: Skipping decryption - encryption key not available via GraphQL');
-      console.log('DEBUG: Downloading encrypted file directly');
+      // Convert base64 encryption key back to Uint8Array
+      const encryptionKey = base64ToEncryptionKey(file.encryption_key);
 
-      // Create download blob from encrypted data and trigger download
-      const blob = createDownloadBlob(encryptedData, file.mime_type);
-      downloadFile(blob, `encrypted_${file.filename}`);
+      // Decrypt the file
+      const decryptedData = decryptFile(encryptedData, nonce, encryptionKey);
+
+      if (!decryptedData) {
+        throw new Error('Failed to decrypt file - invalid key or corrupted data');
+      }
+
+      // Create download blob from decrypted data and trigger download
+      const blob = createDownloadBlob(decryptedData, file.mime_type);
+      downloadFile(blob, file.filename);
 
     } catch (err: any) {
       console.error('Download error:', err);

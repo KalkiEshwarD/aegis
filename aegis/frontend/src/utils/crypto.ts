@@ -184,3 +184,18 @@ export const getMimeTypeFromExtension = (filename: string): string => {
 
   return mimeTypes[extension || ''] || 'application/octet-stream';
 };
+
+// Extract nonce and encrypted data from stored encrypted file data
+// The nonce is prepended to the encrypted data during upload
+export const extractNonceAndData = (encryptedDataWithNonce: Uint8Array): { nonce: Uint8Array; encryptedData: Uint8Array } => {
+  const nonceLength = secretbox.nonceLength; // Should be 24 bytes
+  
+  if (encryptedDataWithNonce.length < nonceLength) {
+    throw new Error(`Invalid encrypted data: too short to contain nonce. Length: ${encryptedDataWithNonce.length}, Required: ${nonceLength}`);
+  }
+  
+  const nonce = encryptedDataWithNonce.slice(0, nonceLength);
+  const encryptedData = encryptedDataWithNonce.slice(nonceLength);
+  
+  return { nonce, encryptedData };
+};

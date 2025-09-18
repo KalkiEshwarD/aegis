@@ -26,6 +26,7 @@ jest.mock('../../../utils/crypto', () => ({
   createDownloadBlob: jest.fn(),
   downloadFile: jest.fn(),
   formatFileSize: jest.fn(),
+  extractNonceAndData: jest.fn(),
 }));
 
 // Mock GraphQL queries
@@ -43,6 +44,7 @@ import {
   createDownloadBlob,
   downloadFile,
   formatFileSize,
+  extractNonceAndData,
 } from '../../../utils/crypto';
 
 const theme = createTheme();
@@ -54,6 +56,7 @@ const mockBase64ToEncryptionKey = base64ToEncryptionKey as jest.MockedFunction<t
 const mockCreateDownloadBlob = createDownloadBlob as jest.MockedFunction<typeof createDownloadBlob>;
 const mockDownloadFile = downloadFile as jest.MockedFunction<typeof downloadFile>;
 const mockFormatFileSize = formatFileSize as jest.MockedFunction<typeof formatFileSize>;
+const mockExtractNonceAndData = extractNonceAndData as jest.MockedFunction<typeof extractNonceAndData>;
 
 const mockUserFile: UserFile = {
   id: '1',
@@ -61,6 +64,7 @@ const mockUserFile: UserFile = {
   file_id: '1',
   filename: 'test.pdf',
   mime_type: 'application/pdf',
+  encryption_key: 'base64EncodedEncryptionKey==',
   created_at: '2023-12-01T10:00:00Z',
   updated_at: '2023-12-01T10:00:00Z',
   file: {

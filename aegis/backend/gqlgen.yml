@@ -61,3 +61,7 @@ models:
       - github.com/99designs/gqlgen/graphql.Int32
   Upload:
     model: github.com/99designs/gqlgen/graphql.Upload
+  UserFile:
+    fields:
+      encryption_key:
+        resolver: true

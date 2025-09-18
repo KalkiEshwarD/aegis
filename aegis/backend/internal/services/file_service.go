@@ -30,8 +30,12 @@ func NewFileService(cfg *config.Config) *FileService {
 	var minioClient *minio.Client
 	var bucketName string
 
+	log.Printf("DEBUG: MinIO config - Endpoint: %s, AccessKey: %s, SecretKey: %s, Bucket: %s",
+		cfg.MinIOEndpoint, cfg.MinIOAccessKey, cfg.MinIOSecretKey, cfg.MinIOBucket)
+
 	// Only initialize MinIO if configuration is provided
 	if cfg.MinIOEndpoint != "" && cfg.MinIOAccessKey != "" && cfg.MinIOSecretKey != "" && cfg.MinIOBucket != "" {
+		log.Printf("DEBUG: All MinIO config values present, initializing client...")
 		var err error
 		minioClient, err = minio.New(cfg.MinIOEndpoint, &minio.Options{
 			Creds:  credentials.NewStaticV4(cfg.MinIOAccessKey, cfg.MinIOSecretKey, ""),
@@ -40,7 +44,10 @@ func NewFileService(cfg *config.Config) *FileService {
 		if err != nil {
 			log.Fatalf("Failed to initialize MinIO client: %v", err)
 		}
+		log.Printf("DEBUG: MinIO client created successfully")
 		bucketName = cfg.MinIOBucket
+	} else {
+		log.Printf("DEBUG: MinIO config incomplete, using mock storage")
 	}
 
 	fs := &FileService{
@@ -51,7 +58,10 @@ func NewFileService(cfg *config.Config) *FileService {
 
 	// Ensure bucket exists (only if MinIO is configured)
 	if minioClient != nil {
+		log.Printf("DEBUG: MinIO client exists, ensuring bucket exists...")
 		fs.ensureBucketExists()
+	} else {
+		log.Printf("DEBUG: MinIO client is nil, skipping bucket creation")
 	}
 
 	return fs
@@ -116,17 +126,21 @@ func (fs *FileService) UploadFileFromMap(userID uint, data map[string]interface{
 func (fs *FileService) ensureBucketExists() {
 	ctx := context.Background()
 
+	log.Printf("DEBUG: Checking if bucket '%s' exists...", fs.bucketName)
 	exists, err := fs.minioClient.BucketExists(ctx, fs.bucketName)
 	if err != nil {
 		log.Fatalf("Failed to check bucket existence: %v", err)
 	}
 
 	if !exists {
+		log.Printf("DEBUG: Bucket '%s' does not exist, creating...", fs.bucketName)
 		err = fs.minioClient.MakeBucket(ctx, fs.bucketName, minio.MakeBucketOptions{})
 		if err != nil {
 			log.Fatalf("Failed to create bucket: %v", err)
 		}
 		log.Printf("Created bucket: %s", fs.bucketName)
+	} else {
+		log.Printf("DEBUG: Bucket '%s' already exists", fs.bucketName)
 	}
 }
 

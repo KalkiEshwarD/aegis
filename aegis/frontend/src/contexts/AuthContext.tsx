@@ -39,7 +39,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = async (email: string, password: string): Promise<void> => {
-    console.log('DEBUG: Starting login for email:', email);
     try {
       setLoading(true);
       const { data, errors } = await loginMutation({
@@ -48,16 +47,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       });
 
-      console.log('DEBUG: Login mutation response:', { data, errors });
-
       if (errors && errors.length > 0) {
-        console.error('DEBUG: GraphQL errors:', errors);
         throw new Error(errors[0].message);
       }
 
       if (data?.login) {
         const authPayload: AuthPayload = data.login;
-        console.log('DEBUG: Login successful, setting user and token');
         setToken(authPayload.token);
         setUser(authPayload.user);
 
@@ -65,11 +60,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         localStorage.setItem('aegis_token', authPayload.token);
         localStorage.setItem('aegis_user', JSON.stringify(authPayload.user));
       } else {
-        console.error('DEBUG: No login data in response');
         throw new Error('Login failed: No data returned');
       }
     } catch (error) {
-      console.error('DEBUG: Login error:', error);
       throw error;
     } finally {
       setLoading(false);

@@ -92,22 +92,31 @@ const FileUploadDropzone: React.FC<FileUploadDropzoneProps> = ({
 
       // Convert file to Uint8Array and encrypt
       const fileData = await fileToUint8Array(file);
-      const { encryptedData } = encryptFile(fileData, encryptionKey.key);
+      console.log(`DEBUG upload: Original file data length: ${fileData.length}`);
+      
+      const { encryptedData, nonce } = encryptFile(fileData, encryptionKey.key);
+      console.log(`DEBUG upload: Encrypted data length: ${encryptedData.length}, Nonce length: ${nonce.length}`);
+      
+      // Prepend nonce to encrypted data for storage
+      const encryptedDataWithNonce = new Uint8Array(nonce.length + encryptedData.length);
+      encryptedDataWithNonce.set(nonce, 0);
+      encryptedDataWithNonce.set(encryptedData, nonce.length);
+      console.log(`DEBUG upload: Combined data length (nonce + encrypted): ${encryptedDataWithNonce.length}`);
+      console.log(`DEBUG upload: First 10 bytes of combined data: [${Array.from(encryptedDataWithNonce.slice(0, 10)).join(', ')}]`);
+      
       setUploads(prev => prev.map(u =>
         u.file === file ? { ...u, progress: 70 } : u
       ));
 
       // Convert encrypted data to base64 for JSON transmission
-      console.log(`DEBUG: File ${file.name} - Original size: ${file.size} bytes, Encrypted size: ${encryptedData.length} bytes`);
 
       // Check if encrypted data is too large for base64 conversion
-      if (encryptedData.length > 100 * 1024 * 1024) { // 100MB threshold
-        throw new Error(`Encrypted data too large for base64 conversion: ${encryptedData.length} bytes`);
+      if (encryptedDataWithNonce.length > 100 * 1024 * 1024) { // 100MB threshold
+        throw new Error(`Encrypted data too large for base64 conversion: ${encryptedDataWithNonce.length} bytes`);
       }
 
       // Use chunked base64 conversion to avoid stack overflow
-      const encryptedDataBase64 = uint8ArrayToBase64(encryptedData);
-      console.log(`DEBUG: File ${file.name} - Base64 length: ${encryptedDataBase64.length} characters`);
+      const encryptedDataBase64 = uint8ArrayToBase64(encryptedDataWithNonce);
 
       // Determine MIME type
       const mimeType = file.type || getMimeTypeFromExtension(file.name);
@@ -120,11 +129,18 @@ const FileUploadDropzone: React.FC<FileUploadDropzoneProps> = ({
       const uploadData = {
         filename: file.name,
         content_hash: contentHash,
-        size_bytes: file.size,
+        size_bytes: encryptedDataWithNonce.length, // Use encrypted data size, not original file size
         mime_type: mimeType,
         encrypted_key: encryptedKeyBase64,
         file_data: encryptedDataBase64,
       };
+      
+      console.log(`DEBUG upload: Upload data prepared:`);
+      console.log(`DEBUG upload: - filename: ${uploadData.filename}`);
+      console.log(`DEBUG upload: - size_bytes: ${uploadData.size_bytes} (encrypted data size)`);
+      console.log(`DEBUG upload: - original file size: ${file.size}`);
+      console.log(`DEBUG upload: - encrypted_key length: ${uploadData.encrypted_key.length}`);
+      console.log(`DEBUG upload: - file_data length: ${uploadData.file_data.length}`);
 
       const mutationVars = {
         input: {
