@@ -21,13 +21,16 @@ import (
 	"github.com/balkanid/aegis-backend/internal/database"
 	"github.com/balkanid/aegis-backend/internal/middleware"
 	"github.com/balkanid/aegis-backend/internal/models"
+	"github.com/balkanid/aegis-backend/internal/services"
 )
 
 type MiddlewareTestSuite struct {
 	suite.Suite
-	db     *gorm.DB
-	config *config.Config
-	router *gin.Engine
+	db          *gorm.DB
+	config      *config.Config
+	authService *services.AuthService
+	dbService   *database.DB
+	router      *gin.Engine
 }
 
 func (suite *MiddlewareTestSuite) SetupSuite() {
@@ -38,7 +41,9 @@ func (suite *MiddlewareTestSuite) SetupSuite() {
 	suite.Require().NoError(err)
 
 	suite.db = db
-	database.SetDB(db)
+	// Set the global database
+	suite.dbService = database.NewDB(db)
+	database.SetDB(suite.dbService)
 
 	// Run migrations
 	err = db.AutoMigrate(&models.User{})
@@ -48,6 +53,9 @@ func (suite *MiddlewareTestSuite) SetupSuite() {
 	suite.config = &config.Config{
 		JWTSecret: "test-secret-key",
 	}
+
+	// Create auth service
+	suite.authService = services.NewAuthService(suite.config)
 
 	// Setup router
 	suite.router = gin.New()
@@ -116,7 +124,7 @@ func (suite *MiddlewareTestSuite) TestCORS_DisallowedOrigin() {
 func (suite *MiddlewareTestSuite) TestAuthMiddleware_HealthEndpoint() {
 	// Setup route with auth middleware
 	router := gin.New()
-	router.Use(middleware.AuthMiddleware(suite.config))
+	router.Use(middleware.AuthMiddleware(suite.config, suite.authService, suite.dbService))
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
@@ -132,7 +140,7 @@ func (suite *MiddlewareTestSuite) TestAuthMiddleware_HealthEndpoint() {
 func (suite *MiddlewareTestSuite) TestAuthMiddleware_MissingAuthorizationHeader() {
 	// Setup route with auth middleware
 	router := gin.New()
-	router.Use(middleware.AuthMiddleware(suite.config))
+	router.Use(middleware.AuthMiddleware(suite.config, suite.authService, suite.dbService))
 	router.GET("/protected", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "protected"})
 	})
@@ -148,7 +156,7 @@ func (suite *MiddlewareTestSuite) TestAuthMiddleware_MissingAuthorizationHeader(
 func (suite *MiddlewareTestSuite) TestAuthMiddleware_InvalidAuthorizationFormat() {
 	// Setup route with auth middleware
 	router := gin.New()
-	router.Use(middleware.AuthMiddleware(suite.config))
+	router.Use(middleware.AuthMiddleware(suite.config, suite.authService, suite.dbService))
 	router.GET("/protected", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "protected"})
 	})
@@ -166,7 +174,7 @@ func (suite *MiddlewareTestSuite) TestAuthMiddleware_InvalidAuthorizationFormat(
 func (suite *MiddlewareTestSuite) TestAuthMiddleware_InvalidToken() {
 	// Setup route with auth middleware
 	router := gin.New()
-	router.Use(middleware.AuthMiddleware(suite.config))
+	router.Use(middleware.AuthMiddleware(suite.config, suite.authService, suite.dbService))
 	router.GET("/protected", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "protected"})
 	})
@@ -193,7 +201,7 @@ func (suite *MiddlewareTestSuite) TestAuthMiddleware_ValidToken() {
 	suite.Require().NoError(err)
 
 	// Create valid JWT token
-	claims := &middleware.Claims{
+	claims := &services.Claims{
 		UserID:  user.ID,
 		Email:   user.Email,
 		IsAdmin: user.IsAdmin,
@@ -209,7 +217,7 @@ func (suite *MiddlewareTestSuite) TestAuthMiddleware_ValidToken() {
 
 	// Setup route with auth middleware
 	router := gin.New()
-	router.Use(middleware.AuthMiddleware(suite.config))
+	router.Use(middleware.AuthMiddleware(suite.config, suite.authService, suite.dbService))
 	router.GET("/protected", func(c *gin.Context) {
 		// Verify user was added to context
 		user, err := middleware.GetUserFromContext(c.Request.Context())
@@ -231,7 +239,7 @@ func (suite *MiddlewareTestSuite) TestAuthMiddleware_ValidToken() {
 
 func (suite *MiddlewareTestSuite) TestAuthMiddleware_UserNotFound() {
 	// Create JWT token with non-existent user ID
-	claims := &middleware.Claims{
+	claims := &services.Claims{
 		UserID:  999, // Non-existent user
 		Email:   "nonexistent@example.com",
 		IsAdmin: false,
@@ -247,7 +255,7 @@ func (suite *MiddlewareTestSuite) TestAuthMiddleware_UserNotFound() {
 
 	// Setup route with auth middleware
 	router := gin.New()
-	router.Use(middleware.AuthMiddleware(suite.config))
+	router.Use(middleware.AuthMiddleware(suite.config, suite.authService, suite.dbService))
 	router.GET("/protected", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "protected"})
 	})
@@ -372,7 +380,7 @@ func (suite *MiddlewareTestSuite) TestParseUserID_InvalidID() {
 }
 
 func (suite *MiddlewareTestSuite) TestClaims_Structure() {
-	claims := middleware.Claims{
+	claims := services.Claims{
 		UserID:  1,
 		Email:   "test@example.com",
 		IsAdmin: true,
@@ -398,7 +406,7 @@ func (suite *MiddlewareTestSuite) TestAuthMiddleware_NoSensitiveDataInLogs() {
 
 	// Setup route with auth middleware
 	router := gin.New()
-	router.Use(middleware.AuthMiddleware(suite.config))
+	router.Use(middleware.AuthMiddleware(suite.config, suite.authService, suite.dbService))
 	router.GET("/protected", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "protected"})
 	})

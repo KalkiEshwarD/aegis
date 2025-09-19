@@ -47,7 +47,14 @@ func (suite *UserServiceTestSuite) SetupSuite() {
 		JWTSecret: "test-secret-key",
 	}
 
-	suite.userService = services.NewUserService(suite.config)
+	// Create database service
+	dbService := &database.DB{}
+	dbService.Connect(suite.config) // This will set the global db
+
+	// Create auth service
+	authService := services.NewAuthService(suite.config)
+
+	suite.userService = services.NewUserService(authService, dbService)
 }
 
 func (suite *UserServiceTestSuite) TearDownSuite() {
@@ -69,7 +76,9 @@ func (suite *UserServiceTestSuite) SetupTest() {
 }
 
 func (suite *UserServiceTestSuite) TestNewUserService() {
-	service := services.NewUserService(suite.config)
+	authService := services.NewAuthService(suite.config)
+	dbService := &database.DB{}
+	service := services.NewUserService(authService, dbService)
 	assert.NotNil(suite.T(), service)
 }
 

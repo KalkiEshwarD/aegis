@@ -29,7 +29,8 @@ func (suite *AdminServiceTestSuite) SetupSuite() {
 	suite.db = db
 
 	// Set the database connection for the database package
-	database.SetDB(db)
+	dbService := database.NewDB(db)
+	database.SetDB(dbService)
 
 	// Run migrations
 	err = db.AutoMigrate(
@@ -43,7 +44,7 @@ func (suite *AdminServiceTestSuite) SetupSuite() {
 	)
 	suite.Require().NoError(err)
 
-	suite.adminService = services.NewAdminService()
+	suite.adminService = services.NewAdminService(dbService)
 }
 
 func (suite *AdminServiceTestSuite) TearDownSuite() {
@@ -65,7 +66,7 @@ func (suite *AdminServiceTestSuite) SetupTest() {
 }
 
 func (suite *AdminServiceTestSuite) TestNewAdminService() {
-	service := services.NewAdminService()
+	service := services.NewAdminService(database.NewDB(suite.db))
 	assert.NotNil(suite.T(), service)
 }
 

@@ -1,47 +1,15 @@
 /**
  * Input sanitization utilities for security
+ * Uses centralized validation system for consistency
  */
 
-// Validation rules interface
-interface ValidationRules {
-  username: {
-    minLength: number;
-    maxLength: number;
-    regex: string;
-  };
-  email: {
-    regex: string;
-    maxLength: number;
-  };
-  password: {
-    minLength: number;
-    requireLower: boolean;
-    requireUpper: boolean;
-    requireDigit: boolean;
-    requireSpecial: boolean;
-    specialChars: string;
-  };
-  file: {
-    maxSize: number;
-    allowedMimeTypes: string[];
-  };
-}
+import { 
+  validateEmail as validateEmailFn, 
+  validateUsername as validateUsernameFn,
+  validateFile
+} from './validation';
 
-// Load validation rules from shared configuration
-let validationRules: ValidationRules | null = null;
-
-const loadValidationRules = async (): Promise<ValidationRules> => {
-  if (validationRules) return validationRules;
-
-  try {
-    const response = await fetch('/shared/validation-rules.json');
-    validationRules = await response.json() as ValidationRules;
-    return validationRules;
-  } catch (error) {
-    console.error('Failed to load validation rules:', error);
-    throw error;
-  }
-};
+import { FILE_VALIDATION_RULES } from './validationConfig';
 
 // HTML entity encoding map
 const htmlEntities: { [key: string]: string } = {
@@ -101,15 +69,14 @@ export const sanitizeUserInput = (input: string): string => {
 /**
  * Validates email format (additional check beyond Yup)
  */
-export const isValidEmail = async (email: string): Promise<boolean> => {
+export const isValidEmail = (email: string): boolean => {
   if (typeof email !== 'string') {
     return false;
   }
 
   try {
-    const rules = await loadValidationRules();
-    const emailRegex = new RegExp(rules.email.regex);
-    return emailRegex.test(email) && email.length <= rules.email.maxLength;
+    const result = validateEmailFn(email);
+    return result.valid;
   } catch (error) {
     console.error('Error validating email:', error);
     return false;
@@ -119,15 +86,14 @@ export const isValidEmail = async (email: string): Promise<boolean> => {
 /**
  * Validates username format
  */
-export const isValidUsername = async (username: string): Promise<boolean> => {
+export const isValidUsername = (username: string): boolean => {
   if (typeof username !== 'string') {
     return false;
   }
 
   try {
-    const rules = await loadValidationRules();
-    const usernameRegex = new RegExp(rules.username.regex);
-    return usernameRegex.test(username) && username.length >= rules.username.minLength && username.length <= rules.username.maxLength;
+    const result = validateUsernameFn(username);
+    return result.valid;
   } catch (error) {
     console.error('Error validating username:', error);
     return false;
@@ -151,14 +117,13 @@ export const sanitizeSearchQuery = (query: string): string => {
 /**
  * Validates file size
  */
-export const isValidFileSize = async (size: number): Promise<boolean> => {
+export const isValidFileSize = (size: number): boolean => {
   if (typeof size !== 'number' || size <= 0) {
     return false;
   }
 
   try {
-    const rules = await loadValidationRules();
-    return size <= rules.file.maxSize;
+    return size <= (FILE_VALIDATION_RULES.max_size || 104857600);
   } catch (error) {
     console.error('Error validating file size:', error);
     return false;
@@ -168,16 +133,29 @@ export const isValidFileSize = async (size: number): Promise<boolean> => {
 /**
  * Validates MIME type
  */
-export const isValidMimeType = async (mimeType: string): Promise<boolean> => {
+export const isValidMimeType = (mimeType: string): boolean => {
   if (typeof mimeType !== 'string') {
     return false;
   }
 
   try {
-    const rules = await loadValidationRules();
-    return rules.file.allowedMimeTypes.some(type => mimeType.startsWith(type));
+    const allowedMimeTypes = FILE_VALIDATION_RULES.allowed_mime_types || [];
+    return allowedMimeTypes.some((type: string) => mimeType.startsWith(type));
   } catch (error) {
     console.error('Error validating MIME type:', error);
+    return false;
+  }
+};
+
+/**
+ * Validates file (comprehensive validation)
+ */
+export const isValidFile = (filename: string, size: number, mimeType: string): boolean => {
+  try {
+    const result = validateFile(filename, size, mimeType, FILE_VALIDATION_RULES);
+    return result.valid;
+  } catch (error) {
+    console.error('Error validating file:', error);
     return false;
   }
 };

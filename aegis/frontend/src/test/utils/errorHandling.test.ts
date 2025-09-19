@@ -94,10 +94,12 @@ describe('Error Handling Utils', () => {
 
     afterEach(() => {
       consoleSpy.mockRestore();
+      // @ts-ignore - Allow assignment for testing
       process.env.NODE_ENV = originalEnv;
     });
 
     it('should log errors in development mode', () => {
+      // @ts-ignore - Allow assignment for testing
       process.env.NODE_ENV = 'development';
       logError('Test error', 'test context');
 
@@ -105,6 +107,7 @@ describe('Error Handling Utils', () => {
     });
 
     it('should not log errors in production mode', () => {
+      // @ts-ignore - Allow assignment for testing
       process.env.NODE_ENV = 'production';
       logError('Test error');
 
@@ -112,6 +115,7 @@ describe('Error Handling Utils', () => {
     });
 
     it('should log without context', () => {
+      // @ts-ignore - Allow assignment for testing
       process.env.NODE_ENV = 'development';
       logError('Test error');
 

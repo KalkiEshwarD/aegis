@@ -59,6 +59,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+      - ./shared:/app/shared
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"

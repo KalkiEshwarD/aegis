@@ -25,15 +25,17 @@ type StorageService struct {
 	fileStorageService    *FileStorageService
 	cfg                   *config.Config
 	fileOperationsService *FileOperationsService
+	authService           *AuthService
 }
 
-func NewStorageService(cfg *config.Config, db *database.DB, fileStorageService *FileStorageService) *StorageService {
+func NewStorageService(cfg *config.Config, db *database.DB, fileStorageService *FileStorageService, authService *AuthService) *StorageService {
 	return &StorageService{
 		BaseService:           NewBaseService(db),
 		userResourceRepo:      repositories.NewUserResourceRepository(db),
 		cfg:                   cfg,
 		fileStorageService:    fileStorageService,
 		fileOperationsService: NewFileOperationsService(db),
+		authService:           authService,
 	}
 }
 
@@ -101,8 +103,6 @@ func (s *StorageService) UploadFileFromMap(userID uint, data map[string]interfac
 	)
 	return userFile, err
 }
-
-
 
 // UploadFile handles file upload with user-specific deduplication
 func (s *StorageService) UploadFile(userID uint, filename, mimeType, contentHash, encryptionKey string, fileData io.Reader, sizeBytes int64, folderID *uint) (*models.UserFile, error) {
@@ -190,10 +190,12 @@ func (s *StorageService) UploadFile(userID uint, filename, mimeType, contentHash
 }
 
 func (s *StorageService) GetUserFiles(userID uint, filter *FileFilter) ([]*models.UserFile, error) {
+	log.Printf("DEBUG: StorageService.GetUserFiles called for user %d with filter: %+v", userID, filter)
 	filters := make(map[string]interface{})
 
 	if filter != nil {
 		if filter.IncludeTrashed != nil {
+			log.Printf("DEBUG: Adding include_trashed filter: %v", *filter.IncludeTrashed)
 			filters["include_trashed"] = filter.IncludeTrashed
 		}
 		if filter.Filename != nil {
@@ -401,13 +403,19 @@ func (s *StorageService) GetFileDownloadURL(ctx context.Context, user *models.Us
 	// Preload File for later use
 	db.Preload("File").First(&userFile, userFile.ID)
 
-	// Generate download URL
+	// Generate a token for the download
+	token, err := s.authService.GenerateToken(user)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate download token: %w", err)
+	}
+
+	// Generate download URL with token
 	baseURL := s.cfg.BaseURL
 	if baseURL == "" {
 		baseURL = "http://localhost:8080" // Default for development
 	}
 
-	return fmt.Sprintf("%s/api/files/%d/download", baseURL, userFileID), nil
+	return fmt.Sprintf("%s/api/files/%d/download?token=%s", baseURL, userFileID, token), nil
 }
 
 // GetTrashedFiles returns all trashed (soft-deleted) files for a user

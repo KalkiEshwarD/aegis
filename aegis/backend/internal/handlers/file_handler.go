@@ -6,9 +6,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/balkanid/aegis-backend/internal/database"
 	"github.com/balkanid/aegis-backend/internal/middleware"
 	"github.com/balkanid/aegis-backend/internal/models"
 	"github.com/balkanid/aegis-backend/internal/services"
@@ -16,11 +14,13 @@ import (
 
 type FileHandler struct {
 	storageService *services.StorageService
+	authService    *services.AuthService
 }
 
-func NewFileHandler(storageService *services.StorageService) *FileHandler {
+func NewFileHandler(storageService *services.StorageService, authService *services.AuthService) *FileHandler {
 	return &FileHandler{
 		storageService: storageService,
+		authService:    authService,
 	}
 }
 
@@ -33,32 +33,19 @@ func (h *FileHandler) DownloadFile(c *gin.Context) {
 
 	if tokenString != "" {
 		// Validate token from query parameter
-		token, err := jwt.ParseWithClaims(tokenString, &middleware.Claims{}, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, jwt.ErrSignatureInvalid
-			}
-			// Get JWT secret from config - need to access config
-			// For now, hardcode or find another way
-			return []byte("super_secure_jwt_secret_key_for_development_only_12345678901234567890"), nil
-		})
-
-		if err != nil || !token.Valid {
+		claims, err := h.authService.ParseToken(tokenString)
+		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid download token"})
 			return
 		}
 
-		if claims, ok := token.Claims.(*middleware.Claims); ok {
-			// Verify user still exists
-			var dbUser models.User
-			if err := h.storageService.db.GetDB().First(&dbUser, claims.UserID).Error; err != nil {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
-				return
-			}
-			user = &dbUser
-		} else {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
+		// Verify user still exists
+		var dbUser models.User
+		if err := h.storageService.GetDB().GetDB().First(&dbUser, claims.UserID).Error; err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
 			return
 		}
+		user = &dbUser
 	} else {
 		// Fallback to auth middleware
 		user, err = middleware.GetUserFromContext(c.Request.Context())
@@ -77,7 +64,7 @@ func (h *FileHandler) DownloadFile(c *gin.Context) {
 
 	// Get user file info for filename
 	var userFile models.UserFile
-	if err := h.storageService.db.GetDB().Preload("File").Where("id = ? AND user_id = ?", fileID, user.ID).First(&userFile).Error; err != nil {
+	if err := h.storageService.GetDB().GetDB().Preload("File").Where("id = ? AND user_id = ?", fileID, user.ID).First(&userFile).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
 		return
 	}

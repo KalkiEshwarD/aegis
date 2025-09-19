@@ -7,10 +7,8 @@ import {
   sanitizeSearchQuery,
   isValidFileSize,
   isValidMimeType,
+  isValidFile,
 } from '../../utils/sanitization';
-
-// Mock fetch globally
-global.fetch = jest.fn();
 
 describe('sanitizeHtml', () => {
   it('should encode HTML entities correctly', () => {
@@ -99,75 +97,49 @@ describe('isValidEmail', () => {
     jest.clearAllMocks();
   });
 
-  it('should validate correct email formats', async () => {
-    expect(await isValidEmail('user@example.com')).toBe(true);
-    expect(await isValidEmail('test.email+tag@domain.co.uk')).toBe(true);
+  it('should validate correct email formats', () => {
+    expect(isValidEmail('user@example.com')).toBe(true);
+    expect(isValidEmail('test.email+tag@domain.co.uk')).toBe(true);
   });
 
-  it('should reject invalid email formats', async () => {
-    expect(await isValidEmail('invalid')).toBe(false);
-    expect(await isValidEmail('@example.com')).toBe(false);
-    expect(await isValidEmail('user@')).toBe(false);
+  it('should reject invalid email formats', () => {
+    expect(isValidEmail('invalid')).toBe(false);
+    expect(isValidEmail('@example.com')).toBe(false);
+    expect(isValidEmail('user@')).toBe(false);
   });
 
-  it('should reject emails exceeding max length', async () => {
+  it('should reject emails exceeding max length', () => {
     const longEmail = 'a'.repeat(250) + '@example.com';
-    expect(await isValidEmail(longEmail)).toBe(false);
+    expect(isValidEmail(longEmail)).toBe(false);
   });
 
-  it('should return false for non-string inputs', async () => {
-    expect(await isValidEmail(null as any)).toBe(false);
-    expect(await isValidEmail(undefined as any)).toBe(false);
-    expect(await isValidEmail(123 as any)).toBe(false);
-  });
-
-  it('should handle fetch errors', async () => {
-    (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
-    expect(await isValidEmail('user@example.com')).toBe(false);
+  it('should return false for non-string inputs', () => {
+    expect(isValidEmail(null as any)).toBe(false);
+    expect(isValidEmail(undefined as any)).toBe(false);
+    expect(isValidEmail(123 as any)).toBe(false);
   });
 });
 
 describe('isValidUsername', () => {
-  const mockRules = {
-    username: {
-      regex: '^[a-zA-Z0-9_-]{3,20}$',
-      minLength: 3,
-      maxLength: 20,
-    },
-  };
-
-  beforeEach(() => {
-    (global.fetch as jest.Mock).mockResolvedValue({
-      json: jest.fn().mockResolvedValue(mockRules),
-    });
+  it('should validate correct usernames', () => {
+    expect(isValidUsername('user123')).toBe(true);
+    expect(isValidUsername('test_user')).toBe(true);
+    expect(isValidUsername('a-b-c')).toBe(true);
+    expect(isValidUsername('user')).toBe(true);
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
+  it('should reject invalid usernames', () => {
+    expect(isValidUsername('us')).toBe(false); // too short
+    expect(isValidUsername('a'.repeat(51))).toBe(false); // too long
+    expect(isValidUsername('user@name')).toBe(false); // invalid chars
+    expect(isValidUsername('user name')).toBe(false); // spaces
+    expect(isValidUsername('user#name')).toBe(false); // invalid chars
   });
 
-  it('should validate correct usernames', async () => {
-    expect(await isValidUsername('user123')).toBe(true);
-    expect(await isValidUsername('test_user')).toBe(true);
-    expect(await isValidUsername('a-b')).toBe(true);
-  });
-
-  it('should reject invalid usernames', async () => {
-    expect(await isValidUsername('us')).toBe(false); // too short
-    expect(await isValidUsername('a'.repeat(25))).toBe(false); // too long
-    expect(await isValidUsername('user@name')).toBe(false); // invalid chars
-    expect(await isValidUsername('user name')).toBe(false); // spaces
-  });
-
-  it('should return false for non-string inputs', async () => {
-    expect(await isValidUsername(null as any)).toBe(false);
-    expect(await isValidUsername(undefined as any)).toBe(false);
-    expect(await isValidUsername(123 as any)).toBe(false);
-  });
-
-  it('should handle fetch errors', async () => {
-    (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
-    expect(await isValidUsername('user123')).toBe(false);
+  it('should return false for non-string inputs', () => {
+    expect(isValidUsername(null as any)).toBe(false);
+    expect(isValidUsername(undefined as any)).toBe(false);
+    expect(isValidUsername(123 as any)).toBe(false);
   });
 });
 
@@ -192,80 +164,53 @@ describe('sanitizeSearchQuery', () => {
 });
 
 describe('isValidFileSize', () => {
-  const mockRules = {
-    file: {
-      maxSize: 10485760, // 10MB
-    },
-  };
-
-  beforeEach(() => {
-    (global.fetch as jest.Mock).mockResolvedValue({
-      json: jest.fn().mockResolvedValue(mockRules),
-    });
+  it('should validate file sizes within limit', () => {
+    expect(isValidFileSize(1024)).toBe(true);
+    expect(isValidFileSize(104857600)).toBe(true); // 100MB limit
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
+  it('should reject file sizes exceeding limit', () => {
+    expect(isValidFileSize(104857601)).toBe(false); // Over 100MB
   });
 
-  it('should validate file sizes within limit', async () => {
-    expect(await isValidFileSize(1024)).toBe(true);
-    expect(await isValidFileSize(10485760)).toBe(true);
-  });
-
-  it('should reject file sizes exceeding limit', async () => {
-    expect(await isValidFileSize(10485761)).toBe(false);
-  });
-
-  it('should return false for invalid inputs', async () => {
-    expect(await isValidFileSize(0)).toBe(false);
-    expect(await isValidFileSize(-1)).toBe(false);
-    expect(await isValidFileSize(null as any)).toBe(false);
-    expect(await isValidFileSize('1024' as any)).toBe(false);
-  });
-
-  it('should handle fetch errors', async () => {
-    (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
-    expect(await isValidFileSize(1024)).toBe(false);
+  it('should return false for invalid inputs', () => {
+    expect(isValidFileSize(0)).toBe(false);
+    expect(isValidFileSize(-1)).toBe(false);
+    expect(isValidFileSize(null as any)).toBe(false);
+    expect(isValidFileSize('1024' as any)).toBe(false);
   });
 });
 
 describe('isValidMimeType', () => {
-  const mockRules = {
-    file: {
-      allowedMimeTypes: ['image/', 'text/', 'application/pdf'],
-    },
-  };
-
-  beforeEach(() => {
-    (global.fetch as jest.Mock).mockResolvedValue({
-      json: jest.fn().mockResolvedValue(mockRules),
-    });
+  it('should validate allowed MIME types', () => {
+    expect(isValidMimeType('image/jpeg')).toBe(true);
+    expect(isValidMimeType('text/plain')).toBe(true);
+    expect(isValidMimeType('application/pdf')).toBe(true);
+    expect(isValidMimeType('video/mp4')).toBe(true);
+    expect(isValidMimeType('audio/mp3')).toBe(true);
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
+  it('should reject disallowed MIME types', () => {
+    expect(isValidMimeType('application/x-executable')).toBe(false);
+    expect(isValidMimeType('application/octet-stream')).toBe(false);
   });
 
-  it('should validate allowed MIME types', async () => {
-    expect(await isValidMimeType('image/jpeg')).toBe(true);
-    expect(await isValidMimeType('text/plain')).toBe(true);
-    expect(await isValidMimeType('application/pdf')).toBe(true);
+  it('should return false for non-string inputs', () => {
+    expect(isValidMimeType(null as any)).toBe(false);
+    expect(isValidMimeType(undefined as any)).toBe(false);
+    expect(isValidMimeType(123 as any)).toBe(false);
+  });
+});
+
+describe('isValidFile', () => {
+  it('should validate complete file information', () => {
+    expect(isValidFile('document.pdf', 1000000, 'application/pdf')).toBe(true);
+    expect(isValidFile('image.jpg', 500000, 'image/jpeg')).toBe(true);
   });
 
-  it('should reject disallowed MIME types', async () => {
-    expect(await isValidMimeType('application/octet-stream')).toBe(false);
-    expect(await isValidMimeType('video/mp4')).toBe(false);
-  });
-
-  it('should return false for non-string inputs', async () => {
-    expect(await isValidMimeType(null as any)).toBe(false);
-    expect(await isValidMimeType(undefined as any)).toBe(false);
-    expect(await isValidMimeType(123 as any)).toBe(false);
-  });
-
-  it('should handle fetch errors', async () => {
-    (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
-    expect(await isValidMimeType('image/jpeg')).toBe(false);
+  it('should reject invalid file information', () => {
+    expect(isValidFile('document.pdf', 200000000, 'application/pdf')).toBe(false); // Too large
+    expect(isValidFile('script.exe', 1000, 'application/x-executable')).toBe(false); // Invalid type
+    expect(isValidFile('', 1000, 'text/plain')).toBe(false); // Empty filename
   });
 });

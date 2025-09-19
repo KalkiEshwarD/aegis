@@ -13,10 +13,13 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/gin-gonic/gin"
 	"github.com/machinebox/graphql"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 
 	"github.com/balkanid/aegis-backend/graph"
 	"github.com/balkanid/aegis-backend/graph/generated"
 	"github.com/balkanid/aegis-backend/internal/config"
+	"github.com/balkanid/aegis-backend/internal/database"
 	"github.com/balkanid/aegis-backend/internal/middleware"
 	"github.com/balkanid/aegis-backend/internal/services"
 )
@@ -33,15 +36,29 @@ func NewTestGraphQLServer(cfg *config.Config) *TestGraphQLServer {
 	// Set Gin to test mode
 	gin.SetMode(gin.TestMode)
 
+	// Initialize test database
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create test database: %v", err))
+	}
+
+	// Set up test database
+	if err := SetupTestDatabase(db); err != nil {
+		panic(fmt.Sprintf("Failed to setup test database: %v", err))
+	}
+
+	// Create database service
+	dbService := &database.DB{}
+	dbService.Connect(cfg)
+
 	// Initialize services
-	fileService := services.NewFileService(cfg)
-	userService := services.NewUserService(cfg)
-	roomService := services.NewRoomService()
-	adminService := services.NewAdminService()
+	authService := services.NewAuthService(cfg)
+	userService := services.NewUserService(authService, dbService)
+	roomService := services.NewRoomService(dbService)
+	adminService := services.NewAdminService(dbService)
 
 	// Initialize GraphQL resolver
 	resolver := &graph.Resolver{
-		FileService:  fileService,
 		UserService:  userService,
 		RoomService:  roomService,
 		AdminService: adminService,
@@ -57,13 +74,13 @@ func NewTestGraphQLServer(cfg *config.Config) *TestGraphQLServer {
 	r.Use(middleware.CORS(cfg.CORSAllowedOrigins))
 
 	// GraphQL endpoint with authentication middleware and gin context
-	r.POST("/graphql", middleware.AuthMiddleware(cfg), func(c *gin.Context) {
+	r.POST("/graphql", middleware.AuthMiddleware(cfg, authService, dbService), func(c *gin.Context) {
 		// Add gin context to GraphQL context
 		ctx := context.WithValue(c.Request.Context(), "gin", c)
 		c.Request = c.Request.WithContext(ctx)
 		srv.ServeHTTP(c.Writer, c.Request)
 	})
-	r.GET("/graphql", middleware.AuthMiddleware(cfg), func(c *gin.Context) {
+	r.GET("/graphql", middleware.AuthMiddleware(cfg, authService, dbService), func(c *gin.Context) {
 		// Add gin context to GraphQL context
 		ctx := context.WithValue(c.Request.Context(), "gin", c)
 		c.Request = c.Request.WithContext(ctx)
@@ -171,8 +188,6 @@ func (t *TestGraphQLServer) MakeRequest(ctx context.Context, query string, varia
 	if err := json.Unmarshal(respBytes, response); err != nil {
 		return fmt.Errorf("failed to decode GraphQL response: %w", err)
 	}
-
-	return nil
 
 	return nil
 }

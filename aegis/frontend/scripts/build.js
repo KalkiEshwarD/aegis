@@ -27,6 +27,18 @@ const printHostingInstructions = require('react-dev-utils/printHostingInstructio
 const FileSizeReporter = require('react-dev-utils/FileSizeReporter');
 const printBuildError = require('react-dev-utils/printBuildError');
 
+// Copy shared validation rules to public directory before build
+const sharedValidationPath = path.resolve(__dirname, '../../shared/validation-rules.json');
+const publicValidationPath = path.resolve(__dirname, '../public/validation-rules.json');
+if (fs.existsSync(sharedValidationPath)) {
+  try {
+    fs.copySync(sharedValidationPath, publicValidationPath);
+    console.log(chalk.green('✓ Copied validation rules to public directory'));
+  } catch (err) {
+    console.warn(chalk.yellow('Warning: Could not copy validation rules:', err.message));
+  }
+}
+
 const measureFileSizesBeforeBuild =
   FileSizeReporter.measureFileSizesBeforeBuild;
 const printFileSizesAfterBuild = FileSizeReporter.printFileSizesAfterBuild;

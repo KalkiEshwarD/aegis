@@ -28,18 +28,22 @@ describe('withDataFetching HOC', () => {
     data,
     loading,
     error,
-    refetch
+    refetch,
+    customProp,
+    userId
   }: {
-    data: any;
-    loading: boolean;
-    error: string | null;
-    refetch: () => void;
+    data?: any;
+    loading?: boolean;
+    error?: string | null;
+    refetch?: () => void;
+    customProp?: string;
+    userId?: number;
   }) => (
     <div data-testid="test-component">
       Data: {data ? JSON.stringify(data) : 'null'},
       Loading: {loading ? 'true' : 'false'},
       Error: {error || 'null'}
-      <button onClick={refetch} data-testid="refetch-button">Refetch</button>
+      <button onClick={refetch || (() => {})} data-testid="refetch-button">Refetch</button>
     </div>
   );
 

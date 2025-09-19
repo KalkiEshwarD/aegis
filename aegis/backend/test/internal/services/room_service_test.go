@@ -34,7 +34,8 @@ func (suite *RoomServiceTestSuite) SetupSuite() {
 	suite.db = db
 
 	// Set the database connection for the database package
-	database.SetDB(db)
+	dbService := database.NewDB(db)
+	database.SetDB(dbService)
 
 	// Run migrations
 	err = db.AutoMigrate(
@@ -48,7 +49,7 @@ func (suite *RoomServiceTestSuite) SetupSuite() {
 	)
 	suite.Require().NoError(err)
 
-	suite.roomService = services.NewRoomService()
+	suite.roomService = services.NewRoomService(dbService)
 }
 
 func (suite *RoomServiceTestSuite) TearDownSuite() {
@@ -129,7 +130,7 @@ func (suite *RoomServiceTestSuite) SetupTest() {
 }
 
 func (suite *RoomServiceTestSuite) TestNewRoomService() {
-	service := services.NewRoomService()
+	service := services.NewRoomService(database.NewDB(suite.db))
 	assert.NotNil(suite.T(), service)
 }
 
@@ -438,7 +439,6 @@ func (suite *RoomServiceTestSuite) TestGetRoomFiles_EmptyRoom() {
 	assert.NoError(suite.T(), err)
 	assert.Empty(suite.T(), files)
 }
-
 
 func TestRoomServiceSuite(t *testing.T) {
 	suite.Run(t, new(RoomServiceTestSuite))

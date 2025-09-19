@@ -15,6 +15,13 @@ import (
 	"github.com/balkanid/aegis-backend/internal/models"
 )
 
+// Context key type to avoid collisions
+type contextKey string
+
+const (
+	userContextKey contextKey = "user"
+)
+
 // CORS middleware to handle cross-origin requests
 func CORS(allowedOrigins string) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -114,7 +121,7 @@ func AuthMiddleware(cfg *config.Config, authService *services.AuthService, db *d
 					var user models.User
 					if err := db.GetDB().First(&user, claims.UserID).Error; err == nil {
 						// Add user to context for GraphQL resolvers
-						ctx := context.WithValue(c.Request.Context(), "user", &user)
+						ctx := context.WithValue(c.Request.Context(), userContextKey, &user)
 						c.Request = c.Request.WithContext(ctx)
 						fmt.Printf("DEBUG: User authenticated for GraphQL\n")
 					} else {
@@ -138,16 +145,9 @@ func AuthMiddleware(cfg *config.Config, authService *services.AuthService, db *d
 	}
 }
 
-// isPublicQuery checks if the GraphQL query is public (login/register)
-func isPublicQuery(c *gin.Context) bool {
-	// For integration tests, allow all GraphQL requests to be processed
-	// Authentication will be handled at the resolver level
-	return c.Request.URL.Path == "/graphql"
-}
-
 // GetUserFromContext extracts the user from the request context
 func GetUserFromContext(ctx context.Context) (*models.User, error) {
-	user, ok := ctx.Value("user").(*models.User)
+	user, ok := ctx.Value(userContextKey).(*models.User)
 	if !ok {
 		return nil, jwt.ErrTokenInvalidClaims
 	}

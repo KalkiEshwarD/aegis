@@ -20,16 +20,20 @@ describe('withLoading HOC', () => {
   const TestComponent = ({
     isLoading,
     error,
-    data
+    data,
+    loading,
+    customProp
   }: {
-    isLoading: boolean;
-    error: string | null;
-    data: string;
+    isLoading?: boolean;
+    error?: string | null | undefined;
+    data?: string;
+    loading?: boolean;
+    customProp?: string;
   }) => (
     <div data-testid="test-component">
-      Loading: {isLoading ? 'true' : 'false'},
+      Loading: {(isLoading || loading) ? 'true' : 'false'},
       Error: {error || 'null'},
-      Data: {data}
+      Data: {data || 'none'}
     </div>
   );
 

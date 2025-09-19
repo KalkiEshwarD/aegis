@@ -15,6 +15,7 @@ process.on('unhandledRejection', err => {
 require('../config/env');
 
 const fs = require('fs');
+const path = require('path');
 const chalk = require('react-dev-utils/chalk');
 const webpack = require('webpack');
 const WebpackDevServer = require('webpack-dev-server');
@@ -28,6 +29,18 @@ const {
 } = require('react-dev-utils/WebpackDevServerUtils');
 const openBrowser = require('react-dev-utils/openBrowser');
 const semver = require('semver');
+
+// Copy shared validation rules to public directory for development
+const sharedValidationPath = path.resolve(__dirname, '../../shared/validation-rules.json');
+const publicValidationPath = path.resolve(__dirname, '../public/validation-rules.json');
+if (fs.existsSync(sharedValidationPath)) {
+  try {
+    fs.copyFileSync(sharedValidationPath, publicValidationPath);
+    console.log(chalk.green('✓ Copied validation rules to public directory'));
+  } catch (err) {
+    console.warn(chalk.yellow('Warning: Could not copy validation rules:', err.message));
+  }
+}
 const paths = require('../config/paths');
 const configFactory = require('../config/webpack.config');
 const createDevServerConfig = require('../config/webpackDevServer.config');

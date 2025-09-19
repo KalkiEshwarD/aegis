@@ -17,6 +17,11 @@ func NewBaseService(db *database.DB) *BaseService {
 	return &BaseService{db: db}
 }
 
+// GetDB returns the database instance
+func (s *BaseService) GetDB() *database.DB {
+	return s.db
+}
+
 // ValidateOwnership performs a standard ownership check query for models with id and user_id fields
 func (bs *BaseService) ValidateOwnership(model interface{}, id, userID uint) error {
 	db := bs.db.GetDB()

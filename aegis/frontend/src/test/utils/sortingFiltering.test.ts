@@ -345,18 +345,27 @@ describe('userFileToFileInfo', () => {
   it('should convert UserFile to FileInfo', () => {
     const mockUserFile: UserFile = {
       id: '1',
+      user_id: 'user1',
+      file_id: 'file1',
       filename: 'test.pdf',
       mime_type: 'application/pdf',
+      encryption_key: 'test-key',
       created_at: '2023-01-01T00:00:00Z',
       updated_at: '2023-01-01T00:00:00Z',
       file: {
         id: 'file1',
         size_bytes: 1024,
-        hash: 'hash123',
+        content_hash: 'hash123',
+        created_at: '2023-01-01T00:00:00Z',
       },
       user: {
         id: 'user1',
         username: 'testuser',
+        email: 'testuser@example.com',
+        storage_quota: 1000000000,
+        used_storage: 1024,
+        is_admin: false,
+        created_at: '2023-01-01T00:00:00Z',
       },
     };
 
@@ -372,13 +381,21 @@ describe('userFileToFileInfo', () => {
   it('should handle UserFile without file property', () => {
     const mockUserFile: UserFile = {
       id: '1',
+      user_id: 'user1',
+      file_id: 'file1',
       filename: 'test.pdf',
       mime_type: 'application/pdf',
+      encryption_key: 'test-key',
       created_at: '2023-01-01T00:00:00Z',
       updated_at: '2023-01-01T00:00:00Z',
       user: {
         id: 'user1',
         username: 'testuser',
+        email: 'testuser@example.com',
+        storage_quota: 1000000000,
+        used_storage: 0,
+        is_admin: false,
+        created_at: '2023-01-01T00:00:00Z',
       },
     };
 
@@ -392,21 +409,43 @@ describe('userFilesToFileInfo', () => {
     const mockUserFiles: UserFile[] = [
       {
         id: '1',
+        user_id: 'user1',
+        file_id: 'file1',
         filename: 'test1.pdf',
         mime_type: 'application/pdf',
+        encryption_key: 'test-key1',
         created_at: '2023-01-01T00:00:00Z',
         updated_at: '2023-01-01T00:00:00Z',
-        file: { id: 'file1', size_bytes: 1024, hash: 'hash1' },
-        user: { id: 'user1', username: 'testuser' },
+        file: { id: 'file1', size_bytes: 1024, content_hash: 'hash1', created_at: '2023-01-01T00:00:00Z' },
+        user: { 
+          id: 'user1', 
+          username: 'testuser',
+          email: 'testuser@example.com',
+          storage_quota: 1000000000,
+          used_storage: 1024,
+          is_admin: false,
+          created_at: '2023-01-01T00:00:00Z',
+        },
       },
       {
         id: '2',
+        user_id: 'user1',
+        file_id: 'file2',
         filename: 'test2.txt',
         mime_type: 'text/plain',
+        encryption_key: 'test-key2',
         created_at: '2023-01-02T00:00:00Z',
         updated_at: '2023-01-02T00:00:00Z',
-        file: { id: 'file2', size_bytes: 2048, hash: 'hash2' },
-        user: { id: 'user1', username: 'testuser' },
+        file: { id: 'file2', size_bytes: 2048, content_hash: 'hash2', created_at: '2023-01-02T00:00:00Z' },
+        user: { 
+          id: 'user1', 
+          username: 'testuser',
+          email: 'testuser@example.com',
+          storage_quota: 1000000000,
+          used_storage: 3072,
+          is_admin: false,
+          created_at: '2023-01-01T00:00:00Z',
+        },
       },
     ];
 

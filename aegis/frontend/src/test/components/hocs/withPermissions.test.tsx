@@ -24,18 +24,20 @@ describe('withPermissions HOC', () => {
     hasPermission,
     hasRole,
     userPermissions,
-    userRoles
+    userRoles,
+    customProp
   }: {
-    hasPermission: (permission: string) => boolean;
-    hasRole: (role: string) => boolean;
-    userPermissions: string[];
-    userRoles: string[];
+    hasPermission?: (permission: string) => boolean;
+    hasRole?: (role: string) => boolean;
+    userPermissions?: string[];
+    userRoles?: string[];
+    customProp?: string;
   }) => (
     <div data-testid="test-component">
-      Permissions: {userPermissions.join(', ')}
-      Roles: {userRoles.join(', ')}
-      Has Admin: {hasPermission('admin') ? 'true' : 'false'}
-      Has User Role: {hasRole('user') ? 'true' : 'false'}
+      Permissions: {userPermissions?.join(', ') || 'none'}
+      Roles: {userRoles?.join(', ') || 'none'}
+      Has Admin: {hasPermission?.('admin') ? 'true' : 'false'}
+      Has User Role: {hasRole?.('user') ? 'true' : 'false'}
     </div>
   );
 
@@ -207,9 +209,11 @@ describe('withPermissions HOC', () => {
     const TestHasPermissionComponent = ({
       hasPermission,
     }: {
-      hasPermission: (permission: string) => boolean;
+      hasPermission?: (permission: string) => boolean;
     }) => {
-      capturedHasPermission = hasPermission;
+      if (hasPermission) {
+        capturedHasPermission = hasPermission;
+      }
       return <div>Test</div>;
     };
 
@@ -233,9 +237,11 @@ describe('withPermissions HOC', () => {
     const TestHasRoleComponent = ({
       hasRole,
     }: {
-      hasRole: (role: string) => boolean;
+      hasRole?: (role: string) => boolean;
     }) => {
-      capturedHasRole = hasRole;
+      if (hasRole) {
+        capturedHasRole = hasRole;
+      }
       return <div>Test</div>;
     };
 

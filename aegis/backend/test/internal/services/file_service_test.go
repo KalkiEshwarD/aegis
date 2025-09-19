@@ -2,6 +2,7 @@ package services_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -20,16 +21,16 @@ import (
 	"github.com/balkanid/aegis-backend/internal/services"
 )
 
-type FileServiceTestSuite struct {
+type StorageServiceTestSuite struct {
 	suite.Suite
-	db           *gorm.DB
-	fileService  *services.FileService
-	testUser     models.User
-	testFile     models.File
-	testUserFile models.UserFile
+	db             *gorm.DB
+	storageService *services.StorageService
+	testUser       models.User
+	testFile       models.File
+	testUserFile   models.UserFile
 }
 
-func (suite *FileServiceTestSuite) SetupSuite() {
+func (suite *StorageServiceTestSuite) SetupSuite() {
 	// Create in-memory SQLite database for testing
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	suite.Require().NoError(err)
@@ -60,17 +61,23 @@ func (suite *FileServiceTestSuite) SetupSuite() {
 		MinIOBucket:    "",
 	}
 
-	suite.fileService = services.NewFileService(cfg)
+	// Create database service
+	dbService := database.NewDB(db)
+
+	// Create file storage service (will be nil/disabled for tests)
+	fileStorageService := services.NewFileStorageService(nil, "")
+
+	suite.storageService = services.NewStorageService(cfg, dbService, fileStorageService)
 }
 
-func (suite *FileServiceTestSuite) TearDownSuite() {
+func (suite *StorageServiceTestSuite) TearDownSuite() {
 	if suite.db != nil {
 		sqlDB, _ := suite.db.DB()
 		sqlDB.Close()
 	}
 }
 
-func (suite *FileServiceTestSuite) SetupTest() {
+func (suite *StorageServiceTestSuite) SetupTest() {
 	// Clean database before each test
 	suite.db.Exec("DELETE FROM download_logs")
 	suite.db.Exec("DELETE FROM room_files")
@@ -113,13 +120,13 @@ func (suite *FileServiceTestSuite) SetupTest() {
 	suite.Require().NoError(err)
 }
 
-func (suite *FileServiceTestSuite) TestNewFileService() {
+func (suite *StorageServiceTestSuite) TestNewFileService() {
 	cfg := &config.Config{}
-	service := services.NewFileService(cfg)
+	service := services.NewStorageService(cfg, database.NewDB(suite.db), services.NewFileStorageService(nil, ""))
 	assert.NotNil(suite.T(), service)
 }
 
-func (suite *FileServiceTestSuite) TestNewFileService_WithMinIO() {
+func (suite *StorageServiceTestSuite) TestNewFileService_WithMinIO() {
 	cfg := &config.Config{
 		MinIOEndpoint:  "localhost:9000",
 		MinIOAccessKey: "test_key",
@@ -128,11 +135,11 @@ func (suite *FileServiceTestSuite) TestNewFileService_WithMinIO() {
 	}
 	// Skip this test as MinIO connection will fail in test environment
 	suite.T().Skip("Skipping MinIO test - MinIO not available in test environment")
-	service := services.NewFileService(cfg)
+	service := services.NewStorageService(cfg, database.NewDB(suite.db), services.NewFileStorageService(nil, ""))
 	assert.NotNil(suite.T(), service)
 }
 
-func (suite *FileServiceTestSuite) TestUploadFileFromMap_Success() {
+func (suite *StorageServiceTestSuite) TestUploadFileFromMap_Success() {
 	data := map[string]interface{}{
 		"filename":      "test_upload.txt",
 		"mime_type":     "text/plain",
@@ -142,7 +149,7 @@ func (suite *FileServiceTestSuite) TestUploadFileFromMap_Success() {
 		"file_data":     []byte("test file content"),
 	}
 
-	userFile, err := suite.fileService.UploadFileFromMap(suite.testUser.ID, data)
+	userFile, err := suite.storageService.UploadFileFromMap(suite.testUser.ID, data)
 
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), userFile)
@@ -151,21 +158,21 @@ func (suite *FileServiceTestSuite) TestUploadFileFromMap_Success() {
 	assert.Equal(suite.T(), int64(512), userFile.File.SizeBytes)
 }
 
-func (suite *FileServiceTestSuite) TestUploadFileFromMap_InvalidData() {
+func (suite *StorageServiceTestSuite) TestUploadFileFromMap_InvalidData() {
 	// Test with missing required fields
 	data := map[string]interface{}{
 		"filename": "test.txt",
 		// Missing other required fields
 	}
 
-	userFile, err := suite.fileService.UploadFileFromMap(suite.testUser.ID, data)
+	userFile, err := suite.storageService.UploadFileFromMap(suite.testUser.ID, data)
 
 	assert.Error(suite.T(), err)
 	assert.Nil(suite.T(), userFile)
 	assert.Contains(suite.T(), err.Error(), "file data is required")
 }
 
-func (suite *FileServiceTestSuite) TestUploadFileFromMap_TypeMismatch() {
+func (suite *StorageServiceTestSuite) TestUploadFileFromMap_TypeMismatch() {
 	data := map[string]interface{}{
 		"id":            123,            // Should be string
 		"size":          "not-a-number", // Should be number
@@ -176,18 +183,18 @@ func (suite *FileServiceTestSuite) TestUploadFileFromMap_TypeMismatch() {
 		"file_data":     []byte("content"),
 	}
 
-	userFile, err := suite.fileService.UploadFileFromMap(suite.testUser.ID, data)
+	userFile, err := suite.storageService.UploadFileFromMap(suite.testUser.ID, data)
 
 	// The service doesn't validate filename being nil, so it should succeed
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), userFile)
 }
 
-func (suite *FileServiceTestSuite) TestUploadFile_Success() {
+func (suite *StorageServiceTestSuite) TestUploadFile_Success() {
 	fileContent := "test file content for upload"
 	reader := strings.NewReader(fileContent)
 
-	userFile, err := suite.fileService.UploadFile(
+	userFile, err := suite.storageService.UploadFile(
 		suite.testUser.ID,
 		"new_file.txt",
 		"text/plain",
@@ -205,12 +212,12 @@ func (suite *FileServiceTestSuite) TestUploadFile_Success() {
 	assert.Equal(suite.T(), int64(len(fileContent)), userFile.File.SizeBytes)
 }
 
-func (suite *FileServiceTestSuite) TestUploadFile_ReuploadAfterDelete() {
+func (suite *StorageServiceTestSuite) TestUploadFile_ReuploadAfterDelete() {
 	// First upload
 	fileContent := "content for reupload test"
 	reader1 := strings.NewReader(fileContent)
 
-	userFile1, err := suite.fileService.UploadFile(
+	userFile1, err := suite.storageService.UploadFile(
 		suite.testUser.ID,
 		"reupload_test.txt",
 		"text/plain",
@@ -223,7 +230,7 @@ func (suite *FileServiceTestSuite) TestUploadFile_ReuploadAfterDelete() {
 	assert.NoError(suite.T(), err)
 
 	// Delete the file
-	err = suite.fileService.DeleteFile(suite.testUser.ID, userFile1.ID)
+	err = suite.storageService.DeleteFile(suite.testUser.ID, userFile1.ID)
 	assert.NoError(suite.T(), err)
 
 	// Verify user file is soft-deleted (not the file record itself)
@@ -240,7 +247,7 @@ func (suite *FileServiceTestSuite) TestUploadFile_ReuploadAfterDelete() {
 
 	// Try to upload the same file again
 	reader2 := strings.NewReader(fileContent)
-	userFile2, err := suite.fileService.UploadFile(
+	userFile2, err := suite.storageService.UploadFile(
 		suite.testUser.ID,
 		"reupload_test_v2.txt", // Different filename
 		"text/plain",
@@ -264,10 +271,10 @@ func (suite *FileServiceTestSuite) TestUploadFile_ReuploadAfterDelete() {
 	assert.False(suite.T(), restoredFile.DeletedAt.Valid)
 }
 
-func (suite *FileServiceTestSuite) TestUploadFile_EmptyFile() {
+func (suite *StorageServiceTestSuite) TestUploadFile_EmptyFile() {
 	reader := strings.NewReader("")
 
-	userFile, err := suite.fileService.UploadFile(
+	userFile, err := suite.storageService.UploadFile(
 		suite.testUser.ID,
 		"empty.txt",
 		"text/plain",
@@ -283,11 +290,11 @@ func (suite *FileServiceTestSuite) TestUploadFile_EmptyFile() {
 	assert.Equal(suite.T(), int64(0), userFile.File.SizeBytes)
 }
 
-func (suite *FileServiceTestSuite) TestUploadFile_SpecialCharactersInFilename() {
+func (suite *StorageServiceTestSuite) TestUploadFile_SpecialCharactersInFilename() {
 	specialFilename := "file with spaces & special chars (test).txt"
 	reader := strings.NewReader("content")
 
-	userFile, err := suite.fileService.UploadFile(
+	userFile, err := suite.storageService.UploadFile(
 		suite.testUser.ID,
 		specialFilename,
 		"text/plain",
@@ -303,10 +310,10 @@ func (suite *FileServiceTestSuite) TestUploadFile_SpecialCharactersInFilename() 
 	assert.Equal(suite.T(), specialFilename, userFile.Filename)
 }
 
-func (suite *FileServiceTestSuite) TestUploadFile_InvalidUserID() {
+func (suite *StorageServiceTestSuite) TestUploadFile_InvalidUserID() {
 	reader := strings.NewReader("content")
 
-	userFile, err := suite.fileService.UploadFile(
+	userFile, err := suite.storageService.UploadFile(
 		99999, // Non-existent user ID
 		"test.txt",
 		"text/plain",
@@ -323,7 +330,7 @@ func (suite *FileServiceTestSuite) TestUploadFile_InvalidUserID() {
 	assert.NotNil(suite.T(), userFile)
 }
 
-func (suite *FileServiceTestSuite) TestGetUserFiles_NoFiles() {
+func (suite *StorageServiceTestSuite) TestGetUserFiles_NoFiles() {
 	// Create a new user with no files
 	newUser := models.User{
 		Username:     "emptyuser",
@@ -336,14 +343,14 @@ func (suite *FileServiceTestSuite) TestGetUserFiles_NoFiles() {
 	err := suite.db.Create(&newUser).Error
 	suite.Require().NoError(err)
 
-	files, err := suite.fileService.GetUserFiles(newUser.ID, nil)
+	files, err := suite.storageService.GetUserFiles(newUser.ID, nil)
 
 	assert.NoError(suite.T(), err)
 	assert.Empty(suite.T(), files)
 }
 
-func (suite *FileServiceTestSuite) TestGetUserFiles_WithFiles() {
-	files, err := suite.fileService.GetUserFiles(suite.testUser.ID, nil)
+func (suite *StorageServiceTestSuite) TestGetUserFiles_WithFiles() {
+	files, err := suite.storageService.GetUserFiles(suite.testUser.ID, nil)
 
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), files, 1)
@@ -351,44 +358,44 @@ func (suite *FileServiceTestSuite) TestGetUserFiles_WithFiles() {
 	assert.Equal(suite.T(), suite.testUserFile.MimeType, files[0].MimeType)
 }
 
-func (suite *FileServiceTestSuite) TestGetUserFiles_WithFilenameFilter() {
+func (suite *StorageServiceTestSuite) TestGetUserFiles_WithFilenameFilter() {
 	filter := &services.FileFilter{
 		Filename: stringPtr("test_file"),
 	}
 
-	files, err := suite.fileService.GetUserFiles(suite.testUser.ID, filter)
+	files, err := suite.storageService.GetUserFiles(suite.testUser.ID, filter)
 
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), files, 1)
 	assert.Equal(suite.T(), suite.testUserFile.Filename, files[0].Filename)
 }
 
-func (suite *FileServiceTestSuite) TestGetUserFiles_WithMimeTypeFilter() {
+func (suite *StorageServiceTestSuite) TestGetUserFiles_WithMimeTypeFilter() {
 	filter := &services.FileFilter{
 		MimeType: stringPtr("text/plain"),
 	}
 
-	files, err := suite.fileService.GetUserFiles(suite.testUser.ID, filter)
+	files, err := suite.storageService.GetUserFiles(suite.testUser.ID, filter)
 
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), files, 1)
 	assert.Equal(suite.T(), suite.testUserFile.MimeType, files[0].MimeType)
 }
 
-func (suite *FileServiceTestSuite) TestGetUserFiles_WithSizeFilter() {
+func (suite *StorageServiceTestSuite) TestGetUserFiles_WithSizeFilter() {
 	filter := &services.FileFilter{
 		MinSize: int64Ptr(512),
 		MaxSize: int64Ptr(2048),
 	}
 
-	files, err := suite.fileService.GetUserFiles(suite.testUser.ID, filter)
+	files, err := suite.storageService.GetUserFiles(suite.testUser.ID, filter)
 
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), files, 1)
 	assert.Equal(suite.T(), suite.testFile.SizeBytes, files[0].File.SizeBytes)
 }
 
-func (suite *FileServiceTestSuite) TestGetUserFiles_WithDateFilter() {
+func (suite *StorageServiceTestSuite) TestGetUserFiles_WithDateFilter() {
 	now := time.Now()
 	dateFrom := interface{}(now.Add(-time.Hour))
 	dateTo := interface{}(now.Add(time.Hour))
@@ -397,25 +404,25 @@ func (suite *FileServiceTestSuite) TestGetUserFiles_WithDateFilter() {
 		DateTo:   &dateTo,
 	}
 
-	files, err := suite.fileService.GetUserFiles(suite.testUser.ID, filter)
+	files, err := suite.storageService.GetUserFiles(suite.testUser.ID, filter)
 
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), files, 1)
 }
 
-func (suite *FileServiceTestSuite) TestGetUserFiles_FilterNoMatches() {
+func (suite *StorageServiceTestSuite) TestGetUserFiles_FilterNoMatches() {
 	filter := &services.FileFilter{
 		Filename: stringPtr("nonexistent"),
 	}
 
-	files, err := suite.fileService.GetUserFiles(suite.testUser.ID, filter)
+	files, err := suite.storageService.GetUserFiles(suite.testUser.ID, filter)
 
 	assert.NoError(suite.T(), err)
 	assert.Empty(suite.T(), files)
 }
 
-func (suite *FileServiceTestSuite) TestDeleteFile_Success() {
-	err := suite.fileService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
+func (suite *StorageServiceTestSuite) TestDeleteFile_Success() {
+	err := suite.storageService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
 
 	assert.NoError(suite.T(), err)
 
@@ -426,14 +433,14 @@ func (suite *FileServiceTestSuite) TestDeleteFile_Success() {
 	assert.True(suite.T(), errors.Is(err, gorm.ErrRecordNotFound))
 }
 
-func (suite *FileServiceTestSuite) TestDeleteFile_FileNotFound() {
-	err := suite.fileService.DeleteFile(suite.testUser.ID, 99999)
+func (suite *StorageServiceTestSuite) TestDeleteFile_FileNotFound() {
+	err := suite.storageService.DeleteFile(suite.testUser.ID, 99999)
 
 	assert.Error(suite.T(), err)
 	assert.Contains(suite.T(), err.Error(), "file not found")
 }
 
-func (suite *FileServiceTestSuite) TestDeleteFile_WrongUser() {
+func (suite *StorageServiceTestSuite) TestDeleteFile_WrongUser() {
 	// Create another user
 	otherUser := models.User{
 		Username:     "otheruser",
@@ -447,13 +454,13 @@ func (suite *FileServiceTestSuite) TestDeleteFile_WrongUser() {
 	suite.Require().NoError(err)
 
 	// Try to delete testUser's file as otherUser
-	err = suite.fileService.DeleteFile(otherUser.ID, suite.testUserFile.ID)
+	err = suite.storageService.DeleteFile(otherUser.ID, suite.testUserFile.ID)
 
 	assert.Error(suite.T(), err)
 	assert.Contains(suite.T(), err.Error(), "file not found")
 }
 
-func (suite *FileServiceTestSuite) TestDeleteFile_LastReference() {
+func (suite *StorageServiceTestSuite) TestDeleteFile_LastReference() {
 	// Create a file that only this user references
 	uniqueFile := models.File{
 		ContentHash: "unique_hash",
@@ -474,7 +481,7 @@ func (suite *FileServiceTestSuite) TestDeleteFile_LastReference() {
 	suite.Require().NoError(err)
 
 	// Delete the user file
-	err = suite.fileService.DeleteFile(suite.testUser.ID, uniqueUserFile.ID)
+	err = suite.storageService.DeleteFile(suite.testUser.ID, uniqueUserFile.ID)
 	assert.NoError(suite.T(), err)
 
 	// Verify user file is soft-deleted
@@ -490,23 +497,23 @@ func (suite *FileServiceTestSuite) TestDeleteFile_LastReference() {
 	assert.False(suite.T(), existingFile.DeletedAt.Valid) // File record should not be soft deleted
 }
 
-func (suite *FileServiceTestSuite) TestGetFileDownloadURL_Success() {
-	url, err := suite.fileService.GetFileDownloadURL(suite.testUser.ID, suite.testUserFile.ID)
+func (suite *StorageServiceTestSuite) TestGetFileDownloadURL_Success() {
+	url, err := suite.storageService.GetFileDownloadURL(context.Background(), &suite.testUser, suite.testUserFile.ID)
 
 	assert.NoError(suite.T(), err)
 	assert.Contains(suite.T(), url, "http://localhost:8080/api/files")
 	assert.Contains(suite.T(), url, fmt.Sprintf("%d/download", suite.testUserFile.ID))
 }
 
-func (suite *FileServiceTestSuite) TestGetFileDownloadURL_FileNotFound() {
-	url, err := suite.fileService.GetFileDownloadURL(suite.testUser.ID, 99999)
+func (suite *StorageServiceTestSuite) TestGetFileDownloadURL_FileNotFound() {
+	url, err := suite.storageService.GetFileDownloadURL(context.Background(), &suite.testUser, 99999)
 
 	assert.Error(suite.T(), err)
 	assert.Empty(suite.T(), url)
 	assert.Contains(suite.T(), err.Error(), "file not found")
 }
 
-func (suite *FileServiceTestSuite) TestGetFileDownloadURL_WrongUser() {
+func (suite *StorageServiceTestSuite) TestGetFileDownloadURL_WrongUser() {
 	otherUser := models.User{
 		Username:     "otheruser3",
 		Email:        "other@example.com",
@@ -518,15 +525,15 @@ func (suite *FileServiceTestSuite) TestGetFileDownloadURL_WrongUser() {
 	err := suite.db.Create(&otherUser).Error
 	suite.Require().NoError(err)
 
-	url, err := suite.fileService.GetFileDownloadURL(otherUser.ID, suite.testUserFile.ID)
+	url, err := suite.storageService.GetFileDownloadURL(context.Background(), &otherUser, suite.testUserFile.ID)
 
 	assert.Error(suite.T(), err)
 	assert.Empty(suite.T(), url)
 	assert.Contains(suite.T(), err.Error(), "file not found")
 }
 
-func (suite *FileServiceTestSuite) TestGetFile_Success() {
-	content, mimeType, err := suite.fileService.GetFile(suite.testUser.ID, suite.testUserFile.ID)
+func (suite *StorageServiceTestSuite) TestGetFile_Success() {
+	content, mimeType, err := suite.storageService.GetFile(suite.testUser.ID, suite.testUserFile.ID)
 
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), suite.testUserFile.MimeType, mimeType)
@@ -534,8 +541,8 @@ func (suite *FileServiceTestSuite) TestGetFile_Success() {
 	assert.Contains(suite.T(), string(content), suite.testUserFile.Filename)
 }
 
-func (suite *FileServiceTestSuite) TestGetFile_FileNotFound() {
-	content, mimeType, err := suite.fileService.GetFile(suite.testUser.ID, 99999)
+func (suite *StorageServiceTestSuite) TestGetFile_FileNotFound() {
+	content, mimeType, err := suite.storageService.GetFile(suite.testUser.ID, 99999)
 
 	assert.Error(suite.T(), err)
 	assert.Empty(suite.T(), content)
@@ -543,7 +550,7 @@ func (suite *FileServiceTestSuite) TestGetFile_FileNotFound() {
 	assert.Contains(suite.T(), err.Error(), "file not found")
 }
 
-func (suite *FileServiceTestSuite) TestGetFile_WrongUser() {
+func (suite *StorageServiceTestSuite) TestGetFile_WrongUser() {
 	otherUser := models.User{
 		Username:     "otheruser2",
 		Email:        "other@example.com",
@@ -555,7 +562,7 @@ func (suite *FileServiceTestSuite) TestGetFile_WrongUser() {
 	err := suite.db.Create(&otherUser).Error
 	suite.Require().NoError(err)
 
-	content, mimeType, err := suite.fileService.GetFile(otherUser.ID, suite.testUserFile.ID)
+	content, mimeType, err := suite.storageService.GetFile(otherUser.ID, suite.testUserFile.ID)
 
 	assert.Error(suite.T(), err)
 	assert.Empty(suite.T(), content)
@@ -563,25 +570,25 @@ func (suite *FileServiceTestSuite) TestGetFile_WrongUser() {
 	assert.Contains(suite.T(), err.Error(), "file not found")
 }
 
-func (suite *FileServiceTestSuite) TestGetAllFiles() {
-	files, err := suite.fileService.GetAllFiles()
+func (suite *StorageServiceTestSuite) TestGetAllFiles() {
+	files, err := suite.storageService.GetAllFiles()
 
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), files, 1)
 	assert.Equal(suite.T(), suite.testUserFile.Filename, files[0].Filename)
 }
 
-func (suite *FileServiceTestSuite) TestGetAllFiles_Empty() {
+func (suite *StorageServiceTestSuite) TestGetAllFiles_Empty() {
 	// Delete existing user file
 	suite.db.Delete(&suite.testUserFile)
 
-	files, err := suite.fileService.GetAllFiles()
+	files, err := suite.storageService.GetAllFiles()
 
 	assert.NoError(suite.T(), err)
 	assert.Empty(suite.T(), files)
 }
 
-func (suite *FileServiceTestSuite) TestGetAllFiles_MultipleUsers() {
+func (suite *StorageServiceTestSuite) TestGetAllFiles_MultipleUsers() {
 	// Create another user and file
 	otherUser := models.User{
 		Username:     "otheruser4",
@@ -612,7 +619,7 @@ func (suite *FileServiceTestSuite) TestGetAllFiles_MultipleUsers() {
 	err = suite.db.Create(&otherUserFile).Error
 	suite.Require().NoError(err)
 
-	files, err := suite.fileService.GetAllFiles()
+	files, err := suite.storageService.GetAllFiles()
 
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), files, 2)
@@ -635,9 +642,9 @@ func int64Ptr(i int64) *int64 {
 	return &i
 }
 
-func (suite *FileServiceTestSuite) TestDeleteFile_SoftDelete() {
+func (suite *StorageServiceTestSuite) TestDeleteFile_SoftDelete() {
 	// Delete the file (soft delete)
-	err := suite.fileService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
+	err := suite.storageService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
 	assert.NoError(suite.T(), err)
 
 	// Verify user file is soft-deleted (deleted_at is set)
@@ -652,13 +659,13 @@ func (suite *FileServiceTestSuite) TestDeleteFile_SoftDelete() {
 	assert.NoError(suite.T(), err)
 }
 
-func (suite *FileServiceTestSuite) TestDeleteFile_SoftDelete_FileNotFound() {
-	err := suite.fileService.DeleteFile(suite.testUser.ID, 99999)
+func (suite *StorageServiceTestSuite) TestDeleteFile_SoftDelete_FileNotFound() {
+	err := suite.storageService.DeleteFile(suite.testUser.ID, 99999)
 	assert.Error(suite.T(), err)
 	assert.Contains(suite.T(), err.Error(), "file not found")
 }
 
-func (suite *FileServiceTestSuite) TestDeleteFile_SoftDelete_WrongUser() {
+func (suite *StorageServiceTestSuite) TestDeleteFile_SoftDelete_WrongUser() {
 	// Create another user
 	otherUser := models.User{
 		Username:     "otheruser5",
@@ -672,12 +679,12 @@ func (suite *FileServiceTestSuite) TestDeleteFile_SoftDelete_WrongUser() {
 	suite.Require().NoError(err)
 
 	// Try to delete testUser's file as otherUser
-	err = suite.fileService.DeleteFile(otherUser.ID, suite.testUserFile.ID)
+	err = suite.storageService.DeleteFile(otherUser.ID, suite.testUserFile.ID)
 	assert.Error(suite.T(), err)
 	assert.Contains(suite.T(), err.Error(), "file not found")
 }
 
-func (suite *FileServiceTestSuite) TestDeleteFile_WithRoomFile() {
+func (suite *StorageServiceTestSuite) TestDeleteFile_WithRoomFile() {
 	// Create a room
 	room := models.Room{
 		Name:      "Test Room",
@@ -704,7 +711,7 @@ func (suite *FileServiceTestSuite) TestDeleteFile_WithRoomFile() {
 	suite.Require().NoError(err)
 
 	// Delete the file
-	err = suite.fileService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
+	err = suite.storageService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
 	assert.NoError(suite.T(), err)
 
 	// Verify room file is removed
@@ -713,9 +720,9 @@ func (suite *FileServiceTestSuite) TestDeleteFile_WithRoomFile() {
 	assert.True(suite.T(), errors.Is(err, gorm.ErrRecordNotFound))
 }
 
-func (suite *FileServiceTestSuite) TestRestoreFile_Success() {
+func (suite *StorageServiceTestSuite) TestRestoreFile_Success() {
 	// First soft delete the file
-	err := suite.fileService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
+	err := suite.storageService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
 	assert.NoError(suite.T(), err)
 
 	// Verify it's soft deleted
@@ -725,7 +732,7 @@ func (suite *FileServiceTestSuite) TestRestoreFile_Success() {
 	assert.True(suite.T(), deletedUserFile.DeletedAt.Valid)
 
 	// Restore the file
-	err = suite.fileService.RestoreFile(suite.testUser.ID, suite.testUserFile.ID)
+	err = suite.storageService.RestoreFile(suite.testUser.ID, suite.testUserFile.ID)
 	assert.NoError(suite.T(), err)
 
 	// Verify it's restored (should be found without unscoped)
@@ -735,21 +742,21 @@ func (suite *FileServiceTestSuite) TestRestoreFile_Success() {
 	assert.False(suite.T(), restoredUserFile.DeletedAt.Valid)
 
 	// Also verify it appears in GetUserFiles (not trashed)
-	files, err := suite.fileService.GetUserFiles(suite.testUser.ID, nil)
+	files, err := suite.storageService.GetUserFiles(suite.testUser.ID, nil)
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), files, 1)
 	assert.Equal(suite.T(), suite.testUserFile.ID, files[0].ID)
 }
 
-func (suite *FileServiceTestSuite) TestRestoreFile_FileNotFound() {
-	err := suite.fileService.RestoreFile(suite.testUser.ID, 99999)
+func (suite *StorageServiceTestSuite) TestRestoreFile_FileNotFound() {
+	err := suite.storageService.RestoreFile(suite.testUser.ID, 99999)
 	assert.Error(suite.T(), err)
 	assert.Contains(suite.T(), err.Error(), "file not found")
 }
 
-func (suite *FileServiceTestSuite) TestRestoreFile_WrongUser() {
+func (suite *StorageServiceTestSuite) TestRestoreFile_WrongUser() {
 	// First soft delete the file
-	err := suite.fileService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
+	err := suite.storageService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
 	assert.NoError(suite.T(), err)
 
 	// Create another user
@@ -765,25 +772,25 @@ func (suite *FileServiceTestSuite) TestRestoreFile_WrongUser() {
 	suite.Require().NoError(err)
 
 	// Try to restore as other user
-	err = suite.fileService.RestoreFile(otherUser.ID, suite.testUserFile.ID)
+	err = suite.storageService.RestoreFile(otherUser.ID, suite.testUserFile.ID)
 	assert.Error(suite.T(), err)
 	assert.Contains(suite.T(), err.Error(), "file not found")
 }
 
-func (suite *FileServiceTestSuite) TestRestoreFile_NotInTrash() {
+func (suite *StorageServiceTestSuite) TestRestoreFile_NotInTrash() {
 	// Try to restore a file that's not in trash
-	err := suite.fileService.RestoreFile(suite.testUser.ID, suite.testUserFile.ID)
+	err := suite.storageService.RestoreFile(suite.testUser.ID, suite.testUserFile.ID)
 	assert.Error(suite.T(), err)
 	assert.Contains(suite.T(), err.Error(), "file is not in trash")
 }
 
-func (suite *FileServiceTestSuite) TestPermanentlyDeleteFile_Success() {
+func (suite *StorageServiceTestSuite) TestPermanentlyDeleteFile_Success() {
 	// First soft delete the file
-	err := suite.fileService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
+	err := suite.storageService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
 	assert.NoError(suite.T(), err)
 
 	// Permanently delete the file
-	err = suite.fileService.PermanentlyDeleteFile(suite.testUser.ID, suite.testUserFile.ID)
+	err = suite.storageService.PermanentlyDeleteFile(suite.testUser.ID, suite.testUserFile.ID)
 	assert.NoError(suite.T(), err)
 
 	// Verify user file is permanently deleted
@@ -799,15 +806,15 @@ func (suite *FileServiceTestSuite) TestPermanentlyDeleteFile_Success() {
 	assert.True(suite.T(), errors.Is(err, gorm.ErrRecordNotFound))
 }
 
-func (suite *FileServiceTestSuite) TestPermanentlyDeleteFile_FileNotFound() {
-	err := suite.fileService.PermanentlyDeleteFile(suite.testUser.ID, 99999)
+func (suite *StorageServiceTestSuite) TestPermanentlyDeleteFile_FileNotFound() {
+	err := suite.storageService.PermanentlyDeleteFile(suite.testUser.ID, 99999)
 	assert.Error(suite.T(), err)
 	assert.Contains(suite.T(), err.Error(), "file not found")
 }
 
-func (suite *FileServiceTestSuite) TestPermanentlyDeleteFile_WrongUser() {
+func (suite *StorageServiceTestSuite) TestPermanentlyDeleteFile_WrongUser() {
 	// First soft delete the file
-	err := suite.fileService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
+	err := suite.storageService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
 	assert.NoError(suite.T(), err)
 
 	// Create another user
@@ -823,19 +830,19 @@ func (suite *FileServiceTestSuite) TestPermanentlyDeleteFile_WrongUser() {
 	suite.Require().NoError(err)
 
 	// Try to permanently delete as other user
-	err = suite.fileService.PermanentlyDeleteFile(otherUser.ID, suite.testUserFile.ID)
+	err = suite.storageService.PermanentlyDeleteFile(otherUser.ID, suite.testUserFile.ID)
 	assert.Error(suite.T(), err)
 	assert.Contains(suite.T(), err.Error(), "file not found")
 }
 
-func (suite *FileServiceTestSuite) TestPermanentlyDeleteFile_NotInTrash() {
+func (suite *StorageServiceTestSuite) TestPermanentlyDeleteFile_NotInTrash() {
 	// Try to permanently delete a file that's not in trash
-	err := suite.fileService.PermanentlyDeleteFile(suite.testUser.ID, suite.testUserFile.ID)
+	err := suite.storageService.PermanentlyDeleteFile(suite.testUser.ID, suite.testUserFile.ID)
 	assert.Error(suite.T(), err)
 	assert.Contains(suite.T(), err.Error(), "file is not in trash")
 }
 
-func (suite *FileServiceTestSuite) TestPermanentlyDeleteFile_WithMultipleReferences() {
+func (suite *StorageServiceTestSuite) TestPermanentlyDeleteFile_WithMultipleReferences() {
 	// Create another user
 	otherUser := models.User{
 		Username:     "otheruser8",
@@ -860,11 +867,11 @@ func (suite *FileServiceTestSuite) TestPermanentlyDeleteFile_WithMultipleReferen
 	suite.Require().NoError(err)
 
 	// Soft delete the first user's file
-	err = suite.fileService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
+	err = suite.storageService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
 	assert.NoError(suite.T(), err)
 
 	// Permanently delete the first user's file
-	err = suite.fileService.PermanentlyDeleteFile(suite.testUser.ID, suite.testUserFile.ID)
+	err = suite.storageService.PermanentlyDeleteFile(suite.testUser.ID, suite.testUserFile.ID)
 	assert.NoError(suite.T(), err)
 
 	// Verify first user file is permanently deleted
@@ -883,7 +890,7 @@ func (suite *FileServiceTestSuite) TestPermanentlyDeleteFile_WithMultipleReferen
 	assert.NoError(suite.T(), err)
 }
 
-func (suite *FileServiceTestSuite) TestGetTrashedFiles_Success() {
+func (suite *StorageServiceTestSuite) TestGetTrashedFiles_Success() {
 	// Create another file for the user
 	otherFile := models.File{
 		ContentHash: "other_hash",
@@ -904,14 +911,14 @@ func (suite *FileServiceTestSuite) TestGetTrashedFiles_Success() {
 	suite.Require().NoError(err)
 
 	// Soft delete both files
-	err = suite.fileService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
+	err = suite.storageService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
 	assert.NoError(suite.T(), err)
 
-	err = suite.fileService.DeleteFile(suite.testUser.ID, otherUserFile.ID)
+	err = suite.storageService.DeleteFile(suite.testUser.ID, otherUserFile.ID)
 	assert.NoError(suite.T(), err)
 
 	// Get trashed files
-	trashedFiles, err := suite.fileService.GetTrashedFiles(suite.testUser.ID)
+	trashedFiles, err := suite.storageService.GetTrashedFiles(suite.testUser.ID)
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), trashedFiles, 2)
 
@@ -924,7 +931,7 @@ func (suite *FileServiceTestSuite) TestGetTrashedFiles_Success() {
 	assert.Contains(suite.T(), filenames, "other.txt")
 }
 
-func (suite *FileServiceTestSuite) TestGetTrashedFiles_NoTrashedFiles() {
+func (suite *StorageServiceTestSuite) TestGetTrashedFiles_NoTrashedFiles() {
 	// Create a new user with no trashed files
 	newUser := models.User{
 		Username:     "newuser",
@@ -937,12 +944,12 @@ func (suite *FileServiceTestSuite) TestGetTrashedFiles_NoTrashedFiles() {
 	err := suite.db.Create(&newUser).Error
 	suite.Require().NoError(err)
 
-	trashedFiles, err := suite.fileService.GetTrashedFiles(newUser.ID)
+	trashedFiles, err := suite.storageService.GetTrashedFiles(newUser.ID)
 	assert.NoError(suite.T(), err)
 	assert.Empty(suite.T(), trashedFiles)
 }
 
-func (suite *FileServiceTestSuite) TestGetUserFiles_ExcludeTrashed() {
+func (suite *StorageServiceTestSuite) TestGetUserFiles_ExcludeTrashed() {
 	// Create another file
 	otherFile := models.File{
 		ContentHash: "other_hash",
@@ -963,17 +970,17 @@ func (suite *FileServiceTestSuite) TestGetUserFiles_ExcludeTrashed() {
 	suite.Require().NoError(err)
 
 	// Soft delete one file
-	err = suite.fileService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
+	err = suite.storageService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
 	assert.NoError(suite.T(), err)
 
 	// Get user files without trashed files
-	files, err := suite.fileService.GetUserFiles(suite.testUser.ID, nil)
+	files, err := suite.storageService.GetUserFiles(suite.testUser.ID, nil)
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), files, 1)
 	assert.Equal(suite.T(), "other.txt", files[0].Filename)
 }
 
-func (suite *FileServiceTestSuite) TestGetUserFiles_IncludeTrashed() {
+func (suite *StorageServiceTestSuite) TestGetUserFiles_IncludeTrashed() {
 	// Create another file
 	otherFile := models.File{
 		ContentHash: "other_hash",
@@ -994,14 +1001,14 @@ func (suite *FileServiceTestSuite) TestGetUserFiles_IncludeTrashed() {
 	suite.Require().NoError(err)
 
 	// Soft delete one file
-	err = suite.fileService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
+	err = suite.storageService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
 	assert.NoError(suite.T(), err)
 
 	// Get user files including trashed files
 	filter := &services.FileFilter{
 		IncludeTrashed: boolPtr(true),
 	}
-	files, err := suite.fileService.GetUserFiles(suite.testUser.ID, filter)
+	files, err := suite.storageService.GetUserFiles(suite.testUser.ID, filter)
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), files, 2)
 
@@ -1014,7 +1021,7 @@ func (suite *FileServiceTestSuite) TestGetUserFiles_IncludeTrashed() {
 	assert.Contains(suite.T(), filenames, "other.txt")
 }
 
-func (suite *FileServiceTestSuite) TestGetUserFiles_FilterTrashedFiles() {
+func (suite *StorageServiceTestSuite) TestGetUserFiles_FilterTrashedFiles() {
 	// Create another file
 	otherFile := models.File{
 		ContentHash: "other_hash",
@@ -1035,10 +1042,10 @@ func (suite *FileServiceTestSuite) TestGetUserFiles_FilterTrashedFiles() {
 	suite.Require().NoError(err)
 
 	// Soft delete both files
-	err = suite.fileService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
+	err = suite.storageService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
 	assert.NoError(suite.T(), err)
 
-	err = suite.fileService.DeleteFile(suite.testUser.ID, otherUserFile.ID)
+	err = suite.storageService.DeleteFile(suite.testUser.ID, otherUserFile.ID)
 	assert.NoError(suite.T(), err)
 
 	// Filter trashed files by filename
@@ -1046,7 +1053,7 @@ func (suite *FileServiceTestSuite) TestGetUserFiles_FilterTrashedFiles() {
 		Filename:       stringPtr("document"),
 		IncludeTrashed: boolPtr(true),
 	}
-	files, err := suite.fileService.GetUserFiles(suite.testUser.ID, filter)
+	files, err := suite.storageService.GetUserFiles(suite.testUser.ID, filter)
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), files, 1)
 	assert.Equal(suite.T(), "document.pdf", files[0].Filename)
@@ -1057,7 +1064,7 @@ func boolPtr(b bool) *bool {
 	return &b
 }
 
-func (suite *FileServiceTestSuite) TestFileService_NoSensitiveDataInLogs() {
+func (suite *StorageServiceTestSuite) TestFileService_NoSensitiveDataInLogs() {
 	// Capture log output to verify no sensitive data is logged
 	var buf bytes.Buffer
 	originalLogger := log.Writer()
@@ -1065,7 +1072,7 @@ func (suite *FileServiceTestSuite) TestFileService_NoSensitiveDataInLogs() {
 	defer log.SetOutput(originalLogger)
 
 	// Perform a delete operation
-	err := suite.fileService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
+	err := suite.storageService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
 
 	// Verify operation succeeded
 	assert.NoError(suite.T(), err)
@@ -1079,5 +1086,5 @@ func (suite *FileServiceTestSuite) TestFileService_NoSensitiveDataInLogs() {
 }
 
 func TestFileServiceSuite(t *testing.T) {
-	suite.Run(t, new(FileServiceTestSuite))
+	suite.Run(t, new(StorageServiceTestSuite))
 }

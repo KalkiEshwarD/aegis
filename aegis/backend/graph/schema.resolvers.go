@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"strconv"
 	"strings"
 
@@ -211,17 +212,6 @@ func (r *mutationResolver) DeleteFile(ctx context.Context, id string) (bool, err
 	userFileID, err := strconv.ParseUint(id, 10, 32)
 	if err != nil {
 		return false, fmt.Errorf("invalid file ID: %w", err)
-	}
-
-	// Get the user file to retrieve file size before deletion
-	var userFile models.UserFile
-	db := database.GetDB()
-	if err := db.Preload("File").Where("id = ? AND user_id = ?", uint(userFileID), user.ID).First(&userFile).Error; err != nil {
-		// Do not leak existence information — treat record-not-found as unauthorized
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, fmt.Errorf("unauthorized")
-		}
-		return false, fmt.Errorf("file not found: %w", err)
 	}
 
 	err = r.Resolver.StorageService.DeleteFile(user.ID, uint(userFileID))
@@ -676,10 +666,13 @@ func (r *queryResolver) MyTrashedFiles(ctx context.Context) ([]*models.UserFile,
 		return nil, fmt.Errorf("unauthenticated: %w", err)
 	}
 
+	log.Printf("!!!!! MyTrashedFiles resolver called !!!!!")
+	log.Printf("DEBUG: MyTrashedFiles called for user %d", user.ID)
 	includeTrashed := true
 	filter := &services.FileFilter{
 		IncludeTrashed: &includeTrashed,
 	}
+	log.Printf("DEBUG: Calling StorageService.GetUserFiles with IncludeTrashed: %v", *filter.IncludeTrashed)
 	return r.Resolver.StorageService.GetUserFiles(user.ID, filter)
 }
 

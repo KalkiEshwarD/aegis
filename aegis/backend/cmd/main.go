@@ -18,9 +18,9 @@ import (
 
 	"github.com/balkanid/aegis-backend/graph"
 	"github.com/balkanid/aegis-backend/graph/generated"
-	apperrors "github.com/balkanid/aegis-backend/internal/errors"
 	"github.com/balkanid/aegis-backend/internal/config"
 	"github.com/balkanid/aegis-backend/internal/database"
+	apperrors "github.com/balkanid/aegis-backend/internal/errors"
 	"github.com/balkanid/aegis-backend/internal/handlers"
 	"github.com/balkanid/aegis-backend/internal/middleware"
 	"github.com/balkanid/aegis-backend/internal/services"
@@ -65,15 +65,15 @@ func main() {
 
 	fileStorageService := services.NewFileStorageService(minioClient, bucketName)
 
-	storageService := services.NewStorageService(cfg, db, fileStorageService)
 	authService := services.NewAuthService(cfg)
+	storageService := services.NewStorageService(cfg, db, fileStorageService, authService)
 	userService := services.NewUserService(authService, db)
 	roomService := services.NewRoomService(db)
 	adminService := services.NewAdminService(db)
 	folderService := services.NewFolderService(db)
 
 	// Initialize handlers
-	fileHandler := handlers.NewFileHandler(storageService)
+	fileHandler := handlers.NewFileHandler(storageService, authService)
 
 	// Initialize GraphQL resolver
 	resolver := &graph.Resolver{
@@ -147,8 +147,8 @@ func main() {
 	// File download endpoint (authentication handled in handler)
 	r.GET("/api/files/:id/download", fileHandler.DownloadFile)
 
-	// Serve shared static files (like error-codes.json)
-	r.Static("/shared", "../shared")
+	// Serve shared static files (like error-codes.json and validation-rules.json)
+	r.Static("/shared", "/app/shared")
 
 	// Start server
 	port := cfg.Port
