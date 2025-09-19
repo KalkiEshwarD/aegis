@@ -139,14 +139,40 @@ func (t *TestGraphQLServer) MakeRequest(ctx context.Context, query string, varia
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Decode the response into the provided response struct
-	// This allows GraphQL errors to be in response.Errors without returning a Go error
+	// Decode the response into the provided response struct.
+	// First unmarshal into a generic map so we can handle both:
+	// - raw responses (map[string]interface{}) that include "errors"
+	// - typed struct responses that expect the contents of the "data" field
 	fmt.Printf("DEBUG: Raw GraphQL response: %s\n", string(respBytes))
-	if err := json.Unmarshal(respBytes, response); err != nil {
-		fmt.Printf("DEBUG: Failed to unmarshal response: %v\n", err)
+
+	var generic map[string]interface{}
+	if err := json.Unmarshal(respBytes, &generic); err != nil {
 		return fmt.Errorf("failed to decode GraphQL response: %w", err)
 	}
-	fmt.Printf("DEBUG: Successfully unmarshaled response\n")
+
+	// If caller passed a pointer to map[string]interface{}, return the full raw response
+	if _, ok := response.(*map[string]interface{}); ok {
+		if respMapPtr, ok := response.(*map[string]interface{}); ok {
+			*respMapPtr = generic
+			return nil
+		}
+	}
+
+	// If there's a top-level "data" field, unmarshal that into the typed response
+	if data, exists := generic["data"]; exists {
+		dataBytes, _ := json.Marshal(data)
+		if err := json.Unmarshal(dataBytes, response); err != nil {
+			return fmt.Errorf("failed to decode GraphQL data field: %w", err)
+		}
+		return nil
+	}
+
+	// Fallback: unmarshal the full response into the provided response
+	if err := json.Unmarshal(respBytes, response); err != nil {
+		return fmt.Errorf("failed to decode GraphQL response: %w", err)
+	}
+
+	return nil
 
 	return nil
 }
@@ -174,7 +200,9 @@ func (t *TestGraphQLServer) MakeAuthenticatedRequest(ctx context.Context, token 
 
 	// Set headers
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+token)
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 
 	// Set timeout
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -195,8 +223,36 @@ func (t *TestGraphQLServer) MakeAuthenticatedRequest(ctx context.Context, token 
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Decode the response into the provided response struct
-	// This allows GraphQL errors to be in response.Errors without returning a Go error
+	// Log raw response for debugging
+	fmt.Printf("DEBUG: Raw GraphQL response: %s\n", string(respBytes))
+
+	// Decode the response into the provided response struct.
+	// First unmarshal into a generic map so we can handle both:
+	// - raw responses (map[string]interface{}) that include "errors"
+	// - typed struct responses that expect the contents of the "data" field
+	var generic map[string]interface{}
+	if err := json.Unmarshal(respBytes, &generic); err != nil {
+		return fmt.Errorf("failed to decode GraphQL response: %w", err)
+	}
+
+	// If caller passed a pointer to map[string]interface{}, return the full raw response
+	if _, ok := response.(*map[string]interface{}); ok {
+		if respMapPtr, ok := response.(*map[string]interface{}); ok {
+			*respMapPtr = generic
+			return nil
+		}
+	}
+
+	// If there's a top-level "data" field, unmarshal that into the typed response
+	if data, exists := generic["data"]; exists {
+		dataBytes, _ := json.Marshal(data)
+		if err := json.Unmarshal(dataBytes, response); err != nil {
+			return fmt.Errorf("failed to decode GraphQL data field: %w", err)
+		}
+		return nil
+	}
+
+	// Fallback: unmarshal the full response into the provided response
 	if err := json.Unmarshal(respBytes, response); err != nil {
 		return fmt.Errorf("failed to decode GraphQL response: %w", err)
 	}

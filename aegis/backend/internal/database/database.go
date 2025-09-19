@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/balkanid/aegis-backend/internal/config"
 	"github.com/balkanid/aegis-backend/internal/models"
@@ -11,10 +12,8 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-var DB *gorm.DB
-
 // Connect initializes the database connection
-func Connect(cfg *config.Config) error {
+func (db *DB) Connect(cfg *config.Config) error {
 	var err error
 
 	// Configure GORM logger
@@ -23,8 +22,20 @@ func Connect(cfg *config.Config) error {
 		logLevel = logger.Info
 	}
 
-	DB, err = gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{
-		Logger: logger.Default.LogMode(logLevel),
+	// Modify database URL to disable PostgreSQL plan caching
+	// Add parameters to prevent "cached plan must not change result type" errors
+	dbURL := cfg.DatabaseURL
+	if !strings.Contains(dbURL, "plan_cache_mode=") {
+		if strings.Contains(dbURL, "?") {
+			dbURL += "&plan_cache_mode=force_custom_plan"
+		} else {
+			dbURL += "?plan_cache_mode=force_custom_plan"
+		}
+	}
+
+	db.db, err = gorm.Open(postgres.Open(dbURL), &gorm.Config{
+		Logger:      logger.Default.LogMode(logLevel),
+		PrepareStmt: false, // Disable prepared statements to avoid cached plan issues
 	})
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
@@ -42,12 +53,12 @@ func Connect(cfg *config.Config) error {
 }
 
 // AutoMigrate runs database migrations
-func AutoMigrate() error {
-	if DB == nil {
+func (db *DB) AutoMigrate() error {
+	if db.db == nil {
 		return fmt.Errorf("database connection not initialized")
 	}
 
-	err := DB.AutoMigrate(
+	err := db.db.AutoMigrate(
 		&models.User{},
 		&models.File{},
 		&models.UserFile{},
@@ -64,23 +75,13 @@ func AutoMigrate() error {
 	return nil
 }
 
-// GetDB returns the database instance
-func GetDB() *gorm.DB {
-	return DB
-}
-
-// SetDB sets the database instance (primarily for testing)
-func SetDB(db *gorm.DB) {
-	DB = db
-}
-
 // Close closes the database connection
-func Close() error {
-	if DB == nil {
+func (db *DB) Close() error {
+	if db.db == nil {
 		return nil
 	}
 
-	sqlDB, err := DB.DB()
+	sqlDB, err := db.db.DB()
 	if err != nil {
 		return err
 	}

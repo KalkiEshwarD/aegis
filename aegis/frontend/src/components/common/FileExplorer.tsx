@@ -3,7 +3,6 @@ import {
   Box,
   Typography,
   Paper,
-  IconButton,
   Menu,
   MenuItem,
   Alert,
@@ -16,30 +15,31 @@ import {
 import {
   Download as DownloadIcon,
   Delete as DeleteIcon,
-  MoreVert as MoreVertIcon,
   CloudUpload as CloudUploadIcon,
 } from '@mui/icons-material';
 import { useQuery } from '@apollo/client';
 import { GET_MY_FILES } from '../../apollo/files';
-import { UserFile } from '../../types';
+import { GET_MY_FOLDERS } from '../../apollo/folders';
+import { UserFile, Folder, FileExplorerItem } from '../../types';
 import { useFileOperations } from '../../hooks/useFileOperations';
 import { useFileUpload } from '../../hooks/useFileUpload';
 import { useFileSorting } from '../../hooks/useFileSorting';
 import FileGrid from './FileGrid';
 import FileToolbar from './FileToolbar';
 import UploadProgress from './UploadProgress';
-import { getFileIcon, formatFileSize } from '../../utils/fileUtils';
 
 interface FileExplorerProps {
   folderId?: string | null;
   onFileDeleted?: () => void;
   onUploadComplete?: () => void;
+  onFolderClick?: (folderId: string) => void;
 }
 
 const FileExplorer: React.FC<FileExplorerProps> = ({
   folderId,
   onFileDeleted,
-  onUploadComplete
+  onUploadComplete,
+  onFolderClick,
 }) => {
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<{
@@ -61,8 +61,23 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     fetchPolicy: 'cache-and-network',
   });
 
+  const { data: foldersData, refetch: refetchFolders } = useQuery(GET_MY_FOLDERS, {
+    fetchPolicy: 'cache-and-network',
+  });
+
+  // Filter folders based on current folderId
+  const currentFolders = foldersData?.myFolders?.filter((folder: Folder) => {
+    if (folderId) {
+      // In a specific folder, show its children
+      return folder.parent_id === folderId;
+    } else {
+      // In root, show folders with no parent
+      return !folder.parent_id;
+    }
+  }) || [];
+
   // Use custom hooks
-  const { downloadingFile, error, downloadFile, deleteFile, clearError } = useFileOperations();
+  const { downloadingFile, error, downloadFile, deleteFile } = useFileOperations();
   const { uploads, handleFiles, removeUpload, clearCompleted } = useFileUpload(onUploadComplete);
   const {
     filter,
@@ -130,11 +145,12 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       });
 
       refetch();
+      refetchFolders();
       if (onFileDeleted) {
         onFileDeleted();
       }
     }
-  }, [fileToDelete, deleteFile, refetch, onFileDeleted]);
+  }, [fileToDelete, deleteFile, refetch, refetchFolders, onFileDeleted]);
 
   // Drag and drop handlers
   const handleDragOver = useCallback((event: React.DragEvent) => {
@@ -185,6 +201,9 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
   const files = sortedFiles;
 
+  // Combine folders and files for display
+  const allItems: FileExplorerItem[] = [...currentFolders, ...files];
+
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Toolbar */}
@@ -215,7 +234,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         onDrop={handleDrop}
         onClick={handleClick}
       >
-        {files.length === 0 && uploads.length === 0 ? (
+        {allItems.length === 0 && uploads.length === 0 ? (
           <Box
             display="flex"
             flexDirection="column"
@@ -233,13 +252,14 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
           </Box>
         ) : (
           <FileGrid
-            files={files}
+            files={allItems}
             selectedFiles={selectedFiles}
             downloadingFile={downloadingFile}
             onFileClick={handleFileClick}
             onContextMenu={handleContextMenu}
             onDownload={handleDownload}
             onDelete={handleDeleteClick}
+            onFolderClick={onFolderClick}
           />
         )}
 

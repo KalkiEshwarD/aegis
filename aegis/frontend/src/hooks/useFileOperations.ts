@@ -9,8 +9,11 @@ import {
   extractNonceAndData,
 } from '../utils/crypto';
 import { UserFile } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import { getErrorMessage, getErrorCode } from '../utils/errorHandling';
 
 export const useFileOperations = () => {
+  const { token } = useAuth();
   const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,7 +43,10 @@ export const useFileOperations = () => {
 
       // Fetch the encrypted file with authentication headers
       const response = await fetch(downloadUrl, {
-        credentials: 'include', // Include HttpOnly cookies for authentication
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+        credentials: 'include', // Include cookies for authentication
       });
 
       if (!response.ok) {
@@ -68,7 +74,22 @@ export const useFileOperations = () => {
 
     } catch (err: any) {
       console.error('Download error:', err);
-      setError(err.message || 'Download failed');
+      const errorMessage = getErrorMessage(err) || 'Download failed';
+      const errorCode = getErrorCode(err);
+
+      // Provide more specific error messages based on error code
+      let displayMessage = errorMessage;
+      if (errorCode === 'authentication_error') {
+        displayMessage = 'Authentication required. Please log in again.';
+      } else if (errorCode === 'permission_error') {
+        displayMessage = 'Permission denied. You may not have access to download this file.';
+      } else if (errorCode === 'not_found') {
+        displayMessage = 'File not found. It may have been deleted.';
+      } else if (errorCode === 'network_error') {
+        displayMessage = 'Network error. Please check your connection and try again.';
+      }
+
+      setError(displayMessage);
     } finally {
       setDownloadingFile(null);
     }
@@ -82,7 +103,20 @@ export const useFileOperations = () => {
       return true;
     } catch (err: any) {
       console.error('Delete error:', err);
-      setError(err.graphQLErrors?.[0]?.message || err.message || 'Delete failed');
+      const errorMessage = getErrorMessage(err) || 'Delete failed';
+      const errorCode = getErrorCode(err);
+
+      // Provide more specific error messages based on error code
+      let displayMessage = errorMessage;
+      if (errorCode === 'authentication_error') {
+        displayMessage = 'Authentication required. Please log in again.';
+      } else if (errorCode === 'permission_error') {
+        displayMessage = 'Permission denied. You may not have access to delete this file.';
+      } else if (errorCode === 'not_found') {
+        displayMessage = 'File not found. It may have already been deleted.';
+      }
+
+      setError(displayMessage);
       return false;
     }
   }, [deleteFileMutation]);

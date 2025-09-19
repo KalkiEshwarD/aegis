@@ -20,11 +20,13 @@ import {
   encryptFile,
   calculateFileHash,
   fileToUint8Array,
-  formatFileSize,
-  getMimeTypeFromExtension,
   uint8ArrayToBase64,
 } from '../../utils/crypto';
+import { formatFileSize, getMimeTypeFromExtension } from '../../utils/fileUtils';
 import { FileUploadProgress } from '../../types';
+import { getErrorMessage, getErrorCode } from '../../utils/errorHandling';
+import withErrorBoundary from '../hocs/withErrorBoundary';
+import withAuth from '../hocs/withAuth';
 
 interface FileUploadDropzoneProps {
   onUploadComplete?: () => void;
@@ -164,9 +166,23 @@ const FileUploadDropzone: React.FC<FileUploadDropzoneProps> = ({
 
     } catch (err: any) {
       console.error('Upload error:', err);
-      const errorMessage = err.graphQLErrors?.[0]?.message || err.message || 'Upload failed';
+      const errorMessage = getErrorMessage(err) || 'Upload failed';
+      const errorCode = getErrorCode(err);
+
+      // Provide more specific error messages based on error code
+      let displayMessage = errorMessage;
+      if (errorCode === 'storage_quota_exceeded') {
+        displayMessage = 'Storage quota exceeded. Please free up space or contact administrator.';
+      } else if (errorCode === 'validation_error') {
+        displayMessage = 'File validation failed. Please check file format and size.';
+      } else if (errorCode === 'authentication_error') {
+        displayMessage = 'Authentication required. Please log in again.';
+      } else if (errorCode === 'permission_error') {
+        displayMessage = 'Permission denied. You may not have access to upload files.';
+      }
+
       setUploads(prev => prev.map(u =>
-        u.file === file ? { ...u, status: 'error', error: errorMessage } : u
+        u.file === file ? { ...u, status: 'error', error: displayMessage } : u
       ));
     }
   }, [uploadFileMutation, onUploadComplete, validateFile]);
@@ -329,4 +345,8 @@ const FileUploadDropzone: React.FC<FileUploadDropzoneProps> = ({
   );
 };
 
-export default memo(FileUploadDropzone);
+// Create enhanced component with HOCs
+const FileUploadDropzoneWithAuth = withAuth(FileUploadDropzone);
+const FileUploadDropzoneWithErrorBoundary = withErrorBoundary(FileUploadDropzoneWithAuth);
+
+export default memo(FileUploadDropzoneWithErrorBoundary);

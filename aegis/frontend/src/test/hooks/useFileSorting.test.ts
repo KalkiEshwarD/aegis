@@ -72,7 +72,7 @@ describe('useFileSorting Performance Optimizations', () => {
 
     test('recalculates only when files array changes', () => {
       const { result, rerender } = renderHook(
-        ({ files }: { files: UserFile[] }) => useFileSorting(files),
+        ({ files }) => useFileSorting(files),
         { initialProps: { files: mockFiles } }
       );
 

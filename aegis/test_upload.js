@@ -10,8 +10,8 @@ async function login() {
     },
     body: JSON.stringify({
       query: `
-        mutation Login($email: String!, $password: String!) {
-          login(email: $email, password: $password) {
+        mutation Login($input: LoginInput!) {
+          login(input: $input) {
             token
             user {
               id
@@ -21,8 +21,10 @@ async function login() {
         }
       `,
       variables: {
-        email: 'kalki.eshwar@gmail.com',
-        password: 'password123'
+        input: {
+          identifier: 'admin@test.com',
+          password: 'password123'
+        }
       }
     })
   });

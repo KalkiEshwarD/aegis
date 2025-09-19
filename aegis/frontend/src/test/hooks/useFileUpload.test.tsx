@@ -53,7 +53,7 @@ jest.mock('../../utils/crypto', () => ({
 
 const renderHookWithProvider = (mocks: any[] = []) => {
   return renderHook(() => useFileUpload(), {
-    wrapper: ({ children }: { children: React.ReactNode }) => (
+    wrapper: ({ children }) => (
       <MockedProvider mocks={mocks} addTypename={false}>
         {children}
       </MockedProvider>
@@ -273,7 +273,7 @@ describe('useFileUpload', () => {
       });
 
       expect(result.current.uploads).toHaveLength(2);
-      expect(result.current.uploads.every((u: any) => u.status === 'completed')).toBe(true);
+      expect(result.current.uploads.every(u => u.status === 'completed')).toBe(true);
 
       act(() => {
         result.current.clearCompleted();
@@ -336,7 +336,7 @@ describe('useFileUpload', () => {
       });
 
       expect(result.current.uploads).toHaveLength(2);
-      expect(result.current.uploads.every((u: any) => u.status === 'completed')).toBe(true);
+      expect(result.current.uploads.every(u => u.status === 'completed')).toBe(true);
     });
 
     it('should handle null file list', async () => {
@@ -377,7 +377,7 @@ describe('useFileUpload', () => {
 
       // Re-render hook with callback
       const { rerender } = renderHook(() => useFileUpload(onUploadComplete), {
-        wrapper: ({ children }: { children: React.ReactNode }) => (
+        wrapper: ({ children }) => (
           <MockedProvider mocks={[mockMutation]} addTypename={false}>
             {children}
           </MockedProvider>

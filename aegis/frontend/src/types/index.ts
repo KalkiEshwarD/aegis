@@ -51,6 +51,17 @@ export interface Folder {
   files: UserFile[];
 }
 
+// Display item types for file explorer
+export type FileExplorerItem = UserFile | Folder;
+
+export function isFolder(item: FileExplorerItem): item is Folder {
+  return 'children' in item && 'files' in item;
+}
+
+export function isFile(item: FileExplorerItem): item is UserFile {
+  return 'filename' in item && 'mime_type' in item;
+}
+
 // Room types
 export enum RoomRole {
   ADMIN = 'ADMIN',

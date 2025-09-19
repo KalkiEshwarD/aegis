@@ -3,10 +3,10 @@ package middleware
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/balkanid/aegis-backend/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 
@@ -18,10 +18,10 @@ import (
 // CORS middleware to handle cross-origin requests
 func CORS(allowedOrigins string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Allow health endpoint without origin validation
-		if c.Request.URL.Path == "/health" {
-			c.Header("Access-Control-Allow-Origin", "*")
-			c.Header("Access-Control-Allow-Credentials", "false")
+		// Allow download endpoints
+		if strings.HasSuffix(c.Request.URL.Path, "/download") {
+			c.Header("Access-Control-Allow-Origin", "http://localhost:3000")
+			c.Header("Access-Control-Allow-Credentials", "true")
 			c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
 			c.Header("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
 
@@ -34,6 +34,7 @@ func CORS(allowedOrigins string) gin.HandlerFunc {
 		}
 
 		origin := c.GetHeader("Origin")
+		fmt.Printf("DEBUG: CORS check for %s, Origin: %s, allowed: %s\n", c.Request.URL.Path, origin, allowedOrigins)
 		if allowedOrigins != "*" {
 			// Check if origin is allowed
 			allowed := false
@@ -62,16 +63,8 @@ func CORS(allowedOrigins string) gin.HandlerFunc {
 	}
 }
 
-// Claims represents the JWT claims
-type Claims struct {
-	UserID  uint   `json:"user_id"`
-	Email   string `json:"email"`
-	IsAdmin bool   `json:"is_admin"`
-	jwt.RegisteredClaims
-}
-
 // AuthMiddleware validates JWT tokens and adds user context
-func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
+func AuthMiddleware(cfg *config.Config, authService *services.AuthService, db *database.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Skip authentication for certain endpoints
 		path := c.Request.URL.Path
@@ -111,20 +104,15 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 
 			if tokenString != "" {
 				// Parse and validate token
-				token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-					if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-						return nil, jwt.ErrSignatureInvalid
-					}
-					return []byte(cfg.JWTSecret), nil
-				})
+				claims, err := authService.ParseToken(tokenString)
 
 				if err != nil {
 					// Log authentication failure without sensitive details
 					fmt.Printf("DEBUG: GraphQL authentication failed\n")
-				} else if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+				} else {
 					// Verify user still exists
 					var user models.User
-					if err := database.GetDB().First(&user, claims.UserID).Error; err == nil {
+					if err := db.GetDB().First(&user, claims.UserID).Error; err == nil {
 						// Add user to context for GraphQL resolvers
 						ctx := context.WithValue(c.Request.Context(), "user", &user)
 						c.Request = c.Request.WithContext(ctx)
@@ -132,8 +120,6 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 					} else {
 						fmt.Printf("DEBUG: User not found in database\n")
 					}
-				} else {
-					fmt.Printf("DEBUG: Invalid token claims\n")
 				}
 			} else {
 				fmt.Printf("DEBUG: No authorization header or cookie for GraphQL\n")
@@ -144,56 +130,11 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		// For other endpoints, require authentication
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
-			c.Abort()
+		// Skip authentication for download endpoint (authentication handled in handler)
+		if strings.HasSuffix(c.Request.URL.Path, "/download") {
+			c.Next()
 			return
 		}
-
-		// Expect "Bearer <token>"
-		bearerToken := strings.Split(authHeader, " ")
-		if len(bearerToken) != 2 || bearerToken[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format"})
-			c.Abort()
-			return
-		}
-
-		tokenString := bearerToken[1]
-
-		// Parse and validate token
-		token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, jwt.ErrSignatureInvalid
-			}
-			return []byte(cfg.JWTSecret), nil
-		})
-
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
-			c.Abort()
-			return
-		}
-
-		if claims, ok := token.Claims.(*Claims); ok && token.Valid {
-			// Verify user still exists
-			var user models.User
-			if err := database.GetDB().First(&user, claims.UserID).Error; err != nil {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
-				c.Abort()
-				return
-			}
-
-			// Add user to context for handlers
-			ctx := context.WithValue(c.Request.Context(), "user", &user)
-			c.Request = c.Request.WithContext(ctx)
-		} else {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
-			c.Abort()
-			return
-		}
-
-		c.Next()
 	}
 }
 

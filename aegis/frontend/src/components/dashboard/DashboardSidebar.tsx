@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useRef, useState } from 'react';
 import {
   Box,
   Drawer,
@@ -12,6 +12,12 @@ import {
   ListItemText,
   Divider,
   LinearProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Button,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -24,6 +30,9 @@ import {
   Delete as TrashIcon,
   CreateNewFolder as NewFolderIcon,
 } from '@mui/icons-material';
+import { useMutation } from '@apollo/client';
+import { CREATE_FOLDER_MUTATION } from '../../apollo/queries';
+import { useFileUpload } from '../../hooks/useFileUpload';
 import { formatFileSize } from '../../utils/fileUtils';
 
 const drawerWidth = 240;
@@ -44,6 +53,7 @@ interface DashboardSidebarProps {
   onNavChange: (navId: string) => void;
   statsData?: any;
   statsLoading: boolean;
+  onUploadComplete?: () => void;
 }
 
 const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
@@ -51,7 +61,57 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   onNavChange,
   statsData,
   statsLoading,
+  onUploadComplete,
 }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
+  const [folderName, setFolderName] = useState('');
+
+  const { handleFiles } = useFileUpload(onUploadComplete);
+  const [createFolderMutation] = useMutation(CREATE_FOLDER_MUTATION);
+
+  const handleFileUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      handleFiles(Array.from(files));
+    }
+    // Reset the input so the same file can be selected again
+    event.target.value = '';
+  };
+
+  const handleNewFolder = () => {
+    setNewFolderDialogOpen(true);
+  };
+
+  const handleCreateFolder = async () => {
+    if (!folderName.trim()) return;
+
+    try {
+      await createFolderMutation({
+        variables: {
+          input: {
+            name: folderName.trim(),
+          },
+        },
+      });
+      setFolderName('');
+      setNewFolderDialogOpen(false);
+      if (onUploadComplete) {
+        onUploadComplete();
+      }
+    } catch (error) {
+      console.error('Error creating folder:', error);
+    }
+  };
+
+  const handleCancelFolder = () => {
+    setFolderName('');
+    setNewFolderDialogOpen(false);
+  };
   const navigationItems: NavigationItem[] = [
     { id: 'home', label: 'Home', icon: <HomeIcon /> },
     { id: 'recent', label: 'Recent', icon: <RecentIcon /> },
@@ -97,7 +157,7 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
             boxShadow: '0 4px 12px 0 rgb(0 0 0 / 0.15)'
           },
           transition: 'all 0.2s ease-in-out'
-        }}>
+        }} onClick={handleFileUpload}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <AddIcon sx={{ mr: 1, fontSize: 20 }} />
             <Typography variant="body2" fontWeight={600}>
@@ -159,7 +219,7 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                 '&:hover': {
                   backgroundColor: '#f8fafc',
                 }
-              }}>
+              }} onClick={action.label === 'Upload File' ? handleFileUpload : handleNewFolder}>
                 <ListItemIcon sx={{ color: '#6b7280', minWidth: 36 }}>
                   {action.icon}
                 </ListItemIcon>
@@ -199,6 +259,45 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
             {statsLoading ? '...' : `${Math.round((statsData?.myStats?.storage_savings || 0) / 1024)}KB`} space saved
           </Typography>
         </Box>
+
+        {/* Hidden file input */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileInputChange}
+          multiple
+          style={{ display: 'none' }}
+          accept="*/*"
+        />
+
+        {/* New Folder Dialog */}
+        <Dialog open={newFolderDialogOpen} onClose={handleCancelFolder} maxWidth="sm" fullWidth>
+          <DialogTitle>Create New Folder</DialogTitle>
+          <DialogContent>
+            <TextField
+              autoFocus
+              margin="dense"
+              label="Folder Name"
+              fullWidth
+              variant="outlined"
+              value={folderName}
+              onChange={(e) => setFolderName(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleCreateFolder();
+                }
+              }}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCancelFolder} color="inherit">
+              Cancel
+            </Button>
+            <Button onClick={handleCreateFolder} variant="contained" disabled={!folderName.trim()}>
+              Create
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </Drawer>
   );

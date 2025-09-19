@@ -2,6 +2,47 @@
  * Input sanitization utilities for security
  */
 
+// Validation rules interface
+interface ValidationRules {
+  username: {
+    minLength: number;
+    maxLength: number;
+    regex: string;
+  };
+  email: {
+    regex: string;
+    maxLength: number;
+  };
+  password: {
+    minLength: number;
+    requireLower: boolean;
+    requireUpper: boolean;
+    requireDigit: boolean;
+    requireSpecial: boolean;
+    specialChars: string;
+  };
+  file: {
+    maxSize: number;
+    allowedMimeTypes: string[];
+  };
+}
+
+// Load validation rules from shared configuration
+let validationRules: ValidationRules | null = null;
+
+const loadValidationRules = async (): Promise<ValidationRules> => {
+  if (validationRules) return validationRules;
+
+  try {
+    const response = await fetch('/shared/validation-rules.json');
+    validationRules = await response.json() as ValidationRules;
+    return validationRules;
+  } catch (error) {
+    console.error('Failed to load validation rules:', error);
+    throw error;
+  }
+};
+
 // HTML entity encoding map
 const htmlEntities: { [key: string]: string } = {
   '&': '&',
@@ -60,25 +101,37 @@ export const sanitizeUserInput = (input: string): string => {
 /**
  * Validates email format (additional check beyond Yup)
  */
-export const isValidEmail = (email: string): boolean => {
+export const isValidEmail = async (email: string): Promise<boolean> => {
   if (typeof email !== 'string') {
     return false;
   }
 
-  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
-  return emailRegex.test(email) && email.length <= 254;
+  try {
+    const rules = await loadValidationRules();
+    const emailRegex = new RegExp(rules.email.regex);
+    return emailRegex.test(email) && email.length <= rules.email.maxLength;
+  } catch (error) {
+    console.error('Error validating email:', error);
+    return false;
+  }
 };
 
 /**
  * Validates username format
  */
-export const isValidUsername = (username: string): boolean => {
+export const isValidUsername = async (username: string): Promise<boolean> => {
   if (typeof username !== 'string') {
     return false;
   }
 
-  const usernameRegex = /^[a-zA-Z0-9]+$/;
-  return usernameRegex.test(username) && username.length >= 3 && username.length <= 50;
+  try {
+    const rules = await loadValidationRules();
+    const usernameRegex = new RegExp(rules.username.regex);
+    return usernameRegex.test(username) && username.length >= rules.username.minLength && username.length <= rules.username.maxLength;
+  } catch (error) {
+    console.error('Error validating username:', error);
+    return false;
+  }
 };
 
 /**
@@ -98,27 +151,33 @@ export const sanitizeSearchQuery = (query: string): string => {
 /**
  * Validates file size
  */
-export const isValidFileSize = (size: number, maxSize: number = 100 * 1024 * 1024): boolean => {
-  return typeof size === 'number' && size > 0 && size <= maxSize;
+export const isValidFileSize = async (size: number): Promise<boolean> => {
+  if (typeof size !== 'number' || size <= 0) {
+    return false;
+  }
+
+  try {
+    const rules = await loadValidationRules();
+    return size <= rules.file.maxSize;
+  } catch (error) {
+    console.error('Error validating file size:', error);
+    return false;
+  }
 };
 
 /**
  * Validates MIME type
  */
-export const isValidMimeType = (mimeType: string, allowedTypes: string[] = []): boolean => {
+export const isValidMimeType = async (mimeType: string): Promise<boolean> => {
   if (typeof mimeType !== 'string') {
     return false;
   }
 
-  if (allowedTypes.length === 0) {
-    // Default allowed types
-    const defaultAllowed = [
-      'image/', 'video/', 'audio/', 'text/', 'application/pdf',
-      'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    ];
-    return defaultAllowed.some(type => mimeType.startsWith(type));
+  try {
+    const rules = await loadValidationRules();
+    return rules.file.allowedMimeTypes.some(type => mimeType.startsWith(type));
+  } catch (error) {
+    console.error('Error validating MIME type:', error);
+    return false;
   }
-
-  return allowedTypes.some(type => mimeType.startsWith(type));
 };

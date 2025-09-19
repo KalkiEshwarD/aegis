@@ -1,11 +1,10 @@
 import {
   uint8ArrayToBase64,
-  formatFileSize,
-  getMimeTypeFromExtension,
   calculateFileHash,
   fileToUint8Array,
   extractNonceAndData,
 } from '../../utils/crypto';
+import { formatFileSize, getMimeTypeFromExtension } from '../../utils/fileUtils';
 
 describe('Crypto Utilities Performance Optimizations', () => {
   describe('Chunked Base64 Conversion', () => {

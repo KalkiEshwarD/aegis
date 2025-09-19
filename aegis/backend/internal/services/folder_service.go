@@ -1,46 +1,47 @@
 package services
 
 import (
-	"errors"
-	"fmt"
+	apperrors "github.com/balkanid/aegis-backend/internal/errors"
+	"gorm.io/gorm"
 
 	"github.com/balkanid/aegis-backend/internal/database"
 	"github.com/balkanid/aegis-backend/internal/models"
-	"gorm.io/gorm"
+	"github.com/balkanid/aegis-backend/internal/repositories"
 )
 
-type FolderService struct{}
+type FolderService struct{
+	*BaseService
+	userResourceRepo     *repositories.UserResourceRepository
+	fileOperationsService *FileOperationsService
+	extensions           *RoomServiceExtensions
+	validationService    *ValidationService
+}
 
-func NewFolderService() *FolderService {
-	return &FolderService{}
+func NewFolderService(db *database.DB) *FolderService {
+	return &FolderService{
+		BaseService:           NewBaseService(db),
+		userResourceRepo:     repositories.NewUserResourceRepository(db),
+		fileOperationsService: NewFileOperationsService(db),
+		extensions:           NewRoomServiceExtensions(db),
+		validationService:    NewValidationService(db),
+	}
 }
 
 // CreateFolder creates a new folder for a user
 func (fs *FolderService) CreateFolder(userID uint, name string, parentID *uint) (*models.Folder, error) {
-	db := database.GetDB()
+	db := fs.db.GetDB()
 
 	// Validate parent folder ownership if provided
 	if parentID != nil {
 		var parentFolder models.Folder
-		if err := db.Where("id = ? AND user_id = ?", *parentID, userID).First(&parentFolder).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, fmt.Errorf("parent folder not found or access denied")
-			}
-			return nil, fmt.Errorf("database error: %w", err)
+		if err := fs.ValidateOwnership(&parentFolder, *parentID, userID); err != nil {
+			return nil, err
 		}
 	}
 
 	// Check for duplicate folder name in the same parent
-	var existingCount int64
-	query := db.Model(&models.Folder{}).Where("user_id = ? AND name = ? AND parent_id IS NULL", userID, name)
-	if parentID != nil {
-		query = db.Model(&models.Folder{}).Where("user_id = ? AND name = ? AND parent_id = ?", userID, name, *parentID)
-	}
-	if err := query.Count(&existingCount).Error; err != nil {
-		return nil, fmt.Errorf("database error: %w", err)
-	}
-	if existingCount > 0 {
-		return nil, fmt.Errorf("folder with this name already exists in the specified location")
+	if err := fs.validationService.CheckDuplicateName("folders", "name", "parent_id", userID, name, parentID, nil); err != nil {
+		return nil, err
 	}
 
 	folder := &models.Folder{
@@ -50,7 +51,7 @@ func (fs *FolderService) CreateFolder(userID uint, name string, parentID *uint) 
 	}
 
 	if err := db.Create(folder).Error; err != nil {
-		return nil, fmt.Errorf("failed to create folder: %w", err)
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to create folder")
 	}
 
 	// Load associations
@@ -61,66 +62,32 @@ func (fs *FolderService) CreateFolder(userID uint, name string, parentID *uint) 
 
 // GetUserFolders returns all folders for a user
 func (fs *FolderService) GetUserFolders(userID uint) ([]*models.Folder, error) {
-	db := database.GetDB()
-
-	var folders []*models.Folder
-	err := db.Where("user_id = ? AND deleted_at IS NULL", userID).
-		Preload("Parent").
-		Preload("Children", "deleted_at IS NULL").
-		Preload("Files", "deleted_at IS NULL").
-		Find(&folders).Error
-
-	return folders, err
+	return fs.userResourceRepo.GetUserFolders(userID, "Parent", "Children", "Files")
 }
 
 // GetFolder returns a specific folder by ID for a user
 func (fs *FolderService) GetFolder(userID, folderID uint) (*models.Folder, error) {
-	db := database.GetDB()
-
-	var folder models.Folder
-	err := db.Where("id = ? AND user_id = ? AND deleted_at IS NULL", folderID, userID).
-		Preload("User").
-		Preload("Parent").
-		Preload("Children", "deleted_at IS NULL").
-		Preload("Files", "deleted_at IS NULL").
-		First(&folder).Error
-
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, fmt.Errorf("folder not found")
-	}
-
-	return &folder, err
+	return fs.userResourceRepo.GetUserFolderByID(userID, folderID, "User", "Parent", "Children", "Files")
 }
 
 // RenameFolder renames a folder
 func (fs *FolderService) RenameFolder(userID, folderID uint, newName string) error {
-	db := database.GetDB()
+	db := fs.db.GetDB()
 
 	// Get the folder to check ownership and get parent_id
 	var folder models.Folder
-	if err := db.Where("id = ? AND user_id = ?", folderID, userID).First(&folder).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("folder not found or access denied")
-		}
-		return fmt.Errorf("database error: %w", err)
+	if err := fs.ValidateOwnership(&folder, folderID, userID); err != nil {
+		return err
 	}
 
 	// Check for duplicate name in the same parent
-	var existingCount int64
-	query := db.Model(&models.Folder{}).Where("user_id = ? AND name = ? AND id != ? AND parent_id IS NULL", userID, newName, folderID)
-	if folder.ParentID != nil {
-		query = db.Model(&models.Folder{}).Where("user_id = ? AND name = ? AND id != ? AND parent_id = ?", userID, newName, folderID, *folder.ParentID)
-	}
-	if err := query.Count(&existingCount).Error; err != nil {
-		return fmt.Errorf("database error: %w", err)
-	}
-	if existingCount > 0 {
-		return fmt.Errorf("folder with this name already exists in the specified location")
+	if err := fs.validationService.CheckDuplicateName("folders", "name", "parent_id", userID, newName, folder.ParentID, &folderID); err != nil {
+		return err
 	}
 
 	// Update the folder name
 	if err := db.Model(&folder).Update("name", newName).Error; err != nil {
-		return fmt.Errorf("failed to rename folder: %w", err)
+		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to rename folder")
 	}
 
 	return nil
@@ -128,41 +95,35 @@ func (fs *FolderService) RenameFolder(userID, folderID uint, newName string) err
 
 // MoveFolder moves a folder to a new parent
 func (fs *FolderService) MoveFolder(userID, folderID uint, newParentID *uint) error {
-	db := database.GetDB()
+	db := fs.db.GetDB()
 
 	// Get the folder to check ownership
 	var folder models.Folder
-	if err := db.Where("id = ? AND user_id = ?", folderID, userID).First(&folder).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("folder not found or access denied")
-		}
-		return fmt.Errorf("database error: %w", err)
+	if err := fs.ValidateOwnership(&folder, folderID, userID); err != nil {
+		return err
 	}
 
 	// Prevent moving folder into itself or its children
 	if newParentID != nil {
 		if *newParentID == folderID {
-			return fmt.Errorf("cannot move folder into itself")
+			return apperrors.New(apperrors.ErrCodeInvalidArgument, "cannot move folder into itself")
 		}
 
 		// Check if new parent is a descendant of the folder being moved
 		if fs.isDescendant(db, folderID, *newParentID) {
-			return fmt.Errorf("cannot move folder into its own descendant")
+			return apperrors.New(apperrors.ErrCodeInvalidArgument, "cannot move folder into its own descendant")
 		}
 
 		// Validate new parent ownership
 		var newParent models.Folder
-		if err := db.Where("id = ? AND user_id = ?", *newParentID, userID).First(&newParent).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return fmt.Errorf("new parent folder not found or access denied")
-			}
-			return fmt.Errorf("database error: %w", err)
+		if err := fs.ValidateOwnership(&newParent, *newParentID, userID); err != nil {
+			return err
 		}
 	}
 
 	// Update the parent_id
 	if err := db.Model(&folder).Update("parent_id", newParentID).Error; err != nil {
-		return fmt.Errorf("failed to move folder: %w", err)
+		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to move folder")
 	}
 
 	return nil
@@ -170,20 +131,17 @@ func (fs *FolderService) MoveFolder(userID, folderID uint, newParentID *uint) er
 
 // DeleteFolder soft deletes a folder and all its contents
 func (fs *FolderService) DeleteFolder(userID, folderID uint) error {
-	db := database.GetDB()
+	db := fs.db.GetDB()
 
 	// Get the folder to check ownership
 	var folder models.Folder
-	if err := db.Where("id = ? AND user_id = ?", folderID, userID).First(&folder).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("folder not found or access denied")
-		}
-		return fmt.Errorf("database error: %w", err)
+	if err := fs.ValidateOwnership(&folder, folderID, userID); err != nil {
+		return err
 	}
 
 	// Soft delete the folder (this will cascade to files via application logic)
 	if err := db.Delete(&folder).Error; err != nil {
-		return fmt.Errorf("failed to delete folder: %w", err)
+		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to delete folder")
 	}
 
 	return nil
@@ -191,108 +149,23 @@ func (fs *FolderService) DeleteFolder(userID, folderID uint) error {
 
 // MoveFile moves a file to a different folder
 func (fs *FolderService) MoveFile(userID, fileID uint, newFolderID *uint) error {
-	db := database.GetDB()
-
-	// Get the file to check ownership
-	var userFile models.UserFile
-	if err := db.Where("id = ? AND user_id = ?", fileID, userID).First(&userFile).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("file not found or access denied")
-		}
-		return fmt.Errorf("database error: %w", err)
-	}
-
-	// Validate new folder ownership if provided
-	if newFolderID != nil {
-		var newFolder models.Folder
-		if err := db.Where("id = ? AND user_id = ?", *newFolderID, userID).First(&newFolder).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return fmt.Errorf("target folder not found or access denied")
-			}
-			return fmt.Errorf("database error: %w", err)
-		}
-	}
-
-	// Update the folder_id
-	if err := db.Model(&userFile).Update("folder_id", newFolderID).Error; err != nil {
-		return fmt.Errorf("failed to move file: %w", err)
-	}
-
-	return nil
+	return fs.fileOperationsService.MoveFile(userID, fileID, newFolderID)
 }
 
 // ShareFolderToRoom shares a folder to a room
 func (fs *FolderService) ShareFolderToRoom(userID, folderID, roomID uint) error {
-	db := database.GetDB()
+	folder := &models.Folder{}
+	entity := FolderEntity{Folder: folder}
 
-	// Verify user owns the folder
-	var folder models.Folder
-	if err := db.Where("id = ? AND user_id = ?", folderID, userID).First(&folder).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("folder not found or access denied")
-		}
-		return fmt.Errorf("database error: %w", err)
-	}
-
-	// Verify user has access to the room (is a member)
-	var roomMember models.RoomMember
-	if err := db.Where("room_id = ? AND user_id = ?", roomID, userID).First(&roomMember).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("room not found or access denied")
-		}
-		return fmt.Errorf("database error: %w", err)
-	}
-
-	// Check if folder is already shared to this room
-	var existingCount int64
-	if err := db.Model(&models.RoomFolder{}).Where("room_id = ? AND folder_id = ?", roomID, folderID).Count(&existingCount).Error; err != nil {
-		return fmt.Errorf("database error: %w", err)
-	}
-	if existingCount > 0 {
-		return fmt.Errorf("folder is already shared to this room")
-	}
-
-	// Create the room_folder association
-	roomFolder := &models.RoomFolder{
-		RoomID:   roomID,
-		FolderID: folderID,
-	}
-
-	if err := db.Create(roomFolder).Error; err != nil {
-		return fmt.Errorf("failed to share folder to room: %w", err)
-	}
-
-	return nil
+	return fs.extensions.ShareEntityToRoom(entity, EntityTypeFolder, roomID, userID, false)
 }
 
 // RemoveFolderFromRoom removes a folder from a room
 func (fs *FolderService) RemoveFolderFromRoom(userID, folderID, roomID uint) error {
-	db := database.GetDB()
+	folder := &models.Folder{}
+	entity := FolderEntity{Folder: folder}
 
-	// Verify user owns the folder
-	var folder models.Folder
-	if err := db.Where("id = ? AND user_id = ?", folderID, userID).First(&folder).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("folder not found or access denied")
-		}
-		return fmt.Errorf("database error: %w", err)
-	}
-
-	// Verify user has access to the room
-	var roomMember models.RoomMember
-	if err := db.Where("room_id = ? AND user_id = ?", roomID, userID).First(&roomMember).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("room not found or access denied")
-		}
-		return fmt.Errorf("database error: %w", err)
-	}
-
-	// Remove the room_folder association
-	if err := db.Where("room_id = ? AND folder_id = ?", roomID, folderID).Delete(&models.RoomFolder{}).Error; err != nil {
-		return fmt.Errorf("failed to remove folder from room: %w", err)
-	}
-
-	return nil
+	return fs.extensions.RemoveEntityFromRoom(entity, EntityTypeFolder, roomID, userID, false)
 }
 
 // Helper function to check if a folder is a descendant of another folder

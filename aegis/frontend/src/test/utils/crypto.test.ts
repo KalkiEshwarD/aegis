@@ -56,10 +56,9 @@ import {
   calculateFileHash,
   fileToUint8Array,
   createDownloadBlob,
-  downloadFile,
-  formatFileSize,
-  getMimeTypeFromExtension
+  downloadFile
 } from '../../utils/crypto';
+import { formatFileSize, getMimeTypeFromExtension } from '../../utils/fileUtils';
 
 // Mock randomBytes to return different values each call
 jest.mock('tweetnacl', () => ({

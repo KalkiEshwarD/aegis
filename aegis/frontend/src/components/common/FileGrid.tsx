@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { FixedSizeGrid as Grid, GridChildComponentProps } from 'react-window';
+import { FixedSizeGrid as Grid } from 'react-window';
 import {
   Box,
   Paper,
@@ -19,33 +19,29 @@ import {
   Download as DownloadIcon,
   Delete as DeleteIcon,
   MoreVert as MoreVertIcon,
+  Folder as FolderIcon,
 } from '@mui/icons-material';
-import { UserFile } from '../../types';
-import { formatFileSize } from '../../utils/crypto';
+import { UserFile, FileExplorerItem, isFolder, isFile } from '../../types';
+import { formatFileSize } from '../../utils/fileUtils';
 
 interface FileGridProps {
-  files: UserFile[];
+  files: FileExplorerItem[];
   selectedFiles: Set<string>;
   downloadingFile: string | null;
   onFileClick: (fileId: string, event: React.MouseEvent) => void;
   onContextMenu: (event: React.MouseEvent, fileId: string) => void;
   onDownload: (file: UserFile) => void;
   onDelete: (file: UserFile) => void;
+  onFolderClick?: (folderId: string) => void;
 }
 
 interface FileItemProps {
-  file: UserFile;
+  item: FileExplorerItem;
   style: React.CSSProperties;
   selectedFiles: Set<string>;
   onFileClick: (fileId: string, event: React.MouseEvent) => void;
   onContextMenu: (event: React.MouseEvent, fileId: string) => void;
-}
-
-interface GridItemData {
-  files: UserFile[];
-  selectedFiles: Set<string>;
-  onFileClick: (fileId: string, event: React.MouseEvent) => void;
-  onContextMenu: (event: React.MouseEvent, fileId: string) => void;
+  onFolderClick?: (folderId: string) => void;
 }
 
 const FileGrid: React.FC<FileGridProps> = ({
@@ -56,9 +52,17 @@ const FileGrid: React.FC<FileGridProps> = ({
   onContextMenu,
   onDownload,
   onDelete,
+  onFolderClick,
 }) => {
   // File type icons
-  const getFileIcon = (mimeType: string, filename: string) => {
+  const getItemIcon = (item: FileExplorerItem) => {
+    if (isFolder(item)) {
+      return <FolderIcon sx={{ fontSize: 48, color: '#f59e0b' }} />;
+    }
+    
+    // For files
+    const mimeType = item.mime_type;
+    const filename = item.filename;
     if (mimeType.startsWith('image/')) return <ImageIcon sx={{ fontSize: 48, color: '#10b981' }} />;
     if (mimeType.startsWith('video/')) return <VideoIcon sx={{ fontSize: 48, color: '#f59e0b' }} />;
     if (mimeType.startsWith('audio/')) return <AudioIcon sx={{ fontSize: 48, color: '#8b5cf6' }} />;
@@ -79,63 +83,92 @@ const FileGrid: React.FC<FileGridProps> = ({
 
   // FileItem component for virtualized grid
   const FileItem = memo<FileItemProps>(({
-    file,
+    item,
     style,
     selectedFiles,
     onFileClick,
     onContextMenu,
-  }) => (
-    <div style={style}>
-      <Paper
-        sx={{
-          p: 2,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          cursor: 'pointer',
-          border: selectedFiles.has(file.id) ? '2px solid #3b82f6' : '1px solid #e5e7eb',
-          backgroundColor: selectedFiles.has(file.id) ? '#eff6ff' : 'background.paper',
-          '&:hover': {
-            backgroundColor: selectedFiles.has(file.id) ? '#dbeafe' : '#f9fafb',
-          },
-          position: 'relative',
-          height: '100%',
-        }}
-        onClick={(e) => onFileClick(file.id, e)}
-        onContextMenu={(e) => onContextMenu(e, file.id)}
-      >
-        {getFileIcon(file.mime_type, file.filename)}
-        <Typography
-          variant="body2"
-          sx={{
-            mt: 1,
-            textAlign: 'center',
-            wordBreak: 'break-word',
-            maxWidth: '100%',
-            fontWeight: selectedFiles.has(file.id) ? 600 : 400,
-          }}
-          noWrap
-        >
-          {file.filename}
-        </Typography>
-        <Typography variant="caption" color="textSecondary">
-          {file.file ? formatFileSize(file.file.size_bytes) : 'Unknown'}
-        </Typography>
+    onFolderClick,
+  }) => {
+    const isItemSelected = selectedFiles.has(item.id);
+    const isItemFolder = isFolder(item);
+    
+    const handleClick = (e: React.MouseEvent) => {
+      if (isItemFolder && onFolderClick) {
+        onFolderClick(item.id);
+      } else if (isFile(item)) {
+        onFileClick(item.id, e);
+      }
+    };
 
-        {/* Context menu button */}
-        <IconButton
-          size="small"
-          sx={{ position: 'absolute', top: 4, right: 4 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onContextMenu(e, file.id);
+    const handleContextMenu = (e: React.MouseEvent) => {
+      onContextMenu(e, item.id);
+    };
+
+    const getItemName = () => {
+      return isItemFolder ? item.name : item.filename;
+    };
+
+    const getItemSize = () => {
+      if (isItemFolder) {
+        return `${item.children.length} items`;
+      }
+      return item.file ? formatFileSize(item.file.size_bytes) : 'Unknown';
+    };
+
+    return (
+      <div style={style}>
+        <Paper
+          sx={{
+            p: 2,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            cursor: 'pointer',
+            border: isItemSelected ? '2px solid #3b82f6' : '1px solid #e5e7eb',
+            backgroundColor: isItemSelected ? '#eff6ff' : 'background.paper',
+            '&:hover': {
+              backgroundColor: isItemSelected ? '#dbeafe' : '#f9fafb',
+            },
+            position: 'relative',
+            height: '100%',
           }}
+          onClick={handleClick}
+          onContextMenu={handleContextMenu}
         >
-          <MoreVertIcon fontSize="small" />
-        </IconButton>
-      </Paper>
-    </div>
-  ));
+          {getItemIcon(item)}
+          <Typography
+            variant="body2"
+            sx={{
+              mt: 1,
+              textAlign: 'center',
+              wordBreak: 'break-word',
+              maxWidth: '100%',
+              fontWeight: isItemSelected ? 600 : 400,
+            }}
+            noWrap
+          >
+            {getItemName()}
+          </Typography>
+          <Typography variant="caption" color="textSecondary">
+            {getItemSize()}
+          </Typography>
+
+          {/* Context menu button */}
+          <IconButton
+            size="small"
+            sx={{ position: 'absolute', top: 4, right: 4 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleContextMenu(e);
+            }}
+          >
+            <MoreVertIcon fontSize="small" />
+          </IconButton>
+        </Paper>
+      </div>
+    );
+  });
 
   // Use virtualization for large file lists (>50 files)
   const useVirtualization = files.length > 50;
@@ -160,22 +193,24 @@ const FileGrid: React.FC<FileGridProps> = ({
             selectedFiles,
             onFileClick,
             onContextMenu,
+            onFolderClick,
           }}
         >
-          {({ columnIndex, rowIndex, style, data }: GridChildComponentProps<GridItemData>) => {
+          {({ columnIndex, rowIndex, style, data }) => {
             const index = rowIndex * columnCount + columnIndex;
-            const file = data.files[index];
+            const item = data.files[index];
 
-            if (!file) return null;
+            if (!item) return null;
 
             return (
               <FileItem
-                key={file.id}
-                file={file}
+                key={item.id}
+                item={item}
                 style={style}
                 selectedFiles={data.selectedFiles}
                 onFileClick={data.onFileClick}
                 onContextMenu={data.onContextMenu}
+                onFolderClick={data.onFolderClick}
               />
             );
           }}
@@ -192,55 +227,16 @@ const FileGrid: React.FC<FileGridProps> = ({
       gap: 2,
       height: '100%'
     }}>
-      {files.map((file: UserFile) => (
-        <Paper
-          key={file.id}
-          sx={{
-            p: 2,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            cursor: 'pointer',
-            border: selectedFiles.has(file.id) ? '2px solid #3b82f6' : '1px solid #e5e7eb',
-            backgroundColor: selectedFiles.has(file.id) ? '#eff6ff' : 'background.paper',
-            '&:hover': {
-              backgroundColor: selectedFiles.has(file.id) ? '#dbeafe' : '#f9fafb',
-            },
-            position: 'relative',
-          }}
-          onClick={(e) => onFileClick(file.id, e)}
-          onContextMenu={(e) => onContextMenu(e, file.id)}
-        >
-          {getFileIcon(file.mime_type, file.filename)}
-          <Typography
-            variant="body2"
-            sx={{
-              mt: 1,
-              textAlign: 'center',
-              wordBreak: 'break-word',
-              maxWidth: '100%',
-              fontWeight: selectedFiles.has(file.id) ? 600 : 400,
-            }}
-            noWrap
-          >
-            {file.filename}
-          </Typography>
-          <Typography variant="caption" color="textSecondary">
-            {file.file ? formatFileSize(file.file.size_bytes) : 'Unknown'}
-          </Typography>
-
-          {/* Context menu button */}
-          <IconButton
-            size="small"
-            sx={{ position: 'absolute', top: 4, right: 4 }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onContextMenu(e, file.id);
-            }}
-          >
-            <MoreVertIcon fontSize="small" />
-          </IconButton>
-        </Paper>
+      {files.map((item) => (
+        <FileItem
+          key={item.id}
+          item={item}
+          style={{}}
+          selectedFiles={selectedFiles}
+          onFileClick={onFileClick}
+          onContextMenu={onContextMenu}
+          onFolderClick={onFolderClick}
+        />
       ))}
     </Box>
   );

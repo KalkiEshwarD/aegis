@@ -7,15 +7,17 @@ import (
 	"github.com/balkanid/aegis-backend/internal/models"
 )
 
-type AdminService struct{}
+type AdminService struct{
+	db *database.DB
+}
 
-func NewAdminService() *AdminService {
-	return &AdminService{}
+func NewAdminService(db *database.DB) *AdminService {
+	return &AdminService{db: db}
 }
 
 // GetDashboardStats returns system-wide statistics
 func (as *AdminService) GetDashboardStats() (*AdminDashboard, error) {
-	db := database.GetDB()
+	db := as.db.GetDB()
 
 	var totalUsers int64
 	var totalFiles int64

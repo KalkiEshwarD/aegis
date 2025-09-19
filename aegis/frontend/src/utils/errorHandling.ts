@@ -70,24 +70,62 @@ export const logError = (error: any, context?: string) => {
 };
 
 /**
- * Error codes for different types of errors
+ * Error codes for different types of errors - loaded from shared configuration
  */
-export const ERROR_CODES = {
-  NETWORK_ERROR: 'NETWORK_ERROR',
-  AUTHENTICATION_ERROR: 'AUTHENTICATION_ERROR',
-  VALIDATION_ERROR: 'VALIDATION_ERROR',
-  FILE_UPLOAD_ERROR: 'FILE_UPLOAD_ERROR',
-  FILE_DOWNLOAD_ERROR: 'FILE_DOWNLOAD_ERROR',
-  PERMISSION_ERROR: 'PERMISSION_ERROR',
-  UNKNOWN_ERROR: 'UNKNOWN_ERROR',
-} as const;
+let ERROR_CODES: Record<string, string> = {
+  NETWORK_ERROR: 'network_error',
+  AUTHENTICATION_ERROR: 'authentication_error',
+  VALIDATION_ERROR: 'validation_error',
+  FILE_UPLOAD_ERROR: 'file_upload_error',
+  FILE_DOWNLOAD_ERROR: 'file_download_error',
+  PERMISSION_ERROR: 'permission_error',
+  UNKNOWN_ERROR: 'unknown_error',
+};
+
+// Load shared error codes from JSON file
+async function loadSharedErrorCodes() {
+  try {
+    const response = await fetch('/shared/error-codes.json');
+    if (response.ok) {
+      const sharedCodes = await response.json();
+      ERROR_CODES = {
+        NETWORK_ERROR: sharedCodes.NETWORK_ERROR || 'network_error',
+        AUTHENTICATION_ERROR: sharedCodes.AUTHENTICATION_ERROR || 'authentication_error',
+        VALIDATION_ERROR: sharedCodes.VALIDATION_ERROR || 'validation_error',
+        FILE_UPLOAD_ERROR: sharedCodes.FILE_UPLOAD_ERROR || 'file_upload_error',
+        FILE_DOWNLOAD_ERROR: sharedCodes.FILE_DOWNLOAD_ERROR || 'file_download_error',
+        PERMISSION_ERROR: sharedCodes.PERMISSION_ERROR || 'permission_error',
+        UNKNOWN_ERROR: sharedCodes.UNKNOWN_ERROR || 'unknown_error',
+      };
+    }
+  } catch (error) {
+    // If loading fails, use default values
+    console.warn('Failed to load shared error codes, using defaults:', error);
+  }
+}
+
+// Load error codes on module initialization
+loadSharedErrorCodes();
+
+export { ERROR_CODES };
 
 export type ErrorCode = typeof ERROR_CODES[keyof typeof ERROR_CODES];
 
 /**
- * Determines error code based on error message or type
+ * Determines error code based on error message, type, or GraphQL extensions
  */
-export const getErrorCode = (error: any): ErrorCode => {
+export const getErrorCode = (error: any): string => {
+  // Check if error has extensions with code (from GraphQL)
+  if (error?.extensions?.code) {
+    return error.extensions.code;
+  }
+
+  // Check if error has graphQLErrors with extensions
+  if (error?.graphQLErrors?.[0]?.extensions?.code) {
+    return error.graphQLErrors[0].extensions.code;
+  }
+
+  // Fallback to message-based detection
   const message = getErrorMessage(error).toLowerCase();
 
   if (message.includes('network') || message.includes('fetch')) {
@@ -112,6 +150,10 @@ export const getErrorCode = (error: any): ErrorCode => {
 
   if (message.includes('permission') || message.includes('forbidden')) {
     return ERROR_CODES.PERMISSION_ERROR;
+  }
+
+  if (message.includes('storage quota')) {
+    return ERROR_CODES.STORAGE_QUOTA_EXCEEDED || 'storage_quota_exceeded';
   }
 
   return ERROR_CODES.UNKNOWN_ERROR;

@@ -350,18 +350,20 @@ func (suite *AuthIntegrationTestSuite) TestJWTTokenValidation() {
 	}
 
 	var loginResponse struct {
-		Login struct {
-			Token string `json:"token"`
-			User  struct {
-				ID    string `json:"id"`
-				Email string `json:"email"`
-			} `json:"user"`
-		} `json:"login"`
+		Data struct {
+			Login struct {
+				Token string `json:"token"`
+				User  struct {
+					ID    string `json:"id"`
+					Email string `json:"email"`
+				} `json:"user"`
+			} `json:"login"`
+		} `json:"data"`
 	}
 
 	err := suite.Server.MakeRequest(ctx, loginQuery, variables, &loginResponse)
 	suite.NoError(err, "Login should succeed")
-	token := loginResponse.Login.Token
+	token := loginResponse.Data.Login.Token
 	suite.NotEmpty(token, "Token should be present")
 
 	// Test authenticated query with valid token
@@ -375,15 +377,17 @@ func (suite *AuthIntegrationTestSuite) TestJWTTokenValidation() {
 	`
 
 	var meResponse struct {
-		Me struct {
-			ID    string `json:"id"`
-			Email string `json:"email"`
-		} `json:"me"`
+		Data struct {
+			Me struct {
+				ID    string `json:"id"`
+				Email string `json:"email"`
+			} `json:"me"`
+		} `json:"data"`
 	}
 
 	err = suite.Server.MakeAuthenticatedRequest(ctx, token, meQuery, nil, &meResponse)
 	suite.NoError(err, "Authenticated query should succeed")
-	suite.Equal(email, meResponse.Me.Email, "Email should match authenticated user")
+	suite.Equal(email, meResponse.Data.Me.Email, "Email should match authenticated user")
 }
 
 // TestPasswordHashingVerification tests that passwords are properly hashed and verified
@@ -456,8 +460,8 @@ func (suite *AuthIntegrationTestSuite) TestConcurrentUserRegistration() {
 		err := suite.Server.MakeRequest(ctx, query, variables, &response)
 		suite.NoError(err, "Registration should succeed")
 		suite.AssertGraphQLSuccess(response)
-		suite.Equal(data.username, response.Register.User.Username, "Username should match")
-		suite.Equal(data.email, response.Register.User.Email, "Email should match")
+		suite.Equal(data.username, response.Data.Register.User.Username, "Username should match")
+		suite.Equal(data.email, response.Data.Register.User.Email, "Email should match")
 
 		// Verify user was created in database
 		suite.AssertUserExistsInDB(data.email)
@@ -492,18 +496,20 @@ func (suite *AuthIntegrationTestSuite) TestUserSessionManagement() {
 	}
 
 	var loginResponse struct {
-		Login struct {
-			Token string `json:"token"`
-			User  struct {
-				ID    string `json:"id"`
-				Email string `json:"email"`
-			} `json:"user"`
-		} `json:"login"`
+		Data struct {
+			Login struct {
+				Token string `json:"token"`
+				User  struct {
+					ID    string `json:"id"`
+					Email string `json:"email"`
+				} `json:"user"`
+			} `json:"login"`
+		} `json:"data"`
 	}
 
 	err := suite.Server.MakeRequest(ctx, loginQuery, variables, &loginResponse)
 	suite.NoError(err, "Login should succeed")
-	token := loginResponse.Login.Token
+	token := loginResponse.Data.Login.Token
 
 	// Test that the token works for multiple requests
 	for i := 0; i < 3; i++ {
@@ -517,15 +523,17 @@ func (suite *AuthIntegrationTestSuite) TestUserSessionManagement() {
 		`
 
 		var meResponse struct {
-			Me struct {
-				ID    string `json:"id"`
-				Email string `json:"email"`
-			} `json:"me"`
+			Data struct {
+				Me struct {
+					ID    string `json:"id"`
+					Email string `json:"email"`
+				} `json:"me"`
+			} `json:"data"`
 		}
 
 		err = suite.Server.MakeAuthenticatedRequest(ctx, token, meQuery, nil, &meResponse)
 		suite.NoError(err, "Authenticated query should succeed")
-		suite.Equal(email, meResponse.Me.Email, "Email should match")
+		suite.Equal(email, meResponse.Data.Me.Email, "Email should match")
 	}
 
 	// Test with invalid token
@@ -564,18 +572,20 @@ func (suite *AuthIntegrationTestSuite) TestUserDataIsolation() {
 	}
 
 	var loginResponse struct {
-		Login struct {
-			Token string `json:"token"`
-			User  struct {
-				ID    string `json:"id"`
-				Email string `json:"email"`
-			} `json:"user"`
-		} `json:"login"`
+		Data struct {
+			Login struct {
+				Token string `json:"token"`
+				User  struct {
+					ID    string `json:"id"`
+					Email string `json:"email"`
+				} `json:"user"`
+			} `json:"login"`
+		} `json:"data"`
 	}
 
 	err := suite.Server.MakeRequest(ctx, loginQuery, variables, &loginResponse)
 	suite.NoError(err, "Login should succeed")
-	token := loginResponse.Login.Token
+	token := loginResponse.Data.Login.Token
 
 	// Query user files - should only see their own files
 	filesQuery := `
@@ -589,18 +599,20 @@ func (suite *AuthIntegrationTestSuite) TestUserDataIsolation() {
 	`
 
 	var filesResponse struct {
-		MyFiles []struct {
-			ID     string `json:"id"`
-			Filename string `json:"filename"`
-			UserID string `json:"user_id"`
-		} `json:"myFiles"`
+		Data struct {
+			MyFiles []struct {
+				ID       string `json:"id"`
+				Filename string `json:"filename"`
+				UserID   string `json:"user_id"`
+			} `json:"myFiles"`
+		} `json:"data"`
 	}
 
 	err = suite.Server.MakeAuthenticatedRequest(ctx, token, filesQuery, nil, &filesResponse)
 	suite.NoError(err, "Files query should succeed")
-
+	
 	// Should only see files belonging to this user
-	for _, file := range filesResponse.MyFiles {
+	for _, file := range filesResponse.Data.MyFiles {
 		suite.Equal(suite.TestData.RegularUser.ID, uint(parseUint(file.UserID)), "File should belong to authenticated user")
 	}
 }

@@ -28,7 +28,7 @@ import {
 } from '@mui/icons-material';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_MY_TRASHED_FILES, RESTORE_FILE_MUTATION, PERMANENTLY_DELETE_FILE_MUTATION } from '../../apollo/trash';
-import { formatFileSize } from '../../utils/crypto';
+import { formatFileSize } from '../../utils/fileUtils';
 import { UserFile } from '../../types';
 
 interface TrashViewProps {

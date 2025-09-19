@@ -149,7 +149,7 @@ func (r *mutationResolver) UploadFile(ctx context.Context, input model.UploadFil
 	}
 
 	// Upload file
-	userFile, err := r.Resolver.FileService.UploadFile(
+	userFile, err := r.Resolver.StorageService.UploadFile(
 		user.ID,
 		input.Filename,
 		input.MimeType,
@@ -193,7 +193,7 @@ func (r *mutationResolver) UploadFileFromMap(ctx context.Context, input model.Up
 	}
 
 	// Upload file using the new method that handles map conversion
-	userFile, err := r.Resolver.FileService.UploadFileFromMap(user.ID, uploadData)
+	userFile, err := r.Resolver.StorageService.UploadFileFromMap(user.ID, uploadData)
 	if err != nil {
 		return nil, err
 	}
@@ -217,10 +217,14 @@ func (r *mutationResolver) DeleteFile(ctx context.Context, id string) (bool, err
 	var userFile models.UserFile
 	db := database.GetDB()
 	if err := db.Preload("File").Where("id = ? AND user_id = ?", uint(userFileID), user.ID).First(&userFile).Error; err != nil {
+		// Do not leak existence information — treat record-not-found as unauthorized
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, fmt.Errorf("unauthorized")
+		}
 		return false, fmt.Errorf("file not found: %w", err)
 	}
 
-	err = r.Resolver.FileService.DeleteFile(user.ID, uint(userFileID))
+	err = r.Resolver.StorageService.DeleteFile(user.ID, uint(userFileID))
 	if err != nil {
 		return false, err
 	}
@@ -240,7 +244,7 @@ func (r *mutationResolver) RestoreFile(ctx context.Context, fileID string) (bool
 		return false, fmt.Errorf("invalid file ID: %w", err)
 	}
 
-	err = r.Resolver.FileService.RestoreFile(user.ID, uint(userFileID))
+	err = r.Resolver.StorageService.RestoreFile(user.ID, uint(userFileID))
 	if err != nil {
 		return false, err
 	}
@@ -260,7 +264,7 @@ func (r *mutationResolver) PermanentlyDeleteFile(ctx context.Context, fileID str
 		return false, fmt.Errorf("invalid file ID: %w", err)
 	}
 
-	err = r.Resolver.FileService.PermanentlyDeleteFile(user.ID, uint(userFileID))
+	err = r.Resolver.StorageService.PermanentlyDeleteFile(user.ID, uint(userFileID))
 	if err != nil {
 		return false, err
 	}
@@ -280,7 +284,7 @@ func (r *mutationResolver) DownloadFile(ctx context.Context, id string) (string,
 		return "", fmt.Errorf("invalid file ID: %w", err)
 	}
 
-	return r.Resolver.FileService.GetFileDownloadURL(user.ID, uint(userFileID))
+	return r.Resolver.StorageService.GetFileDownloadURL(ctx, user, uint(userFileID))
 }
 
 // CreateRoom is the resolver for the createRoom field.
@@ -662,7 +666,7 @@ func (r *queryResolver) MyFiles(ctx context.Context, filter *model.FileFilterInp
 		// }
 	}
 
-	return r.Resolver.FileService.GetUserFiles(user.ID, fileFilter)
+	return r.Resolver.StorageService.GetUserFiles(user.ID, fileFilter)
 }
 
 // MyTrashedFiles is the resolver for the myTrashedFiles field.
@@ -672,7 +676,11 @@ func (r *queryResolver) MyTrashedFiles(ctx context.Context) ([]*models.UserFile,
 		return nil, fmt.Errorf("unauthenticated: %w", err)
 	}
 
-	return r.Resolver.FileService.GetTrashedFiles(user.ID)
+	includeTrashed := true
+	filter := &services.FileFilter{
+		IncludeTrashed: &includeTrashed,
+	}
+	return r.Resolver.StorageService.GetUserFiles(user.ID, filter)
 }
 
 // MyStats is the resolver for the myStats field.
@@ -782,7 +790,7 @@ func (r *queryResolver) AllFiles(ctx context.Context) ([]*models.UserFile, error
 		return nil, fmt.Errorf("admin access required: %w", err)
 	}
 
-	return r.Resolver.FileService.GetAllFiles()
+	return r.Resolver.StorageService.GetAllFiles()
 }
 
 // Health is the resolver for the health field.

@@ -12,9 +12,13 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gin-gonic/gin"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/vektah/gqlparser/v2/gqlerror"
 
 	"github.com/balkanid/aegis-backend/graph"
 	"github.com/balkanid/aegis-backend/graph/generated"
+	apperrors "github.com/balkanid/aegis-backend/internal/errors"
 	"github.com/balkanid/aegis-backend/internal/config"
 	"github.com/balkanid/aegis-backend/internal/database"
 	"github.com/balkanid/aegis-backend/internal/handlers"
@@ -30,43 +34,88 @@ func main() {
 	gin.SetMode(cfg.GinMode)
 
 	// Initialize database
-	if err := database.Connect(cfg); err != nil {
+	db := &database.DB{}
+	if err := db.Connect(cfg); err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer database.Close()
+	defer db.Close()
 
 	// Run migrations
 	// Commented out due to GORM compatibility issues
-	// if err := database.AutoMigrate(); err != nil {
+	// if err := db.AutoMigrate(); err != nil {
 	// 	log.Printf("Warning: Failed to run migrations: %v", err)
 	// 	// Don't fatal for now, continue with existing schema
 	// }
 
 	// Initialize services
-	fileService := services.NewFileService(cfg)
-	userService := services.NewUserService(cfg)
-	roomService := services.NewRoomService()
-	adminService := services.NewAdminService()
+	// Initialize MinIO client
+	var minioClient *minio.Client
+	var bucketName string
+	if cfg.MinIOEndpoint != "" && cfg.MinIOAccessKey != "" && cfg.MinIOSecretKey != "" && cfg.MinIOBucket != "" {
+		var err error
+		minioClient, err = minio.New(cfg.MinIOEndpoint, &minio.Options{
+			Creds:  credentials.NewStaticV4(cfg.MinIOAccessKey, cfg.MinIOSecretKey, ""),
+			Secure: false, // Use HTTP for local development
+		})
+		if err != nil {
+			log.Fatalf("Failed to initialize MinIO client: %v", err)
+		}
+		bucketName = cfg.MinIOBucket
+	}
+
+	fileStorageService := services.NewFileStorageService(minioClient, bucketName)
+
+	storageService := services.NewStorageService(cfg, db, fileStorageService)
+	authService := services.NewAuthService(cfg)
+	userService := services.NewUserService(authService, db)
+	roomService := services.NewRoomService(db)
+	adminService := services.NewAdminService(db)
+	folderService := services.NewFolderService(db)
 
 	// Initialize handlers
-	fileHandler := handlers.NewFileHandler(fileService)
+	fileHandler := handlers.NewFileHandler(storageService)
 
 	// Initialize GraphQL resolver
 	resolver := &graph.Resolver{
-		FileService:  fileService,
-		UserService:  userService,
-		RoomService:  roomService,
-		AdminService: adminService,
+		StorageService: storageService,
+		UserService:    userService,
+		RoomService:    roomService,
+		AdminService:   adminService,
+		FolderService:  folderService,
 	}
 
-	// Create GraphQL server
+	// Create GraphQL server with custom error handling
 	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: resolver}))
+
+	// Add custom error presenter to include error codes in GraphQL responses
+	srv.SetErrorPresenter(func(ctx context.Context, err error) *gqlerror.Error {
+		// Check if it's our custom error type
+		if customErr, ok := err.(*apperrors.Error); ok {
+			return &gqlerror.Error{
+				Message: customErr.Message,
+				Extensions: map[string]interface{}{
+					"code": string(customErr.Code),
+				},
+			}
+		}
+
+		// For other errors, return standard format
+		return &gqlerror.Error{
+			Message: err.Error(),
+			Extensions: map[string]interface{}{
+				"code": "unknown_error",
+			},
+		}
+	})
 
 	// Initialize Gin router
 	r := gin.Default()
 
 	// Add CORS middleware
 	r.Use(middleware.CORS(cfg.CORSAllowedOrigins))
+
+	// Add error handling middleware
+	r.Use(middleware.ErrorHandler())
 
 	// Health check endpoint
 	r.GET("/health", func(c *gin.Context) {
@@ -82,21 +131,24 @@ func main() {
 	}
 
 	// GraphQL endpoint with authentication middleware
-	r.POST("/graphql", middleware.AuthMiddleware(cfg), func(c *gin.Context) {
+	r.POST("/graphql", middleware.AuthMiddleware(cfg, authService, db), func(c *gin.Context) {
 		// Add gin context to GraphQL context (preserve existing context values)
 		ctx := context.WithValue(c.Request.Context(), "gin", c)
 		c.Request = c.Request.WithContext(ctx)
 		srv.ServeHTTP(c.Writer, c.Request)
 	})
-	r.GET("/graphql", middleware.AuthMiddleware(cfg), func(c *gin.Context) {
+	r.GET("/graphql", middleware.AuthMiddleware(cfg, authService, db), func(c *gin.Context) {
 		// Add gin context to GraphQL context (preserve existing context values)
 		ctx := context.WithValue(c.Request.Context(), "gin", c)
 		c.Request = c.Request.WithContext(ctx)
 		srv.ServeHTTP(c.Writer, c.Request)
 	})
 
-	// File download endpoint with authentication middleware
-	r.GET("/api/files/:id/download", middleware.AuthMiddleware(cfg), fileHandler.DownloadFile)
+	// File download endpoint (authentication handled in handler)
+	r.GET("/api/files/:id/download", fileHandler.DownloadFile)
+
+	// Serve shared static files (like error-codes.json)
+	r.Static("/shared", "../shared")
 
 	// Start server
 	port := cfg.Port

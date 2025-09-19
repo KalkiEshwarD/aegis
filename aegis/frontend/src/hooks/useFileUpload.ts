@@ -7,10 +7,10 @@ import {
   calculateFileHash,
   fileToUint8Array,
   uint8ArrayToBase64,
-  getMimeTypeFromExtension,
-  formatFileSize,
 } from '../utils/crypto';
+import { getMimeTypeFromExtension, formatFileSize } from '../utils/fileUtils';
 import { FileUploadProgress } from '../types';
+import { getErrorMessage } from '../utils/errorHandling';
 
 export const useFileUpload = (onUploadComplete?: () => void) => {
   const [uploads, setUploads] = useState<FileUploadProgress[]>([]);
@@ -102,7 +102,7 @@ export const useFileUpload = (onUploadComplete?: () => void) => {
 
     } catch (err: any) {
       console.error('Upload error:', err);
-      const errorMessage = err.graphQLErrors?.[0]?.message || err.message || 'Upload failed';
+      const errorMessage = getErrorMessage(err) || 'Upload failed';
       setUploads(prev => prev.map(u =>
         u.file === file ? { ...u, status: 'error', error: errorMessage } : u
       ));

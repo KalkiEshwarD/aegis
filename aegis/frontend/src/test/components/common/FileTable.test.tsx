@@ -2,26 +2,22 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { MockedProvider } from '@apollo/client/testing';
 import FileTable from '../../../components/common/FileTable';
-import { GET_MY_FILES, DELETE_FILE_MUTATION, DOWNLOAD_FILE_MUTATION } from '../../../apollo/files';
+import { GET_MY_FILES } from '../../../apollo/files';
 
-// Mock crypto utilities
-jest.mock('../../../utils/crypto', () => ({
-  decryptFile: jest.fn(() => new Uint8Array([1, 2, 3])),
-  base64ToEncryptionKey: jest.fn(() => new Uint8Array(32)),
-  createDownloadBlob: jest.fn(() => new Blob(['test'], { type: 'text/plain' })),
-  downloadFile: jest.fn(),
-  formatFileSize: jest.fn((bytes) => `${bytes} bytes`),
-  extractNonceAndData: jest.fn(() => ({
-    nonce: new Uint8Array(24),
-    encryptedData: new Uint8Array([1, 2, 3])
-  })),
+// Mock useFileOperations hook
+jest.mock('../../../hooks/useFileOperations', () => ({
+  useFileOperations: () => ({
+    downloadingFile: null,
+    error: null,
+    downloadFile: jest.fn(),
+    deleteFile: jest.fn(),
+    clearError: jest.fn(),
+  }),
 }));
 
-// Mock AuthContext
-jest.mock('../../../contexts/AuthContext', () => ({
-  useAuth: () => ({
-    token: 'mock-token',
-  }),
+// Mock formatFileSize utility
+jest.mock('../../../utils/fileUtils', () => ({
+  formatFileSize: jest.fn((bytes) => `${bytes} bytes`),
 }));
 
 const mockFiles = [
@@ -60,32 +56,23 @@ const mockGetFilesQuery = {
   },
 };
 
-const mockDeleteMutation = {
-  request: {
-    query: DELETE_FILE_MUTATION,
-    variables: { id: '1' },
-  },
-  result: {
-    data: {
-      deleteFile: true,
-    },
-  },
-};
+// Mock implementations for the hook
+const mockDownloadFile = jest.fn();
+const mockDeleteFile = jest.fn();
 
-const mockDownloadMutation = {
-  request: {
-    query: DOWNLOAD_FILE_MUTATION,
-    variables: { id: '1' },
-  },
-  result: {
-    data: {
-      downloadFile: 'mock-download-url',
-    },
-  },
-};
+// Update the hook mock to use these functions
+jest.mock('../../../hooks/useFileOperations', () => ({
+  useFileOperations: () => ({
+    downloadingFile: null,
+    error: null,
+    downloadFile: mockDownloadFile,
+    deleteFile: mockDeleteFile,
+    clearError: jest.fn(),
+  }),
+}));
 
 describe('FileTable Performance Optimizations', () => {
-  const renderComponent = (mocks = [mockGetFilesQuery, mockDeleteMutation, mockDownloadMutation]) => {
+  const renderComponent = (mocks = [mockGetFilesQuery]) => {
     return render(
       <MockedProvider mocks={mocks} addTypename={false}>
         <FileTable />
@@ -95,13 +82,6 @@ describe('FileTable Performance Optimizations', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    // Mock fetch for download
-    global.fetch = jest.fn(() =>
-      Promise.resolve({
-        ok: true,
-        arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)),
-      } as Response)
-    );
   });
 
   describe('React.memo Optimization', () => {
@@ -248,11 +228,9 @@ describe('FileTable Performance Optimizations', () => {
         expect(downloadButtons[0]).toBeDisabled();
       });
 
-      // Verify download functions were called
-      const { decryptFile, downloadFile } = require('../../../utils/crypto');
+      // Verify hook's downloadFile function was called
       await waitFor(() => {
-        expect(decryptFile).toHaveBeenCalled();
-        expect(downloadFile).toHaveBeenCalled();
+        expect(mockDownloadFile).toHaveBeenCalledWith(mockFiles[0]);
       });
     });
 

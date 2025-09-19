@@ -18,6 +18,9 @@ import DashboardSidebar from './DashboardSidebar';
 import StatsCards from './StatsCards';
 import { useDashboardNavigation } from '../../hooks/useDashboardNavigation';
 import { useUserMenu } from '../../hooks/useUserMenu';
+import withAuth from '../hocs/withAuth';
+import withErrorBoundary from '../hocs/withErrorBoundary';
+import withDataFetching from '../hocs/withDataFetching';
 
 const drawerWidth = 240;
 
@@ -32,6 +35,7 @@ const Dashboard: React.FC = () => {
     selectedFolderId,
     refreshTrigger,
     handleNavChange,
+    handleFolderSelect,
     triggerRefresh,
   } = useDashboardNavigation();
 
@@ -78,6 +82,7 @@ const Dashboard: React.FC = () => {
         onNavChange={handleNavChange}
         statsData={statsData}
         statsLoading={statsLoading}
+        onUploadComplete={handleUploadComplete}
       />
 
       {/* Main Content */}
@@ -158,6 +163,7 @@ const Dashboard: React.FC = () => {
               folderId={selectedFolderId}
               onFileDeleted={handleFileDeleted}
               onUploadComplete={handleUploadComplete}
+              onFolderClick={handleFolderSelect}
               key={refreshTrigger}
             />
           </Paper>
@@ -167,4 +173,8 @@ const Dashboard: React.FC = () => {
   );
 };
 
-export default memo(Dashboard);
+// Create enhanced component with HOCs
+const DashboardWithAuth = withAuth(Dashboard);
+const DashboardWithErrorBoundary = withErrorBoundary(DashboardWithAuth);
+
+export default memo(DashboardWithErrorBoundary);

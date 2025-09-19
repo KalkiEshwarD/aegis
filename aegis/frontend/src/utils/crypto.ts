@@ -201,16 +201,6 @@ export const downloadFile = (blob: Blob, filename: string): void => {
   URL.revokeObjectURL(url);
 };
 
-// Format file size for display
-export const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 Bytes';
-  
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-};
 
 // Convert Uint8Array to base64 without causing stack overflow
 export const uint8ArrayToBase64 = (uint8Array: Uint8Array): string => {
@@ -227,50 +217,6 @@ export const uint8ArrayToBase64 = (uint8Array: Uint8Array): string => {
   return btoa(result);
 };
 
-// Get MIME type from file extension
-export const getMimeTypeFromExtension = (filename: string): string => {
-  const extension = filename.split('.').pop()?.toLowerCase();
-
-  const mimeTypes: { [key: string]: string } = {
-    // Images
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    png: 'image/png',
-    gif: 'image/gif',
-    webp: 'image/webp',
-    svg: 'image/svg+xml',
-
-    // Documents
-    pdf: 'application/pdf',
-    doc: 'application/msword',
-    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    xls: 'application/vnd.ms-excel',
-    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    ppt: 'application/vnd.ms-powerpoint',
-    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-
-    // Text
-    txt: 'text/plain',
-    csv: 'text/csv',
-    json: 'application/json',
-    xml: 'application/xml',
-
-    // Archives
-    zip: 'application/zip',
-    rar: 'application/x-rar-compressed',
-    tar: 'application/x-tar',
-    gz: 'application/gzip',
-
-    // Media
-    mp3: 'audio/mpeg',
-    wav: 'audio/wav',
-    mp4: 'video/mp4',
-    avi: 'video/x-msvideo',
-    mov: 'video/quicktime'
-  };
-
-  return mimeTypes[extension || ''] || 'application/octet-stream';
-};
 
 // Extract nonce and encrypted data from stored encrypted file data
 // The nonce is prepended to the encrypted data during upload

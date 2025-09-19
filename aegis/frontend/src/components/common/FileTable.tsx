@@ -26,46 +26,39 @@ import {
   Search as SearchIcon,
   InsertDriveFile as FileIcon,
 } from '@mui/icons-material';
-import { useQuery, useMutation } from '@apollo/client';
 import { GET_MY_FILES } from '../../apollo/files';
-import { DELETE_FILE_MUTATION, DOWNLOAD_FILE_MUTATION } from '../../apollo/files';
-import {
-  decryptFile,
-  base64ToEncryptionKey,
-  createDownloadBlob,
-  downloadFile,
-  formatFileSize,
-  extractNonceAndData,
-} from '../../utils/crypto';
+import { formatFileSize } from '../../utils/fileUtils';
 import { UserFile, FileFilterInput } from '../../types';
-import { useAuth } from '../../contexts/AuthContext';
+import { useFileOperations } from '../../hooks/useFileOperations';
+import withErrorBoundary from '../hocs/withErrorBoundary';
+import withLoading from '../hocs/withLoading';
+import withDataFetching from '../hocs/withDataFetching';
 
 interface FileTableProps {
   folderId?: string | null;
   onFileDeleted?: () => void;
 }
 
-const FileTable: React.FC<FileTableProps> = ({ folderId, onFileDeleted }) => {
+interface FileTableWithDataProps extends FileTableProps {
+  data: any;
+  loading: boolean;
+  error: string | null;
+  refetch: () => void;
+}
+
+const FileTableBase: React.FC<FileTableWithDataProps> = ({
+  folderId,
+  onFileDeleted,
+  data,
+  loading,
+  error,
+  refetch
+}) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<UserFile | null>(null);
-  const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FileFilterInput>({});
 
-  const { token } = useAuth();
-
-  const { data, loading, error: queryError, refetch } = useQuery(GET_MY_FILES, {
-    variables: {
-      filter: {
-        ...filter,
-        folder_id: folderId || undefined
-      }
-    },
-    fetchPolicy: 'cache-and-network',
-  });
-
-  const [deleteFileMutation] = useMutation(DELETE_FILE_MUTATION);
-  const [downloadFileMutation] = useMutation(DOWNLOAD_FILE_MUTATION);
+  const { downloadingFile, downloadFile, deleteFile } = useFileOperations();
 
   const handleDeleteClick = (file: UserFile) => {
     setFileToDelete(file);
@@ -75,83 +68,22 @@ const FileTable: React.FC<FileTableProps> = ({ folderId, onFileDeleted }) => {
   const handleDeleteConfirm = async () => {
     if (!fileToDelete) return;
 
-    try {
-      await deleteFileMutation({
-        variables: { id: fileToDelete.id },
-      });
-
+    const success = await deleteFile(fileToDelete);
+    if (success) {
       setDeleteDialogOpen(false);
       setFileToDelete(null);
 
       // Refetch files or call callback
-      refetch();
+      if (refetch) refetch();
       if (onFileDeleted) {
         onFileDeleted();
       }
-    } catch (err: any) {
-      console.error('Delete error:', err);
-      setError(err.graphQLErrors?.[0]?.message || err.message || 'Delete failed');
     }
+    // Error handling is done by the hook
   };
 
   const handleDownload = async (file: UserFile) => {
-    setDownloadingFile(file.id);
-    setError(null);
-
-    try {
-      // Validate that we have the encryption key
-      if (!file.encryption_key) {
-        throw new Error('No encryption key available for this file');
-      }
-
-      // Get download URL from server
-      const result = await downloadFileMutation({
-        variables: { id: file.id },
-      });
-
-      const downloadUrl = result.data.downloadFile;
-
-      if (!downloadUrl) {
-        throw new Error('No download URL received');
-      }
-
-      // Fetch the encrypted file with authentication headers
-      const response = await fetch(downloadUrl, {
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-        },
-        credentials: 'include', // Include cookies for authentication
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to download file');
-      }
-
-      const encryptedDataWithNonce = new Uint8Array(await response.arrayBuffer());
-
-      // Extract nonce and encrypted data
-      const { nonce, encryptedData } = extractNonceAndData(encryptedDataWithNonce);
-
-      // Convert base64 encryption key back to Uint8Array
-      const encryptionKey = base64ToEncryptionKey(file.encryption_key);
-
-      // Decrypt the file
-      const decryptedData = decryptFile(encryptedData, nonce, encryptionKey);
-
-      if (!decryptedData) {
-        throw new Error('Failed to decrypt file - invalid key or corrupted data');
-      }
-
-      // Create download blob from decrypted data and trigger download
-      const blob = createDownloadBlob(decryptedData, file.mime_type);
-      downloadFile(blob, file.filename);
-
-    } catch (err: any) {
-      console.error('Download error:', err);
-      setError(err.message || 'Download failed');
-    } finally {
-      setDownloadingFile(null);
-    }
+    await downloadFile(file);
   };
 
   const handleFilterChange = (field: keyof FileFilterInput, value: string) => {
@@ -172,14 +104,6 @@ const FileTable: React.FC<FileTableProps> = ({ folderId, onFileDeleted }) => {
     if (mimeType.includes('pdf')) return 'error';
     return 'default';
   };
-
-  if (queryError) {
-    return (
-      <Alert severity="error">
-        Failed to load files: {queryError.message}
-      </Alert>
-    );
-  }
 
   const files = data?.myFiles || [];
 
@@ -312,4 +236,23 @@ const FileTable: React.FC<FileTableProps> = ({ folderId, onFileDeleted }) => {
   );
 };
 
-export default memo(FileTable);
+// Create enhanced component with HOCs
+const FileTableWithDataFetching = withDataFetching(FileTableBase, {
+  query: GET_MY_FILES,
+  variables: (props: FileTableProps) => ({
+    filter: {
+      folder_id: props.folderId || undefined
+    }
+  }),
+  loadingMessage: 'Loading files...',
+  errorMessage: 'Failed to load files'
+});
+
+const FileTableWithLoading = withLoading(FileTableWithDataFetching, {
+  loadingMessage: 'Loading files...',
+  errorMessage: 'Failed to load files'
+});
+
+const FileTableWithErrorBoundary = withErrorBoundary(FileTableWithLoading);
+
+export default memo(FileTableWithErrorBoundary);

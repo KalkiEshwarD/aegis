@@ -1,13 +1,7 @@
 -- Add folder support to the database
 -- This migration adds tables and columns for folder functionality
 
--- Add folder_id column to user_files table
-ALTER TABLE user_files ADD COLUMN folder_id INTEGER REFERENCES folders(id);
-
--- Create index on folder_id for better performance
-CREATE INDEX IF NOT EXISTS idx_user_files_folder_id ON user_files(folder_id);
-
--- Create folders table
+-- Create folders table first
 CREATE TABLE IF NOT EXISTS folders (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -26,6 +20,12 @@ CREATE INDEX IF NOT EXISTS idx_folders_parent_id ON folders(parent_id);
 
 -- Create index on deleted_at for folders (for soft deletes)
 CREATE INDEX IF NOT EXISTS idx_folders_deleted_at ON folders(deleted_at);
+
+-- Add folder_id column to user_files table (after folders table exists)
+ALTER TABLE user_files ADD COLUMN folder_id INTEGER REFERENCES folders(id);
+
+-- Create index on folder_id for better performance
+CREATE INDEX IF NOT EXISTS idx_user_files_folder_id ON user_files(folder_id);
 
 -- Create room_folders table for sharing folders to rooms
 CREATE TABLE IF NOT EXISTS room_folders (

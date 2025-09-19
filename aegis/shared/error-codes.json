@@ -1,0 +1,16 @@
+{
+  "UNKNOWN_ERROR": "unknown_error",
+  "NOT_FOUND": "not_found",
+  "INVALID_ARGUMENT": "invalid_argument",
+  "UNAUTHORIZED": "unauthorized",
+  "FORBIDDEN": "forbidden",
+  "CONFLICT": "conflict",
+  "INTERNAL_ERROR": "internal_error",
+  "NETWORK_ERROR": "network_error",
+  "AUTHENTICATION_ERROR": "authentication_error",
+  "VALIDATION_ERROR": "validation_error",
+  "FILE_UPLOAD_ERROR": "file_upload_error",
+  "FILE_DOWNLOAD_ERROR": "file_download_error",
+  "PERMISSION_ERROR": "permission_error",
+  "STORAGE_QUOTA_EXCEEDED": "storage_quota_exceeded"
+}
