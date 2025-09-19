@@ -28,10 +28,26 @@ export interface UserFile {
   filename: string;
   mime_type: string;
   encryption_key: string;
+  folder_id?: string;
   created_at: string;
   updated_at: string;
   user?: User;
   file?: FileMetadata;
+  folder?: Folder;
+}
+
+// Folder types
+export interface Folder {
+  id: string;
+  user_id: string;
+  name: string;
+  parent_id?: string;
+  created_at: string;
+  updated_at: string;
+  user?: User;
+  parent?: Folder;
+  children: Folder[];
+  files: UserFile[];
 }
 
 // Room types
@@ -60,6 +76,7 @@ export interface Room {
   creator?: User;
   members?: RoomMember[];
   files?: UserFile[];
+  folders?: Folder[];
 }
 
 // Input types
@@ -79,6 +96,7 @@ export interface UploadFileInput {
   size_bytes: number;
   mime_type: string;
   encrypted_key: string;
+  folder_id?: string;
   file_data: File;
 }
 
@@ -99,6 +117,32 @@ export interface AddRoomMemberInput {
   room_id: string;
   user_id: string;
   role: RoomRole;
+}
+
+// Folder input types
+export interface CreateFolderInput {
+  name: string;
+  parent_id?: string;
+}
+
+export interface RenameFolderInput {
+  id: string;
+  name: string;
+}
+
+export interface MoveFolderInput {
+  id: string;
+  parent_id?: string;
+}
+
+export interface MoveFileInput {
+  id: string;
+  folder_id?: string;
+}
+
+export interface ShareFolderToRoomInput {
+  folder_id: string;
+  room_id: string;
 }
 
 // Statistics types

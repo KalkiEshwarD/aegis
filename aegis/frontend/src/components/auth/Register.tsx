@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -26,9 +26,19 @@ const Register: React.FC = () => {
 
   const { register } = useAuth();
   const navigate = useNavigate();
+  const isMountedRef = useRef(true);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isMountedRef.current) return;
+
     setError('');
 
     // Basic validation
@@ -46,11 +56,17 @@ const Register: React.FC = () => {
 
     try {
       await register(email, password);
-      navigate('/dashboard');
+      if (isMountedRef.current) {
+        navigate('/dashboard');
+      }
     } catch (err: any) {
-      setError(err.message || 'Registration failed. Please try again.');
+      if (isMountedRef.current) {
+        setError(err.message || 'Registration failed. Please try again.');
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 

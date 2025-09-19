@@ -33,10 +33,26 @@ type UserFile {
   filename: String!
   mime_type: String!
   encryption_key: String!
+  folder_id: ID
   created_at: Time!
   updated_at: Time!
   user: User
   file: File
+  folder: Folder
+}
+
+# Folder types
+type Folder {
+  id: ID!
+  user_id: ID!
+  name: String!
+  parent_id: ID
+  created_at: Time!
+  updated_at: Time!
+  user: User
+  parent: Folder
+  children: [Folder!]!
+  files: [UserFile!]!
 }
 
 # Room collaboration types
@@ -55,6 +71,7 @@ type Room {
   creator: User
   members: [RoomMember!]!
   files: [UserFile!]!
+  folders: [Folder!]!
 }
 
 type RoomMember {
@@ -84,6 +101,7 @@ input UploadFileInput {
   size_bytes: Int!
   mime_type: String!
   encrypted_key: String!
+  folder_id: ID
   file_data: Upload!
 }
 
@@ -110,6 +128,32 @@ input AddRoomMemberInput {
   room_id: ID!
   user_id: ID!
   role: RoomRole!
+}
+
+# Folder input types
+input CreateFolderInput {
+  name: String!
+  parent_id: ID
+}
+
+input RenameFolderInput {
+  id: ID!
+  name: String!
+}
+
+input MoveFolderInput {
+  id: ID!
+  parent_id: ID
+}
+
+input MoveFileInput {
+  id: ID!
+  folder_id: ID
+}
+
+input ShareFolderToRoomInput {
+  folder_id: ID!
+  room_id: ID!
 }
 
 # Statistics and admin types
@@ -139,6 +183,10 @@ type Query {
   myRooms: [Room!]!
   room(id: ID!): Room
 
+  # Folder queries
+  myFolders: [Folder!]!
+  folder(id: ID!): Folder
+
   # Admin queries
   adminDashboard: AdminDashboard!
   allUsers: [User!]!
@@ -152,6 +200,7 @@ type Mutation {
   # Authentication
   register(input: RegisterInput!): AuthPayload!
   login(input: LoginInput!): AuthPayload!
+  logout: Boolean!
 
   # File operations
   uploadFile(input: UploadFileInput!): UserFile!
@@ -167,6 +216,15 @@ type Mutation {
   removeRoomMember(room_id: ID!, user_id: ID!): Boolean!
   shareFileToRoom(user_file_id: ID!, room_id: ID!): Boolean!
   removeFileFromRoom(user_file_id: ID!, room_id: ID!): Boolean!
+
+  # Folder operations
+  createFolder(input: CreateFolderInput!): Folder!
+  renameFolder(input: RenameFolderInput!): Boolean!
+  deleteFolder(id: ID!): Boolean!
+  moveFolder(input: MoveFolderInput!): Boolean!
+  moveFile(input: MoveFileInput!): Boolean!
+  shareFolderToRoom(input: ShareFolderToRoomInput!): Boolean!
+  removeFolderFromRoom(folder_id: ID!, room_id: ID!): Boolean!
 
   # Admin operations
   promoteUserToAdmin(user_id: ID!): Boolean!

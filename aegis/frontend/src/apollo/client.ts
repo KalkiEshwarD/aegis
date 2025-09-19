@@ -12,14 +12,15 @@ const httpLink = createHttpLink({
   },
 });
 
-// Auth link to add authorization header
+// Auth link - Send token from localStorage in Authorization header
 const authLink = setContext((_, { headers }) => {
-  const token = localStorage.getItem('aegis_token');
+  // Get token from localStorage
+  const token = localStorage.getItem('auth_token');
   
   return {
     headers: {
       ...headers,
-      authorization: token ? `Bearer ${token}` : '',
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
     }
   };
 });
@@ -28,15 +29,19 @@ const authLink = setContext((_, { headers }) => {
 const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) => {
   if (graphQLErrors) {
     graphQLErrors.forEach(({ message, locations, path }) => {
+      // Skip logging authentication errors for the 'me' query since it's expected to fail when not logged in
+      if (operation.operationName === 'GetMe' && message.includes('unauthenticated')) {
+        return; // Silently ignore expected auth failures for user checks
+      }
+      
       console.error(
         `GraphQL error: Message: ${message}, Location: ${locations}, Path: ${path}`
       );
-      
-      // Handle authentication errors
-      if (message.includes('Unauthorized') || message.includes('Invalid token')) {
-        localStorage.removeItem('aegis_token');
-        localStorage.removeItem('aegis_user');
-        window.location.href = '/login';
+
+      // Log authentication errors but don't force redirects
+      // Let the AuthContext handle auth state management
+      if (message.includes('unauthenticated') || message.includes('Unauthorized') || message.includes('Invalid token')) {
+        console.log('Authentication error detected, will be handled by AuthContext');
       }
     });
   }
@@ -44,11 +49,9 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) 
   if (networkError) {
     console.error(`Network error: ${networkError}`);
     
-    // Handle network authentication errors
+    // Log network errors but don't force redirects
     if ('statusCode' in networkError && networkError.statusCode === 401) {
-      localStorage.removeItem('aegis_token');
-      localStorage.removeItem('aegis_user');
-      window.location.href = '/login';
+      console.log('Network authentication error detected, will be handled by AuthContext');
     }
   }
 });

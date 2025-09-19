@@ -39,10 +39,11 @@ import {
 import { UserFile, FileFilterInput } from '../../types';
 
 interface FileTableProps {
+  folderId?: string | null;
   onFileDeleted?: () => void;
 }
 
-const FileTable: React.FC<FileTableProps> = ({ onFileDeleted }) => {
+const FileTable: React.FC<FileTableProps> = ({ folderId, onFileDeleted }) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<UserFile | null>(null);
   const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
@@ -50,7 +51,12 @@ const FileTable: React.FC<FileTableProps> = ({ onFileDeleted }) => {
   const [filter, setFilter] = useState<FileFilterInput>({});
 
   const { data, loading, error: queryError, refetch } = useQuery(GET_MY_FILES, {
-    variables: { filter },
+    variables: {
+      filter: {
+        ...filter,
+        folder_id: folderId || undefined
+      }
+    },
     fetchPolicy: 'cache-and-network',
   });
 

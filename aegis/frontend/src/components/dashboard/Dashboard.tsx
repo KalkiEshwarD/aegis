@@ -35,9 +35,6 @@ import {
   Add as AddIcon,
   CreateNewFolder as NewFolderIcon,
   FilterList as FilterIcon,
-  Sort as SortIcon,
-  GridView as GridViewIcon,
-  ViewList as ViewListIcon,
   Search as SearchIcon,
   Notifications as NotificationsIcon,
   Settings as SettingsIcon,
@@ -46,8 +43,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@apollo/client';
 import { GET_MY_STATS } from '../../apollo/queries';
-import FileUploadDropzone from '../common/FileUploadDropzone';
-import FileTable from '../common/FileTable';
+import FileExplorer from '../common/FileExplorer';
 import TrashView from './TrashView';
 import { formatFileSize } from '../../utils/crypto';
 
@@ -58,7 +54,7 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const [selectedNav, setSelectedNav] = useState('home');
-  const [viewMode, setViewMode] = useState('grid');
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const { data: statsData, loading: statsLoading } = useQuery(GET_MY_STATS, {
@@ -98,6 +94,7 @@ const Dashboard: React.FC = () => {
   const handleTrashFileDeleted = () => {
     setRefreshTrigger(prev => prev + 1);
   };
+
 
   const navigationItems = [
     { id: 'home', label: 'Home', icon: <HomeIcon /> },
@@ -289,6 +286,7 @@ const Dashboard: React.FC = () => {
             ))}
           </List>
 
+
           <Divider sx={{ my: 2 }} />
 
           {/* Quick Actions */}
@@ -353,12 +351,14 @@ const Dashboard: React.FC = () => {
         {/* Header */}
         <Box sx={{ mb: 3 }}>
           <Typography variant="h4" sx={{ fontWeight: 600, color: '#1f2937', mb: 1 }}>
-            {selectedNav === 'trash' ? 'Trash' : 'My Files'}
+            {selectedNav === 'trash' ? 'Trash' : selectedFolderId ? 'Folder Files' : 'My Files'}
           </Typography>
           <Typography variant="body1" sx={{ color: '#6b7280' }}>
             {selectedNav === 'trash'
               ? 'Manage your deleted files - restore or permanently delete'
-              : 'Manage your secure encrypted files'
+              : selectedFolderId
+                ? 'Files in selected folder'
+                : 'Manage your secure encrypted files'
             }
           </Typography>
         </Box>
@@ -468,24 +468,6 @@ const Dashboard: React.FC = () => {
           </Grid>
         )}
 
-        {/* File Upload Section - Only show for home view */}
-        {selectedNav === 'home' && (
-          <Paper sx={{
-            p: 4,
-            mb: 4,
-            border: '1px solid #e5e7eb',
-            boxShadow: 'none',
-            borderRadius: 3
-          }}>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: '#1f2937' }}>
-              Upload Files
-            </Typography>
-            <Typography variant="body2" color="#6b7280" sx={{ mb: 3 }}>
-              Drag and drop files here or click to browse. Files are encrypted before upload.
-            </Typography>
-            <FileUploadDropzone onUploadComplete={handleUploadComplete} />
-          </Paper>
-        )}
 
         {/* Content based on selected navigation */}
         {selectedNav === 'trash' ? (
@@ -531,45 +513,14 @@ const Dashboard: React.FC = () => {
                     }
                   }}
                 />
-                <Chip
-                  icon={<SortIcon />}
-                  label="Sort"
-                  variant="outlined"
-                  size="small"
-                  sx={{
-                    borderColor: '#d1d5db',
-                    color: '#6b7280',
-                    '&:hover': {
-                      borderColor: '#3b82f6',
-                      backgroundColor: '#eff6ff'
-                    }
-                  }}
-                />
-                <IconButton
-                  onClick={() => setViewMode('grid')}
-                  size="small"
-                  sx={{
-                    color: viewMode === 'grid' ? '#3b82f6' : '#6b7280',
-                    backgroundColor: viewMode === 'grid' ? '#eff6ff' : 'transparent',
-                    '&:hover': { backgroundColor: '#f8fafc' }
-                  }}
-                >
-                  <GridViewIcon fontSize="small" />
-                </IconButton>
-                <IconButton
-                  onClick={() => setViewMode('list')}
-                  size="small"
-                  sx={{
-                    color: viewMode === 'list' ? '#3b82f6' : '#6b7280',
-                    backgroundColor: viewMode === 'list' ? '#eff6ff' : 'transparent',
-                    '&:hover': { backgroundColor: '#f8fafc' }
-                  }}
-                >
-                  <ViewListIcon fontSize="small" />
-                </IconButton>
               </Box>
             </Box>
-            <FileTable onFileDeleted={handleFileDeleted} key={refreshTrigger} />
+            <FileExplorer
+              folderId={selectedFolderId}
+              onFileDeleted={handleFileDeleted}
+              onUploadComplete={handleUploadComplete}
+              key={refreshTrigger}
+            />
           </Paper>
         )}
       </Box>

@@ -97,25 +97,46 @@ aegis/
 
 ### Environment Configuration
 
-All sensitive configuration is managed via environment variables:
+All sensitive configuration is managed via environment variables. **Required environment variables must be set for the application to start.**
+
+#### Required Environment Variables (Security Critical)
+These variables are mandatory and the application will fail to start if they are not provided:
 
 ```env
-# Database
-DATABASE_URL=postgres://aegis_user:aegis_password@postgres:5432/aegis?sslmode=disable
+# Database Connection (Required)
+DATABASE_URL=postgres://username:password@host:port/database?sslmode=require
 
-# Object Storage
+# MinIO Object Storage Credentials (Required)
+MINIO_ACCESS_KEY=your_secure_minio_access_key
+MINIO_SECRET_KEY=your_secure_minio_secret_key
+
+# JWT Authentication Secret (Required)
+JWT_SECRET=your_cryptographically_secure_random_jwt_secret_key
+```
+
+#### Optional Environment Variables
+These have sensible defaults for development:
+
+```env
+# MinIO Configuration
 MINIO_ENDPOINT=minio:9000
-MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=minioadmin123
 MINIO_BUCKET=aegis-files
 
-# Security
-JWT_SECRET=your-super-secret-jwt-key-change-in-production
-
-# Application
+# Application Configuration
 PORT=8080
 GIN_MODE=debug
+
+# CORS Security
+CORS_ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com
 ```
+
+#### Security Recommendations for Production
+- **DATABASE_URL**: Use a strong password, enable SSL/TLS (`sslmode=require`), and restrict database access to application servers only.
+- **MINIO_ACCESS_KEY/SECRET_KEY**: Generate cryptographically secure random keys. Never use default values.
+- **JWT_SECRET**: Use a minimum 256-bit (32 bytes) cryptographically secure random key. Rotate regularly.
+- **Environment Variables**: Store secrets in secure secret management systems (AWS Secrets Manager, HashiCorp Vault, etc.) rather than plain environment variables.
+
+**⚠️ WARNING**: The application will terminate with a fatal error if any required environment variables are missing or set to known insecure default values.
 
 ## 🏭 Production Considerations
 

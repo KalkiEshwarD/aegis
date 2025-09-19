@@ -1,8 +1,10 @@
 package middleware_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -63,32 +65,52 @@ func (suite *MiddlewareTestSuite) SetupTest() {
 	suite.db.Exec("DELETE FROM users")
 }
 
-func (suite *MiddlewareTestSuite) TestCORS() {
+func (suite *MiddlewareTestSuite) TestCORS_AllowedOrigin() {
 	// Setup route with CORS middleware
 	router := gin.New()
-	router.Use(middleware.CORS())
+	router.Use(middleware.CORS("http://localhost:3000,https://example.com"))
 	router.GET("/test", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "ok"})
 	})
 
-	// Test OPTIONS request
+	// Test OPTIONS request with allowed origin
 	req, _ := http.NewRequest("OPTIONS", "/test", nil)
+	req.Header.Set("Origin", "http://localhost:3000")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
 	assert.Equal(suite.T(), 204, w.Code)
-	assert.Equal(suite.T(), "*", w.Header().Get("Access-Control-Allow-Origin"))
+	assert.Equal(suite.T(), "http://localhost:3000", w.Header().Get("Access-Control-Allow-Origin"))
 	assert.Equal(suite.T(), "true", w.Header().Get("Access-Control-Allow-Credentials"))
 	assert.Contains(suite.T(), w.Header().Get("Access-Control-Allow-Headers"), "Authorization")
 	assert.Contains(suite.T(), w.Header().Get("Access-Control-Allow-Methods"), "POST")
 
-	// Test regular GET request
+	// Test regular GET request with allowed origin
 	req, _ = http.NewRequest("GET", "/test", nil)
+	req.Header.Set("Origin", "http://localhost:3000")
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
 	assert.Equal(suite.T(), 200, w.Code)
-	assert.Equal(suite.T(), "*", w.Header().Get("Access-Control-Allow-Origin"))
+	assert.Equal(suite.T(), "http://localhost:3000", w.Header().Get("Access-Control-Allow-Origin"))
+}
+
+func (suite *MiddlewareTestSuite) TestCORS_DisallowedOrigin() {
+	// Setup route with CORS middleware
+	router := gin.New()
+	router.Use(middleware.CORS("http://localhost:3000"))
+	router.GET("/test", func(c *gin.Context) {
+		c.JSON(200, gin.H{"message": "ok"})
+	})
+
+	// Test request with disallowed origin
+	req, _ := http.NewRequest("GET", "/test", nil)
+	req.Header.Set("Origin", "http://evil.com")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(suite.T(), 403, w.Code)
+	assert.Contains(suite.T(), w.Body.String(), "Origin not allowed")
 }
 
 func (suite *MiddlewareTestSuite) TestAuthMiddleware_HealthEndpoint() {
@@ -365,6 +387,35 @@ func (suite *MiddlewareTestSuite) TestClaims_Structure() {
 	assert.True(suite.T(), claims.IsAdmin)
 	assert.NotNil(suite.T(), claims.ExpiresAt)
 	assert.NotNil(suite.T(), claims.IssuedAt)
+}
+
+func (suite *MiddlewareTestSuite) TestAuthMiddleware_NoSensitiveDataInLogs() {
+	// Capture log output to verify no sensitive data is logged
+	var buf bytes.Buffer
+	originalLogger := log.Writer()
+	log.SetOutput(&buf)
+	defer log.SetOutput(originalLogger)
+
+	// Setup route with auth middleware
+	router := gin.New()
+	router.Use(middleware.AuthMiddleware(suite.config))
+	router.GET("/protected", func(c *gin.Context) {
+		c.JSON(200, gin.H{"message": "protected"})
+	})
+
+	// Test with invalid token
+	req, _ := http.NewRequest("GET", "/protected", nil)
+	req.Header.Set("Authorization", "Bearer invalidtoken")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// Verify response
+	assert.Equal(suite.T(), 401, w.Code)
+
+	// Verify no sensitive data in logs (token should not be logged)
+	logOutput := buf.String()
+	assert.NotContains(suite.T(), logOutput, "invalidtoken", "Token should not be logged")
+	assert.NotContains(suite.T(), logOutput, "Bearer", "Authorization header should not be logged")
 }
 
 func TestMiddlewareSuite(t *testing.T) {

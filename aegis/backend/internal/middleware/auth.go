@@ -16,9 +16,39 @@ import (
 )
 
 // CORS middleware to handle cross-origin requests
-func CORS() gin.HandlerFunc {
+func CORS(allowedOrigins string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
+		// Allow health endpoint without origin validation
+		if c.Request.URL.Path == "/health" {
+			c.Header("Access-Control-Allow-Origin", "*")
+			c.Header("Access-Control-Allow-Credentials", "false")
+			c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+			c.Header("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+
+			if c.Request.Method == "OPTIONS" {
+				c.AbortWithStatus(204)
+				return
+			}
+			c.Next()
+			return
+		}
+
+		origin := c.GetHeader("Origin")
+		if allowedOrigins != "*" {
+			// Check if origin is allowed
+			allowed := false
+			for _, allowedOrigin := range strings.Split(allowedOrigins, ",") {
+				if strings.TrimSpace(allowedOrigin) == origin {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				c.AbortWithStatusJSON(403, gin.H{"error": "Origin not allowed"})
+				return
+			}
+		}
+		c.Header("Access-Control-Allow-Origin", origin)
 		c.Header("Access-Control-Allow-Credentials", "true")
 		c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
 		c.Header("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
@@ -52,47 +82,61 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 
 		// For GraphQL requests, handle authentication at resolver level
 		if path == "/graphql" {
-			// Check if Authorization header is present
+			// Check for token in Authorization header or HttpOnly cookie
+			var tokenString string
 			authHeader := c.GetHeader("Authorization")
-			fmt.Printf("DEBUG: Authorization header: '%s'\n", authHeader)
 			if authHeader != "" {
 				// Expect "Bearer <token>"
 				bearerToken := strings.Split(authHeader, " ")
-				fmt.Printf("DEBUG: Bearer token parts: %d, first: '%s'\n", len(bearerToken), bearerToken[0])
 				if len(bearerToken) == 2 && bearerToken[0] == "Bearer" {
-					tokenString := bearerToken[1]
-					fmt.Printf("DEBUG: Token string length: %d\n", len(tokenString))
-
-					// Parse and validate token
-					token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-						if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-							return nil, jwt.ErrSignatureInvalid
-						}
-						return []byte(cfg.JWTSecret), nil
-					})
-
-					if err != nil {
-						// Log the error for debugging
-						fmt.Printf("DEBUG: Token parsing failed: %v\n", err)
-					} else if claims, ok := token.Claims.(*Claims); ok && token.Valid {
-						// Verify user still exists
-						var user models.User
-						if err := database.GetDB().First(&user, claims.UserID).Error; err == nil {
-							// Add user to context for GraphQL resolvers
-							ctx := context.WithValue(c.Request.Context(), "user", &user)
-							c.Request = c.Request.WithContext(ctx)
-							fmt.Printf("DEBUG: User added to context: ID=%d\n", user.ID)
-						} else {
-							fmt.Printf("DEBUG: User not found in DB: %v\n", err)
-						}
-					} else {
-						fmt.Printf("DEBUG: Token claims invalid or token not valid\n")
-					}
-				} else {
-					fmt.Printf("DEBUG: Invalid bearer token format\n")
+					tokenString = bearerToken[1]
 				}
 			} else {
-				fmt.Printf("DEBUG: No Authorization header\n")
+				// Check HttpOnly cookie
+				if cookie, err := c.Cookie("aegis_token"); err == nil {
+					tokenString = cookie
+					fmt.Printf("DEBUG: Found cookie with length: %d\n", len(cookie))
+				} else {
+					fmt.Printf("DEBUG: Cookie not found, error: %v\n", err)
+					// Debug: print all cookies
+					for _, cookie := range c.Request.Cookies() {
+						valueLen := len(cookie.Value)
+						if valueLen > 20 {
+							valueLen = 20
+						}
+						fmt.Printf("DEBUG: Available cookie: %s = %s\n", cookie.Name, cookie.Value[:valueLen]+"...")
+					}
+				}
+			}
+
+			if tokenString != "" {
+				// Parse and validate token
+				token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+					if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+						return nil, jwt.ErrSignatureInvalid
+					}
+					return []byte(cfg.JWTSecret), nil
+				})
+
+				if err != nil {
+					// Log authentication failure without sensitive details
+					fmt.Printf("DEBUG: GraphQL authentication failed\n")
+				} else if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+					// Verify user still exists
+					var user models.User
+					if err := database.GetDB().First(&user, claims.UserID).Error; err == nil {
+						// Add user to context for GraphQL resolvers
+						ctx := context.WithValue(c.Request.Context(), "user", &user)
+						c.Request = c.Request.WithContext(ctx)
+						fmt.Printf("DEBUG: User authenticated for GraphQL\n")
+					} else {
+						fmt.Printf("DEBUG: User not found in database\n")
+					}
+				} else {
+					fmt.Printf("DEBUG: Invalid token claims\n")
+				}
+			} else {
+				fmt.Printf("DEBUG: No authorization header or cookie for GraphQL\n")
 			}
 			// Always allow GraphQL requests to proceed - authentication handled at resolver level
 			c.Next()

@@ -80,13 +80,11 @@ export const calculateFileHash = async (file: File): Promise<string> => {
 
 // Convert file to Uint8Array
 export const fileToUint8Array = (file: File): Promise<Uint8Array> => {
-  console.log(`DEBUG: Converting file ${file.name} to Uint8Array, size: ${file.size} bytes`);
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       if (reader.result instanceof ArrayBuffer) {
         const uint8Array = new Uint8Array(reader.result);
-        console.log(`DEBUG: File converted to Uint8Array, length: ${uint8Array.length} bytes`);
         resolve(uint8Array);
       } else {
         reject(new Error('Failed to read file as ArrayBuffer'));

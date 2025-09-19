@@ -41,6 +41,7 @@ type Config struct {
 
 type ResolverRoot interface {
 	File() FileResolver
+	Folder() FolderResolver
 	Mutation() MutationResolver
 	Query() QueryResolver
 	Room() RoomResolver
@@ -72,20 +73,41 @@ type ComplexityRoot struct {
 		SizeBytes   func(childComplexity int) int
 	}
 
+	Folder struct {
+		Children  func(childComplexity int) int
+		CreatedAt func(childComplexity int) int
+		Files     func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Name      func(childComplexity int) int
+		Parent    func(childComplexity int) int
+		ParentID  func(childComplexity int) int
+		UpdatedAt func(childComplexity int) int
+		User      func(childComplexity int) int
+		UserID    func(childComplexity int) int
+	}
+
 	Mutation struct {
 		AddRoomMember         func(childComplexity int, input model.AddRoomMemberInput) int
+		CreateFolder          func(childComplexity int, input model.CreateFolderInput) int
 		CreateRoom            func(childComplexity int, input model.CreateRoomInput) int
 		DeleteFile            func(childComplexity int, id string) int
+		DeleteFolder          func(childComplexity int, id string) int
 		DeleteUserAccount     func(childComplexity int, userID string) int
 		DownloadFile          func(childComplexity int, id string) int
 		Login                 func(childComplexity int, input model.LoginInput) int
+		Logout                func(childComplexity int) int
+		MoveFile              func(childComplexity int, input model.MoveFileInput) int
+		MoveFolder            func(childComplexity int, input model.MoveFolderInput) int
 		PermanentlyDeleteFile func(childComplexity int, fileID string) int
 		PromoteUserToAdmin    func(childComplexity int, userID string) int
 		Register              func(childComplexity int, input model.RegisterInput) int
 		RemoveFileFromRoom    func(childComplexity int, userFileID string, roomID string) int
+		RemoveFolderFromRoom  func(childComplexity int, folderID string, roomID string) int
 		RemoveRoomMember      func(childComplexity int, roomID string, userID string) int
+		RenameFolder          func(childComplexity int, input model.RenameFolderInput) int
 		RestoreFile           func(childComplexity int, fileID string) int
 		ShareFileToRoom       func(childComplexity int, userFileID string, roomID string) int
+		ShareFolderToRoom     func(childComplexity int, input model.ShareFolderToRoomInput) int
 		UploadFile            func(childComplexity int, input model.UploadFileInput) int
 		UploadFileFromMap     func(childComplexity int, input model.UploadFileFromMapInput) int
 	}
@@ -94,9 +116,11 @@ type ComplexityRoot struct {
 		AdminDashboard func(childComplexity int) int
 		AllFiles       func(childComplexity int) int
 		AllUsers       func(childComplexity int) int
+		Folder         func(childComplexity int, id string) int
 		Health         func(childComplexity int) int
 		Me             func(childComplexity int) int
 		MyFiles        func(childComplexity int, filter *model.FileFilterInput) int
+		MyFolders      func(childComplexity int) int
 		MyRooms        func(childComplexity int) int
 		MyStats        func(childComplexity int) int
 		MyTrashedFiles func(childComplexity int) int
@@ -108,6 +132,7 @@ type ComplexityRoot struct {
 		Creator   func(childComplexity int) int
 		CreatorID func(childComplexity int) int
 		Files     func(childComplexity int) int
+		Folders   func(childComplexity int) int
 		ID        func(childComplexity int) int
 		Members   func(childComplexity int) int
 		Name      func(childComplexity int) int
@@ -138,6 +163,8 @@ type ComplexityRoot struct {
 		File          func(childComplexity int) int
 		FileID        func(childComplexity int) int
 		Filename      func(childComplexity int) int
+		Folder        func(childComplexity int) int
+		FolderID      func(childComplexity int) int
 		ID            func(childComplexity int) int
 		MimeType      func(childComplexity int) int
 		UpdatedAt     func(childComplexity int) int
@@ -156,9 +183,16 @@ type ComplexityRoot struct {
 type FileResolver interface {
 	ID(ctx context.Context, obj *models.File) (string, error)
 }
+type FolderResolver interface {
+	ID(ctx context.Context, obj *models.Folder) (string, error)
+	UserID(ctx context.Context, obj *models.Folder) (string, error)
+
+	ParentID(ctx context.Context, obj *models.Folder) (*string, error)
+}
 type MutationResolver interface {
 	Register(ctx context.Context, input model.RegisterInput) (*model.AuthPayload, error)
 	Login(ctx context.Context, input model.LoginInput) (*model.AuthPayload, error)
+	Logout(ctx context.Context) (bool, error)
 	UploadFile(ctx context.Context, input model.UploadFileInput) (*models.UserFile, error)
 	UploadFileFromMap(ctx context.Context, input model.UploadFileFromMapInput) (*models.UserFile, error)
 	DeleteFile(ctx context.Context, id string) (bool, error)
@@ -170,6 +204,13 @@ type MutationResolver interface {
 	RemoveRoomMember(ctx context.Context, roomID string, userID string) (bool, error)
 	ShareFileToRoom(ctx context.Context, userFileID string, roomID string) (bool, error)
 	RemoveFileFromRoom(ctx context.Context, userFileID string, roomID string) (bool, error)
+	CreateFolder(ctx context.Context, input model.CreateFolderInput) (*models.Folder, error)
+	RenameFolder(ctx context.Context, input model.RenameFolderInput) (bool, error)
+	DeleteFolder(ctx context.Context, id string) (bool, error)
+	MoveFolder(ctx context.Context, input model.MoveFolderInput) (bool, error)
+	MoveFile(ctx context.Context, input model.MoveFileInput) (bool, error)
+	ShareFolderToRoom(ctx context.Context, input model.ShareFolderToRoomInput) (bool, error)
+	RemoveFolderFromRoom(ctx context.Context, folderID string, roomID string) (bool, error)
 	PromoteUserToAdmin(ctx context.Context, userID string) (bool, error)
 	DeleteUserAccount(ctx context.Context, userID string) (bool, error)
 }
@@ -180,6 +221,8 @@ type QueryResolver interface {
 	MyStats(ctx context.Context) (*model.UserStats, error)
 	MyRooms(ctx context.Context) ([]*models.Room, error)
 	Room(ctx context.Context, id string) (*models.Room, error)
+	MyFolders(ctx context.Context) ([]*models.Folder, error)
+	Folder(ctx context.Context, id string) (*models.Folder, error)
 	AdminDashboard(ctx context.Context) (*model.AdminDashboard, error)
 	AllUsers(ctx context.Context) ([]*models.User, error)
 	AllFiles(ctx context.Context) ([]*models.UserFile, error)
@@ -189,6 +232,8 @@ type RoomResolver interface {
 	ID(ctx context.Context, obj *models.Room) (string, error)
 
 	CreatorID(ctx context.Context, obj *models.Room) (string, error)
+
+	Folders(ctx context.Context, obj *models.Room) ([]*models.Folder, error)
 }
 type RoomMemberResolver interface {
 	ID(ctx context.Context, obj *models.RoomMember) (string, error)
@@ -204,6 +249,7 @@ type UserFileResolver interface {
 	FileID(ctx context.Context, obj *models.UserFile) (string, error)
 
 	EncryptionKey(ctx context.Context, obj *models.UserFile) (string, error)
+	FolderID(ctx context.Context, obj *models.UserFile) (*string, error)
 }
 
 type executableSchema struct {
@@ -288,6 +334,67 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.File.SizeBytes(childComplexity), true
 
+	case "Folder.children":
+		if e.complexity.Folder.Children == nil {
+			break
+		}
+
+		return e.complexity.Folder.Children(childComplexity), true
+	case "Folder.created_at":
+		if e.complexity.Folder.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.Folder.CreatedAt(childComplexity), true
+	case "Folder.files":
+		if e.complexity.Folder.Files == nil {
+			break
+		}
+
+		return e.complexity.Folder.Files(childComplexity), true
+	case "Folder.id":
+		if e.complexity.Folder.ID == nil {
+			break
+		}
+
+		return e.complexity.Folder.ID(childComplexity), true
+	case "Folder.name":
+		if e.complexity.Folder.Name == nil {
+			break
+		}
+
+		return e.complexity.Folder.Name(childComplexity), true
+	case "Folder.parent":
+		if e.complexity.Folder.Parent == nil {
+			break
+		}
+
+		return e.complexity.Folder.Parent(childComplexity), true
+	case "Folder.parent_id":
+		if e.complexity.Folder.ParentID == nil {
+			break
+		}
+
+		return e.complexity.Folder.ParentID(childComplexity), true
+	case "Folder.updated_at":
+		if e.complexity.Folder.UpdatedAt == nil {
+			break
+		}
+
+		return e.complexity.Folder.UpdatedAt(childComplexity), true
+	case "Folder.user":
+		if e.complexity.Folder.User == nil {
+			break
+		}
+
+		return e.complexity.Folder.User(childComplexity), true
+	case "Folder.user_id":
+		if e.complexity.Folder.UserID == nil {
+			break
+		}
+
+		return e.complexity.Folder.UserID(childComplexity), true
+
 	case "Mutation.addRoomMember":
 		if e.complexity.Mutation.AddRoomMember == nil {
 			break
@@ -299,6 +406,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.AddRoomMember(childComplexity, args["input"].(model.AddRoomMemberInput)), true
+	case "Mutation.createFolder":
+		if e.complexity.Mutation.CreateFolder == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createFolder_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CreateFolder(childComplexity, args["input"].(model.CreateFolderInput)), true
 	case "Mutation.createRoom":
 		if e.complexity.Mutation.CreateRoom == nil {
 			break
@@ -321,6 +439,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.DeleteFile(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteFolder":
+		if e.complexity.Mutation.DeleteFolder == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteFolder_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DeleteFolder(childComplexity, args["id"].(string)), true
 	case "Mutation.deleteUserAccount":
 		if e.complexity.Mutation.DeleteUserAccount == nil {
 			break
@@ -354,6 +483,34 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.Login(childComplexity, args["input"].(model.LoginInput)), true
+	case "Mutation.logout":
+		if e.complexity.Mutation.Logout == nil {
+			break
+		}
+
+		return e.complexity.Mutation.Logout(childComplexity), true
+	case "Mutation.moveFile":
+		if e.complexity.Mutation.MoveFile == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_moveFile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.MoveFile(childComplexity, args["input"].(model.MoveFileInput)), true
+	case "Mutation.moveFolder":
+		if e.complexity.Mutation.MoveFolder == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_moveFolder_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.MoveFolder(childComplexity, args["input"].(model.MoveFolderInput)), true
 	case "Mutation.permanentlyDeleteFile":
 		if e.complexity.Mutation.PermanentlyDeleteFile == nil {
 			break
@@ -398,6 +555,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.RemoveFileFromRoom(childComplexity, args["user_file_id"].(string), args["room_id"].(string)), true
+	case "Mutation.removeFolderFromRoom":
+		if e.complexity.Mutation.RemoveFolderFromRoom == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_removeFolderFromRoom_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.RemoveFolderFromRoom(childComplexity, args["folder_id"].(string), args["room_id"].(string)), true
 	case "Mutation.removeRoomMember":
 		if e.complexity.Mutation.RemoveRoomMember == nil {
 			break
@@ -409,6 +577,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.RemoveRoomMember(childComplexity, args["room_id"].(string), args["user_id"].(string)), true
+	case "Mutation.renameFolder":
+		if e.complexity.Mutation.RenameFolder == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_renameFolder_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.RenameFolder(childComplexity, args["input"].(model.RenameFolderInput)), true
 	case "Mutation.restoreFile":
 		if e.complexity.Mutation.RestoreFile == nil {
 			break
@@ -431,6 +610,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.ShareFileToRoom(childComplexity, args["user_file_id"].(string), args["room_id"].(string)), true
+	case "Mutation.shareFolderToRoom":
+		if e.complexity.Mutation.ShareFolderToRoom == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_shareFolderToRoom_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.ShareFolderToRoom(childComplexity, args["input"].(model.ShareFolderToRoomInput)), true
 	case "Mutation.uploadFile":
 		if e.complexity.Mutation.UploadFile == nil {
 			break
@@ -472,6 +662,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.AllUsers(childComplexity), true
+	case "Query.folder":
+		if e.complexity.Query.Folder == nil {
+			break
+		}
+
+		args, err := ec.field_Query_folder_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Folder(childComplexity, args["id"].(string)), true
 	case "Query.health":
 		if e.complexity.Query.Health == nil {
 			break
@@ -495,6 +696,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.MyFiles(childComplexity, args["filter"].(*model.FileFilterInput)), true
+	case "Query.myFolders":
+		if e.complexity.Query.MyFolders == nil {
+			break
+		}
+
+		return e.complexity.Query.MyFolders(childComplexity), true
 	case "Query.myRooms":
 		if e.complexity.Query.MyRooms == nil {
 			break
@@ -549,6 +756,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Room.Files(childComplexity), true
+	case "Room.folders":
+		if e.complexity.Room.Folders == nil {
+			break
+		}
+
+		return e.complexity.Room.Folders(childComplexity), true
 	case "Room.id":
 		if e.complexity.Room.ID == nil {
 			break
@@ -678,6 +891,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.UserFile.Filename(childComplexity), true
+	case "UserFile.folder":
+		if e.complexity.UserFile.Folder == nil {
+			break
+		}
+
+		return e.complexity.UserFile.Folder(childComplexity), true
+	case "UserFile.folder_id":
+		if e.complexity.UserFile.FolderID == nil {
+			break
+		}
+
+		return e.complexity.UserFile.FolderID(childComplexity), true
 	case "UserFile.id":
 		if e.complexity.UserFile.ID == nil {
 			break
@@ -743,10 +968,15 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputAddRoomMemberInput,
+		ec.unmarshalInputCreateFolderInput,
 		ec.unmarshalInputCreateRoomInput,
 		ec.unmarshalInputFileFilterInput,
 		ec.unmarshalInputLoginInput,
+		ec.unmarshalInputMoveFileInput,
+		ec.unmarshalInputMoveFolderInput,
 		ec.unmarshalInputRegisterInput,
+		ec.unmarshalInputRenameFolderInput,
+		ec.unmarshalInputShareFolderToRoomInput,
 		ec.unmarshalInputUploadFileFromMapInput,
 		ec.unmarshalInputUploadFileInput,
 	)
@@ -881,10 +1111,26 @@ type UserFile {
   filename: String!
   mime_type: String!
   encryption_key: String!
+  folder_id: ID
   created_at: Time!
   updated_at: Time!
   user: User
   file: File
+  folder: Folder
+}
+
+# Folder types
+type Folder {
+  id: ID!
+  user_id: ID!
+  name: String!
+  parent_id: ID
+  created_at: Time!
+  updated_at: Time!
+  user: User
+  parent: Folder
+  children: [Folder!]!
+  files: [UserFile!]!
 }
 
 # Room collaboration types
@@ -903,6 +1149,7 @@ type Room {
   creator: User
   members: [RoomMember!]!
   files: [UserFile!]!
+  folders: [Folder!]!
 }
 
 type RoomMember {
@@ -932,6 +1179,7 @@ input UploadFileInput {
   size_bytes: Int!
   mime_type: String!
   encrypted_key: String!
+  folder_id: ID
   file_data: Upload!
 }
 
@@ -958,6 +1206,32 @@ input AddRoomMemberInput {
   room_id: ID!
   user_id: ID!
   role: RoomRole!
+}
+
+# Folder input types
+input CreateFolderInput {
+  name: String!
+  parent_id: ID
+}
+
+input RenameFolderInput {
+  id: ID!
+  name: String!
+}
+
+input MoveFolderInput {
+  id: ID!
+  parent_id: ID
+}
+
+input MoveFileInput {
+  id: ID!
+  folder_id: ID
+}
+
+input ShareFolderToRoomInput {
+  folder_id: ID!
+  room_id: ID!
 }
 
 # Statistics and admin types
@@ -987,6 +1261,10 @@ type Query {
   myRooms: [Room!]!
   room(id: ID!): Room
 
+  # Folder queries
+  myFolders: [Folder!]!
+  folder(id: ID!): Folder
+
   # Admin queries
   adminDashboard: AdminDashboard!
   allUsers: [User!]!
@@ -1000,6 +1278,7 @@ type Mutation {
   # Authentication
   register(input: RegisterInput!): AuthPayload!
   login(input: LoginInput!): AuthPayload!
+  logout: Boolean!
 
   # File operations
   uploadFile(input: UploadFileInput!): UserFile!
@@ -1015,6 +1294,15 @@ type Mutation {
   removeRoomMember(room_id: ID!, user_id: ID!): Boolean!
   shareFileToRoom(user_file_id: ID!, room_id: ID!): Boolean!
   removeFileFromRoom(user_file_id: ID!, room_id: ID!): Boolean!
+
+  # Folder operations
+  createFolder(input: CreateFolderInput!): Folder!
+  renameFolder(input: RenameFolderInput!): Boolean!
+  deleteFolder(id: ID!): Boolean!
+  moveFolder(input: MoveFolderInput!): Boolean!
+  moveFile(input: MoveFileInput!): Boolean!
+  shareFolderToRoom(input: ShareFolderToRoomInput!): Boolean!
+  removeFolderFromRoom(folder_id: ID!, room_id: ID!): Boolean!
 
   # Admin operations
   promoteUserToAdmin(user_id: ID!): Boolean!
@@ -1039,6 +1327,17 @@ func (ec *executionContext) field_Mutation_addRoomMember_args(ctx context.Contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createFolder_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNCreateFolderInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐCreateFolderInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createRoom_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -1051,6 +1350,17 @@ func (ec *executionContext) field_Mutation_createRoom_args(ctx context.Context, 
 }
 
 func (ec *executionContext) field_Mutation_deleteFile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteFolder_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
@@ -1087,6 +1397,28 @@ func (ec *executionContext) field_Mutation_login_args(ctx context.Context, rawAr
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNLoginInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐLoginInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_moveFile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMoveFileInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐMoveFileInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_moveFolder_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNMoveFolderInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐMoveFolderInput)
 	if err != nil {
 		return nil, err
 	}
@@ -1143,6 +1475,22 @@ func (ec *executionContext) field_Mutation_removeFileFromRoom_args(ctx context.C
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_removeFolderFromRoom_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "folder_id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["folder_id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "room_id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["room_id"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_removeRoomMember_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -1156,6 +1504,17 @@ func (ec *executionContext) field_Mutation_removeRoomMember_args(ctx context.Con
 		return nil, err
 	}
 	args["user_id"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_renameFolder_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNRenameFolderInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐRenameFolderInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -1183,6 +1542,17 @@ func (ec *executionContext) field_Mutation_shareFileToRoom_args(ctx context.Cont
 		return nil, err
 	}
 	args["room_id"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_shareFolderToRoom_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNShareFolderToRoomInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐShareFolderToRoomInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -1216,6 +1586,17 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 		return nil, err
 	}
 	args["name"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_folder_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -1299,9 +1680,7 @@ func (ec *executionContext) _AdminDashboard_total_users(ctx context.Context, fie
 		ec.OperationContext,
 		field,
 		ec.fieldContext_AdminDashboard_total_users,
-		func(ctx context.Context) (any, error) {
-			return obj.TotalUsers, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.TotalUsers, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -1328,9 +1707,7 @@ func (ec *executionContext) _AdminDashboard_total_files(ctx context.Context, fie
 		ec.OperationContext,
 		field,
 		ec.fieldContext_AdminDashboard_total_files,
-		func(ctx context.Context) (any, error) {
-			return obj.TotalFiles, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.TotalFiles, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -1357,9 +1734,7 @@ func (ec *executionContext) _AdminDashboard_total_storage_used(ctx context.Conte
 		ec.OperationContext,
 		field,
 		ec.fieldContext_AdminDashboard_total_storage_used,
-		func(ctx context.Context) (any, error) {
-			return obj.TotalStorageUsed, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.TotalStorageUsed, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -1386,9 +1761,7 @@ func (ec *executionContext) _AdminDashboard_recent_uploads(ctx context.Context, 
 		ec.OperationContext,
 		field,
 		ec.fieldContext_AdminDashboard_recent_uploads,
-		func(ctx context.Context) (any, error) {
-			return obj.RecentUploads, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.RecentUploads, nil },
 		nil,
 		ec.marshalNUserFile2ᚕᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUserFileᚄ,
 		true,
@@ -1416,6 +1789,8 @@ func (ec *executionContext) fieldContext_AdminDashboard_recent_uploads(_ context
 				return ec.fieldContext_UserFile_mime_type(ctx, field)
 			case "encryption_key":
 				return ec.fieldContext_UserFile_encryption_key(ctx, field)
+			case "folder_id":
+				return ec.fieldContext_UserFile_folder_id(ctx, field)
 			case "created_at":
 				return ec.fieldContext_UserFile_created_at(ctx, field)
 			case "updated_at":
@@ -1424,6 +1799,8 @@ func (ec *executionContext) fieldContext_AdminDashboard_recent_uploads(_ context
 				return ec.fieldContext_UserFile_user(ctx, field)
 			case "file":
 				return ec.fieldContext_UserFile_file(ctx, field)
+			case "folder":
+				return ec.fieldContext_UserFile_folder(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type UserFile", field.Name)
 		},
@@ -1437,9 +1814,7 @@ func (ec *executionContext) _AuthPayload_token(ctx context.Context, field graphq
 		ec.OperationContext,
 		field,
 		ec.fieldContext_AuthPayload_token,
-		func(ctx context.Context) (any, error) {
-			return obj.Token, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Token, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -1466,9 +1841,7 @@ func (ec *executionContext) _AuthPayload_user(ctx context.Context, field graphql
 		ec.OperationContext,
 		field,
 		ec.fieldContext_AuthPayload_user,
-		func(ctx context.Context) (any, error) {
-			return obj.User, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.User, nil },
 		nil,
 		ec.marshalNUser2ᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUser,
 		true,
@@ -1538,9 +1911,7 @@ func (ec *executionContext) _File_content_hash(ctx context.Context, field graphq
 		ec.OperationContext,
 		field,
 		ec.fieldContext_File_content_hash,
-		func(ctx context.Context) (any, error) {
-			return obj.ContentHash, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.ContentHash, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -1567,9 +1938,7 @@ func (ec *executionContext) _File_size_bytes(ctx context.Context, field graphql.
 		ec.OperationContext,
 		field,
 		ec.fieldContext_File_size_bytes,
-		func(ctx context.Context) (any, error) {
-			return obj.SizeBytes, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.SizeBytes, nil },
 		nil,
 		ec.marshalNInt2int64,
 		true,
@@ -1596,9 +1965,7 @@ func (ec *executionContext) _File_created_at(ctx context.Context, field graphql.
 		ec.OperationContext,
 		field,
 		ec.fieldContext_File_created_at,
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.CreatedAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -1614,6 +1981,366 @@ func (ec *executionContext) fieldContext_File_created_at(_ context.Context, fiel
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Folder_id(ctx context.Context, field graphql.CollectedField, obj *models.Folder) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Folder_id,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Folder().ID(ctx, obj)
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Folder_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Folder",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Folder_user_id(ctx context.Context, field graphql.CollectedField, obj *models.Folder) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Folder_user_id,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Folder().UserID(ctx, obj)
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Folder_user_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Folder",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Folder_name(ctx context.Context, field graphql.CollectedField, obj *models.Folder) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Folder_name,
+		func(ctx context.Context) (any, error) { return obj.Name, nil },
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Folder_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Folder",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Folder_parent_id(ctx context.Context, field graphql.CollectedField, obj *models.Folder) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Folder_parent_id,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Folder().ParentID(ctx, obj)
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Folder_parent_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Folder",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Folder_created_at(ctx context.Context, field graphql.CollectedField, obj *models.Folder) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Folder_created_at,
+		func(ctx context.Context) (any, error) { return obj.CreatedAt, nil },
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Folder_created_at(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Folder",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Folder_updated_at(ctx context.Context, field graphql.CollectedField, obj *models.Folder) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Folder_updated_at,
+		func(ctx context.Context) (any, error) { return obj.UpdatedAt, nil },
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Folder_updated_at(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Folder",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Folder_user(ctx context.Context, field graphql.CollectedField, obj *models.Folder) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Folder_user,
+		func(ctx context.Context) (any, error) { return obj.User, nil },
+		nil,
+		ec.marshalOUser2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUser,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Folder_user(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Folder",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_User_id(ctx, field)
+			case "email":
+				return ec.fieldContext_User_email(ctx, field)
+			case "storage_quota":
+				return ec.fieldContext_User_storage_quota(ctx, field)
+			case "used_storage":
+				return ec.fieldContext_User_used_storage(ctx, field)
+			case "is_admin":
+				return ec.fieldContext_User_is_admin(ctx, field)
+			case "created_at":
+				return ec.fieldContext_User_created_at(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Folder_parent(ctx context.Context, field graphql.CollectedField, obj *models.Folder) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Folder_parent,
+		func(ctx context.Context) (any, error) { return obj.Parent, nil },
+		nil,
+		ec.marshalOFolder2ᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐFolder,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Folder_parent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Folder",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Folder_id(ctx, field)
+			case "user_id":
+				return ec.fieldContext_Folder_user_id(ctx, field)
+			case "name":
+				return ec.fieldContext_Folder_name(ctx, field)
+			case "parent_id":
+				return ec.fieldContext_Folder_parent_id(ctx, field)
+			case "created_at":
+				return ec.fieldContext_Folder_created_at(ctx, field)
+			case "updated_at":
+				return ec.fieldContext_Folder_updated_at(ctx, field)
+			case "user":
+				return ec.fieldContext_Folder_user(ctx, field)
+			case "parent":
+				return ec.fieldContext_Folder_parent(ctx, field)
+			case "children":
+				return ec.fieldContext_Folder_children(ctx, field)
+			case "files":
+				return ec.fieldContext_Folder_files(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Folder", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Folder_children(ctx context.Context, field graphql.CollectedField, obj *models.Folder) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Folder_children,
+		func(ctx context.Context) (any, error) { return obj.Children, nil },
+		nil,
+		ec.marshalNFolder2ᚕᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐFolderᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Folder_children(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Folder",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Folder_id(ctx, field)
+			case "user_id":
+				return ec.fieldContext_Folder_user_id(ctx, field)
+			case "name":
+				return ec.fieldContext_Folder_name(ctx, field)
+			case "parent_id":
+				return ec.fieldContext_Folder_parent_id(ctx, field)
+			case "created_at":
+				return ec.fieldContext_Folder_created_at(ctx, field)
+			case "updated_at":
+				return ec.fieldContext_Folder_updated_at(ctx, field)
+			case "user":
+				return ec.fieldContext_Folder_user(ctx, field)
+			case "parent":
+				return ec.fieldContext_Folder_parent(ctx, field)
+			case "children":
+				return ec.fieldContext_Folder_children(ctx, field)
+			case "files":
+				return ec.fieldContext_Folder_files(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Folder", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Folder_files(ctx context.Context, field graphql.CollectedField, obj *models.Folder) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Folder_files,
+		func(ctx context.Context) (any, error) { return obj.Files, nil },
+		nil,
+		ec.marshalNUserFile2ᚕᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUserFileᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Folder_files(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Folder",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_UserFile_id(ctx, field)
+			case "user_id":
+				return ec.fieldContext_UserFile_user_id(ctx, field)
+			case "file_id":
+				return ec.fieldContext_UserFile_file_id(ctx, field)
+			case "filename":
+				return ec.fieldContext_UserFile_filename(ctx, field)
+			case "mime_type":
+				return ec.fieldContext_UserFile_mime_type(ctx, field)
+			case "encryption_key":
+				return ec.fieldContext_UserFile_encryption_key(ctx, field)
+			case "folder_id":
+				return ec.fieldContext_UserFile_folder_id(ctx, field)
+			case "created_at":
+				return ec.fieldContext_UserFile_created_at(ctx, field)
+			case "updated_at":
+				return ec.fieldContext_UserFile_updated_at(ctx, field)
+			case "user":
+				return ec.fieldContext_UserFile_user(ctx, field)
+			case "file":
+				return ec.fieldContext_UserFile_file(ctx, field)
+			case "folder":
+				return ec.fieldContext_UserFile_folder(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type UserFile", field.Name)
 		},
 	}
 	return fc, nil
@@ -1713,6 +2440,35 @@ func (ec *executionContext) fieldContext_Mutation_login(ctx context.Context, fie
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_logout(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_logout,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Mutation().Logout(ctx)
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_logout(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_uploadFile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -1750,6 +2506,8 @@ func (ec *executionContext) fieldContext_Mutation_uploadFile(ctx context.Context
 				return ec.fieldContext_UserFile_mime_type(ctx, field)
 			case "encryption_key":
 				return ec.fieldContext_UserFile_encryption_key(ctx, field)
+			case "folder_id":
+				return ec.fieldContext_UserFile_folder_id(ctx, field)
 			case "created_at":
 				return ec.fieldContext_UserFile_created_at(ctx, field)
 			case "updated_at":
@@ -1758,6 +2516,8 @@ func (ec *executionContext) fieldContext_Mutation_uploadFile(ctx context.Context
 				return ec.fieldContext_UserFile_user(ctx, field)
 			case "file":
 				return ec.fieldContext_UserFile_file(ctx, field)
+			case "folder":
+				return ec.fieldContext_UserFile_folder(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type UserFile", field.Name)
 		},
@@ -1813,6 +2573,8 @@ func (ec *executionContext) fieldContext_Mutation_uploadFileFromMap(ctx context.
 				return ec.fieldContext_UserFile_mime_type(ctx, field)
 			case "encryption_key":
 				return ec.fieldContext_UserFile_encryption_key(ctx, field)
+			case "folder_id":
+				return ec.fieldContext_UserFile_folder_id(ctx, field)
 			case "created_at":
 				return ec.fieldContext_UserFile_created_at(ctx, field)
 			case "updated_at":
@@ -1821,6 +2583,8 @@ func (ec *executionContext) fieldContext_Mutation_uploadFileFromMap(ctx context.
 				return ec.fieldContext_UserFile_user(ctx, field)
 			case "file":
 				return ec.fieldContext_UserFile_file(ctx, field)
+			case "folder":
+				return ec.fieldContext_UserFile_folder(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type UserFile", field.Name)
 		},
@@ -2042,6 +2806,8 @@ func (ec *executionContext) fieldContext_Mutation_createRoom(ctx context.Context
 				return ec.fieldContext_Room_members(ctx, field)
 			case "files":
 				return ec.fieldContext_Room_files(ctx, field)
+			case "folders":
+				return ec.fieldContext_Room_folders(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Room", field.Name)
 		},
@@ -2224,6 +2990,315 @@ func (ec *executionContext) fieldContext_Mutation_removeFileFromRoom(ctx context
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_createFolder(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_createFolder,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().CreateFolder(ctx, fc.Args["input"].(model.CreateFolderInput))
+		},
+		nil,
+		ec.marshalNFolder2ᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐFolder,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_createFolder(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Folder_id(ctx, field)
+			case "user_id":
+				return ec.fieldContext_Folder_user_id(ctx, field)
+			case "name":
+				return ec.fieldContext_Folder_name(ctx, field)
+			case "parent_id":
+				return ec.fieldContext_Folder_parent_id(ctx, field)
+			case "created_at":
+				return ec.fieldContext_Folder_created_at(ctx, field)
+			case "updated_at":
+				return ec.fieldContext_Folder_updated_at(ctx, field)
+			case "user":
+				return ec.fieldContext_Folder_user(ctx, field)
+			case "parent":
+				return ec.fieldContext_Folder_parent(ctx, field)
+			case "children":
+				return ec.fieldContext_Folder_children(ctx, field)
+			case "files":
+				return ec.fieldContext_Folder_files(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Folder", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createFolder_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_renameFolder(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_renameFolder,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().RenameFolder(ctx, fc.Args["input"].(model.RenameFolderInput))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_renameFolder(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_renameFolder_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteFolder(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_deleteFolder,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().DeleteFolder(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteFolder(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteFolder_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_moveFolder(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_moveFolder,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().MoveFolder(ctx, fc.Args["input"].(model.MoveFolderInput))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_moveFolder(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_moveFolder_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_moveFile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_moveFile,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().MoveFile(ctx, fc.Args["input"].(model.MoveFileInput))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_moveFile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_moveFile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_shareFolderToRoom(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_shareFolderToRoom,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().ShareFolderToRoom(ctx, fc.Args["input"].(model.ShareFolderToRoomInput))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_shareFolderToRoom(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_shareFolderToRoom_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_removeFolderFromRoom(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_removeFolderFromRoom,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().RemoveFolderFromRoom(ctx, fc.Args["folder_id"].(string), fc.Args["room_id"].(string))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_removeFolderFromRoom(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_removeFolderFromRoom_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_promoteUserToAdmin(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -2386,6 +3461,8 @@ func (ec *executionContext) fieldContext_Query_myFiles(ctx context.Context, fiel
 				return ec.fieldContext_UserFile_mime_type(ctx, field)
 			case "encryption_key":
 				return ec.fieldContext_UserFile_encryption_key(ctx, field)
+			case "folder_id":
+				return ec.fieldContext_UserFile_folder_id(ctx, field)
 			case "created_at":
 				return ec.fieldContext_UserFile_created_at(ctx, field)
 			case "updated_at":
@@ -2394,6 +3471,8 @@ func (ec *executionContext) fieldContext_Query_myFiles(ctx context.Context, fiel
 				return ec.fieldContext_UserFile_user(ctx, field)
 			case "file":
 				return ec.fieldContext_UserFile_file(ctx, field)
+			case "folder":
+				return ec.fieldContext_UserFile_folder(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type UserFile", field.Name)
 		},
@@ -2448,6 +3527,8 @@ func (ec *executionContext) fieldContext_Query_myTrashedFiles(_ context.Context,
 				return ec.fieldContext_UserFile_mime_type(ctx, field)
 			case "encryption_key":
 				return ec.fieldContext_UserFile_encryption_key(ctx, field)
+			case "folder_id":
+				return ec.fieldContext_UserFile_folder_id(ctx, field)
 			case "created_at":
 				return ec.fieldContext_UserFile_created_at(ctx, field)
 			case "updated_at":
@@ -2456,6 +3537,8 @@ func (ec *executionContext) fieldContext_Query_myTrashedFiles(_ context.Context,
 				return ec.fieldContext_UserFile_user(ctx, field)
 			case "file":
 				return ec.fieldContext_UserFile_file(ctx, field)
+			case "folder":
+				return ec.fieldContext_UserFile_folder(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type UserFile", field.Name)
 		},
@@ -2540,6 +3623,8 @@ func (ec *executionContext) fieldContext_Query_myRooms(_ context.Context, field 
 				return ec.fieldContext_Room_members(ctx, field)
 			case "files":
 				return ec.fieldContext_Room_files(ctx, field)
+			case "folders":
+				return ec.fieldContext_Room_folders(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Room", field.Name)
 		},
@@ -2586,6 +3671,8 @@ func (ec *executionContext) fieldContext_Query_room(ctx context.Context, field g
 				return ec.fieldContext_Room_members(ctx, field)
 			case "files":
 				return ec.fieldContext_Room_files(ctx, field)
+			case "folders":
+				return ec.fieldContext_Room_folders(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Room", field.Name)
 		},
@@ -2598,6 +3685,120 @@ func (ec *executionContext) fieldContext_Query_room(ctx context.Context, field g
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_room_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_myFolders(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_myFolders,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Query().MyFolders(ctx)
+		},
+		nil,
+		ec.marshalNFolder2ᚕᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐFolderᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_myFolders(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Folder_id(ctx, field)
+			case "user_id":
+				return ec.fieldContext_Folder_user_id(ctx, field)
+			case "name":
+				return ec.fieldContext_Folder_name(ctx, field)
+			case "parent_id":
+				return ec.fieldContext_Folder_parent_id(ctx, field)
+			case "created_at":
+				return ec.fieldContext_Folder_created_at(ctx, field)
+			case "updated_at":
+				return ec.fieldContext_Folder_updated_at(ctx, field)
+			case "user":
+				return ec.fieldContext_Folder_user(ctx, field)
+			case "parent":
+				return ec.fieldContext_Folder_parent(ctx, field)
+			case "children":
+				return ec.fieldContext_Folder_children(ctx, field)
+			case "files":
+				return ec.fieldContext_Folder_files(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Folder", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_folder(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_folder,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().Folder(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		ec.marshalOFolder2ᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐFolder,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_folder(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Folder_id(ctx, field)
+			case "user_id":
+				return ec.fieldContext_Folder_user_id(ctx, field)
+			case "name":
+				return ec.fieldContext_Folder_name(ctx, field)
+			case "parent_id":
+				return ec.fieldContext_Folder_parent_id(ctx, field)
+			case "created_at":
+				return ec.fieldContext_Folder_created_at(ctx, field)
+			case "updated_at":
+				return ec.fieldContext_Folder_updated_at(ctx, field)
+			case "user":
+				return ec.fieldContext_Folder_user(ctx, field)
+			case "parent":
+				return ec.fieldContext_Folder_parent(ctx, field)
+			case "children":
+				return ec.fieldContext_Folder_children(ctx, field)
+			case "files":
+				return ec.fieldContext_Folder_files(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Folder", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_folder_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -2722,6 +3923,8 @@ func (ec *executionContext) fieldContext_Query_allFiles(_ context.Context, field
 				return ec.fieldContext_UserFile_mime_type(ctx, field)
 			case "encryption_key":
 				return ec.fieldContext_UserFile_encryption_key(ctx, field)
+			case "folder_id":
+				return ec.fieldContext_UserFile_folder_id(ctx, field)
 			case "created_at":
 				return ec.fieldContext_UserFile_created_at(ctx, field)
 			case "updated_at":
@@ -2730,6 +3933,8 @@ func (ec *executionContext) fieldContext_Query_allFiles(_ context.Context, field
 				return ec.fieldContext_UserFile_user(ctx, field)
 			case "file":
 				return ec.fieldContext_UserFile_file(ctx, field)
+			case "folder":
+				return ec.fieldContext_UserFile_folder(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type UserFile", field.Name)
 		},
@@ -2909,9 +4114,7 @@ func (ec *executionContext) _Room_name(ctx context.Context, field graphql.Collec
 		ec.OperationContext,
 		field,
 		ec.fieldContext_Room_name,
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Name, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -2967,9 +4170,7 @@ func (ec *executionContext) _Room_created_at(ctx context.Context, field graphql.
 		ec.OperationContext,
 		field,
 		ec.fieldContext_Room_created_at,
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.CreatedAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -2996,9 +4197,7 @@ func (ec *executionContext) _Room_creator(ctx context.Context, field graphql.Col
 		ec.OperationContext,
 		field,
 		ec.fieldContext_Room_creator,
-		func(ctx context.Context) (any, error) {
-			return obj.Creator, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Creator, nil },
 		nil,
 		ec.marshalOUser2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUser,
 		true,
@@ -3039,9 +4238,7 @@ func (ec *executionContext) _Room_members(ctx context.Context, field graphql.Col
 		ec.OperationContext,
 		field,
 		ec.fieldContext_Room_members,
-		func(ctx context.Context) (any, error) {
-			return obj.Members, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Members, nil },
 		nil,
 		ec.marshalNRoomMember2ᚕᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐRoomMemberᚄ,
 		true,
@@ -3084,9 +4281,7 @@ func (ec *executionContext) _Room_files(ctx context.Context, field graphql.Colle
 		ec.OperationContext,
 		field,
 		ec.fieldContext_Room_files,
-		func(ctx context.Context) (any, error) {
-			return obj.Files, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Files, nil },
 		nil,
 		ec.marshalNUserFile2ᚕᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUserFileᚄ,
 		true,
@@ -3114,6 +4309,8 @@ func (ec *executionContext) fieldContext_Room_files(_ context.Context, field gra
 				return ec.fieldContext_UserFile_mime_type(ctx, field)
 			case "encryption_key":
 				return ec.fieldContext_UserFile_encryption_key(ctx, field)
+			case "folder_id":
+				return ec.fieldContext_UserFile_folder_id(ctx, field)
 			case "created_at":
 				return ec.fieldContext_UserFile_created_at(ctx, field)
 			case "updated_at":
@@ -3122,8 +4319,61 @@ func (ec *executionContext) fieldContext_Room_files(_ context.Context, field gra
 				return ec.fieldContext_UserFile_user(ctx, field)
 			case "file":
 				return ec.fieldContext_UserFile_file(ctx, field)
+			case "folder":
+				return ec.fieldContext_UserFile_folder(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type UserFile", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Room_folders(ctx context.Context, field graphql.CollectedField, obj *models.Room) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Room_folders,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Room().Folders(ctx, obj)
+		},
+		nil,
+		ec.marshalNFolder2ᚕᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐFolderᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Room_folders(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Room",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Folder_id(ctx, field)
+			case "user_id":
+				return ec.fieldContext_Folder_user_id(ctx, field)
+			case "name":
+				return ec.fieldContext_Folder_name(ctx, field)
+			case "parent_id":
+				return ec.fieldContext_Folder_parent_id(ctx, field)
+			case "created_at":
+				return ec.fieldContext_Folder_created_at(ctx, field)
+			case "updated_at":
+				return ec.fieldContext_Folder_updated_at(ctx, field)
+			case "user":
+				return ec.fieldContext_Folder_user(ctx, field)
+			case "parent":
+				return ec.fieldContext_Folder_parent(ctx, field)
+			case "children":
+				return ec.fieldContext_Folder_children(ctx, field)
+			case "files":
+				return ec.fieldContext_Folder_files(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Folder", field.Name)
 		},
 	}
 	return fc, nil
@@ -3222,9 +4472,7 @@ func (ec *executionContext) _RoomMember_role(ctx context.Context, field graphql.
 		ec.OperationContext,
 		field,
 		ec.fieldContext_RoomMember_role,
-		func(ctx context.Context) (any, error) {
-			return obj.Role, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Role, nil },
 		nil,
 		ec.marshalNRoomRole2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐRoomRole,
 		true,
@@ -3251,9 +4499,7 @@ func (ec *executionContext) _RoomMember_created_at(ctx context.Context, field gr
 		ec.OperationContext,
 		field,
 		ec.fieldContext_RoomMember_created_at,
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.CreatedAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -3280,9 +4526,7 @@ func (ec *executionContext) _RoomMember_room(ctx context.Context, field graphql.
 		ec.OperationContext,
 		field,
 		ec.fieldContext_RoomMember_room,
-		func(ctx context.Context) (any, error) {
-			return obj.Room, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Room, nil },
 		nil,
 		ec.marshalORoom2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐRoom,
 		true,
@@ -3312,6 +4556,8 @@ func (ec *executionContext) fieldContext_RoomMember_room(_ context.Context, fiel
 				return ec.fieldContext_Room_members(ctx, field)
 			case "files":
 				return ec.fieldContext_Room_files(ctx, field)
+			case "folders":
+				return ec.fieldContext_Room_folders(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Room", field.Name)
 		},
@@ -3325,9 +4571,7 @@ func (ec *executionContext) _RoomMember_user(ctx context.Context, field graphql.
 		ec.OperationContext,
 		field,
 		ec.fieldContext_RoomMember_user,
-		func(ctx context.Context) (any, error) {
-			return obj.User, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.User, nil },
 		nil,
 		ec.marshalOUser2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUser,
 		true,
@@ -3397,9 +4641,7 @@ func (ec *executionContext) _User_email(ctx context.Context, field graphql.Colle
 		ec.OperationContext,
 		field,
 		ec.fieldContext_User_email,
-		func(ctx context.Context) (any, error) {
-			return obj.Email, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Email, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -3426,9 +4668,7 @@ func (ec *executionContext) _User_storage_quota(ctx context.Context, field graph
 		ec.OperationContext,
 		field,
 		ec.fieldContext_User_storage_quota,
-		func(ctx context.Context) (any, error) {
-			return obj.StorageQuota, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.StorageQuota, nil },
 		nil,
 		ec.marshalNInt2int64,
 		true,
@@ -3455,9 +4695,7 @@ func (ec *executionContext) _User_used_storage(ctx context.Context, field graphq
 		ec.OperationContext,
 		field,
 		ec.fieldContext_User_used_storage,
-		func(ctx context.Context) (any, error) {
-			return obj.UsedStorage, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.UsedStorage, nil },
 		nil,
 		ec.marshalNInt2int64,
 		true,
@@ -3484,9 +4722,7 @@ func (ec *executionContext) _User_is_admin(ctx context.Context, field graphql.Co
 		ec.OperationContext,
 		field,
 		ec.fieldContext_User_is_admin,
-		func(ctx context.Context) (any, error) {
-			return obj.IsAdmin, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.IsAdmin, nil },
 		nil,
 		ec.marshalNBoolean2bool,
 		true,
@@ -3513,9 +4749,7 @@ func (ec *executionContext) _User_created_at(ctx context.Context, field graphql.
 		ec.OperationContext,
 		field,
 		ec.fieldContext_User_created_at,
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.CreatedAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -3629,9 +4863,7 @@ func (ec *executionContext) _UserFile_filename(ctx context.Context, field graphq
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserFile_filename,
-		func(ctx context.Context) (any, error) {
-			return obj.Filename, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Filename, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -3658,9 +4890,7 @@ func (ec *executionContext) _UserFile_mime_type(ctx context.Context, field graph
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserFile_mime_type,
-		func(ctx context.Context) (any, error) {
-			return obj.MimeType, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.MimeType, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -3710,15 +4940,42 @@ func (ec *executionContext) fieldContext_UserFile_encryption_key(_ context.Conte
 	return fc, nil
 }
 
+func (ec *executionContext) _UserFile_folder_id(ctx context.Context, field graphql.CollectedField, obj *models.UserFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_UserFile_folder_id,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.UserFile().FolderID(ctx, obj)
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_UserFile_folder_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UserFile",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _UserFile_created_at(ctx context.Context, field graphql.CollectedField, obj *models.UserFile) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserFile_created_at,
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.CreatedAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -3745,9 +5002,7 @@ func (ec *executionContext) _UserFile_updated_at(ctx context.Context, field grap
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserFile_updated_at,
-		func(ctx context.Context) (any, error) {
-			return obj.UpdatedAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.UpdatedAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -3774,9 +5029,7 @@ func (ec *executionContext) _UserFile_user(ctx context.Context, field graphql.Co
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserFile_user,
-		func(ctx context.Context) (any, error) {
-			return obj.User, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.User, nil },
 		nil,
 		ec.marshalOUser2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUser,
 		true,
@@ -3817,9 +5070,7 @@ func (ec *executionContext) _UserFile_file(ctx context.Context, field graphql.Co
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserFile_file,
-		func(ctx context.Context) (any, error) {
-			return obj.File, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.File, nil },
 		nil,
 		ec.marshalOFile2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐFile,
 		true,
@@ -3850,15 +5101,62 @@ func (ec *executionContext) fieldContext_UserFile_file(_ context.Context, field 
 	return fc, nil
 }
 
+func (ec *executionContext) _UserFile_folder(ctx context.Context, field graphql.CollectedField, obj *models.UserFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_UserFile_folder,
+		func(ctx context.Context) (any, error) { return obj.Folder, nil },
+		nil,
+		ec.marshalOFolder2ᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐFolder,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_UserFile_folder(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UserFile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Folder_id(ctx, field)
+			case "user_id":
+				return ec.fieldContext_Folder_user_id(ctx, field)
+			case "name":
+				return ec.fieldContext_Folder_name(ctx, field)
+			case "parent_id":
+				return ec.fieldContext_Folder_parent_id(ctx, field)
+			case "created_at":
+				return ec.fieldContext_Folder_created_at(ctx, field)
+			case "updated_at":
+				return ec.fieldContext_Folder_updated_at(ctx, field)
+			case "user":
+				return ec.fieldContext_Folder_user(ctx, field)
+			case "parent":
+				return ec.fieldContext_Folder_parent(ctx, field)
+			case "children":
+				return ec.fieldContext_Folder_children(ctx, field)
+			case "files":
+				return ec.fieldContext_Folder_files(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Folder", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _UserStats_total_files(ctx context.Context, field graphql.CollectedField, obj *model.UserStats) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserStats_total_files,
-		func(ctx context.Context) (any, error) {
-			return obj.TotalFiles, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.TotalFiles, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -3885,9 +5183,7 @@ func (ec *executionContext) _UserStats_used_storage(ctx context.Context, field g
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserStats_used_storage,
-		func(ctx context.Context) (any, error) {
-			return obj.UsedStorage, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.UsedStorage, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -3914,9 +5210,7 @@ func (ec *executionContext) _UserStats_storage_quota(ctx context.Context, field 
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserStats_storage_quota,
-		func(ctx context.Context) (any, error) {
-			return obj.StorageQuota, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.StorageQuota, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -3943,9 +5237,7 @@ func (ec *executionContext) _UserStats_storage_savings(ctx context.Context, fiel
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserStats_storage_savings,
-		func(ctx context.Context) (any, error) {
-			return obj.StorageSavings, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.StorageSavings, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -3972,9 +5264,7 @@ func (ec *executionContext) ___Directive_name(ctx context.Context, field graphql
 		ec.OperationContext,
 		field,
 		ec.fieldContext___Directive_name,
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Name, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -4030,9 +5320,7 @@ func (ec *executionContext) ___Directive_isRepeatable(ctx context.Context, field
 		ec.OperationContext,
 		field,
 		ec.fieldContext___Directive_isRepeatable,
-		func(ctx context.Context) (any, error) {
-			return obj.IsRepeatable, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.IsRepeatable, nil },
 		nil,
 		ec.marshalNBoolean2bool,
 		true,
@@ -4059,9 +5347,7 @@ func (ec *executionContext) ___Directive_locations(ctx context.Context, field gr
 		ec.OperationContext,
 		field,
 		ec.fieldContext___Directive_locations,
-		func(ctx context.Context) (any, error) {
-			return obj.Locations, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Locations, nil },
 		nil,
 		ec.marshalN__DirectiveLocation2ᚕstringᚄ,
 		true,
@@ -4088,9 +5374,7 @@ func (ec *executionContext) ___Directive_args(ctx context.Context, field graphql
 		ec.OperationContext,
 		field,
 		ec.fieldContext___Directive_args,
-		func(ctx context.Context) (any, error) {
-			return obj.Args, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Args, nil },
 		nil,
 		ec.marshalN__InputValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐInputValueᚄ,
 		true,
@@ -4142,9 +5426,7 @@ func (ec *executionContext) ___EnumValue_name(ctx context.Context, field graphql
 		ec.OperationContext,
 		field,
 		ec.fieldContext___EnumValue_name,
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Name, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -4258,9 +5540,7 @@ func (ec *executionContext) ___Field_name(ctx context.Context, field graphql.Col
 		ec.OperationContext,
 		field,
 		ec.fieldContext___Field_name,
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Name, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -4316,9 +5596,7 @@ func (ec *executionContext) ___Field_args(ctx context.Context, field graphql.Col
 		ec.OperationContext,
 		field,
 		ec.fieldContext___Field_args,
-		func(ctx context.Context) (any, error) {
-			return obj.Args, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Args, nil },
 		nil,
 		ec.marshalN__InputValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐInputValueᚄ,
 		true,
@@ -4370,9 +5648,7 @@ func (ec *executionContext) ___Field_type(ctx context.Context, field graphql.Col
 		ec.OperationContext,
 		field,
 		ec.fieldContext___Field_type,
-		func(ctx context.Context) (any, error) {
-			return obj.Type, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Type, nil },
 		nil,
 		ec.marshalN__Type2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐType,
 		true,
@@ -4481,9 +5757,7 @@ func (ec *executionContext) ___InputValue_name(ctx context.Context, field graphq
 		ec.OperationContext,
 		field,
 		ec.fieldContext___InputValue_name,
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Name, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -4539,9 +5813,7 @@ func (ec *executionContext) ___InputValue_type(ctx context.Context, field graphq
 		ec.OperationContext,
 		field,
 		ec.fieldContext___InputValue_type,
-		func(ctx context.Context) (any, error) {
-			return obj.Type, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Type, nil },
 		nil,
 		ec.marshalN__Type2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐType,
 		true,
@@ -4592,9 +5864,7 @@ func (ec *executionContext) ___InputValue_defaultValue(ctx context.Context, fiel
 		ec.OperationContext,
 		field,
 		ec.fieldContext___InputValue_defaultValue,
-		func(ctx context.Context) (any, error) {
-			return obj.DefaultValue, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.DefaultValue, nil },
 		nil,
 		ec.marshalOString2ᚖstring,
 		true,
@@ -5453,6 +6723,40 @@ func (ec *executionContext) unmarshalInputAddRoomMemberInput(ctx context.Context
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputCreateFolderInput(ctx context.Context, obj any) (model.CreateFolderInput, error) {
+	var it model.CreateFolderInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "parent_id"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "parent_id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("parent_id"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ParentID = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateRoomInput(ctx context.Context, obj any) (model.CreateRoomInput, error) {
 	var it model.CreateRoomInput
 	asMap := map[string]any{}
@@ -5583,6 +6887,74 @@ func (ec *executionContext) unmarshalInputLoginInput(ctx context.Context, obj an
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputMoveFileInput(ctx context.Context, obj any) (model.MoveFileInput, error) {
+	var it model.MoveFileInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "folder_id"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "folder_id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("folder_id"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FolderID = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMoveFolderInput(ctx context.Context, obj any) (model.MoveFolderInput, error) {
+	var it model.MoveFolderInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "parent_id"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "parent_id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("parent_id"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ParentID = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputRegisterInput(ctx context.Context, obj any) (model.RegisterInput, error) {
 	var it model.RegisterInput
 	asMap := map[string]any{}
@@ -5611,6 +6983,74 @@ func (ec *executionContext) unmarshalInputRegisterInput(ctx context.Context, obj
 				return it, err
 			}
 			it.Password = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputRenameFolderInput(ctx context.Context, obj any) (model.RenameFolderInput, error) {
+	var it model.RenameFolderInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "name"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputShareFolderToRoomInput(ctx context.Context, obj any) (model.ShareFolderToRoomInput, error) {
+	var it model.ShareFolderToRoomInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"folder_id", "room_id"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "folder_id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("folder_id"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FolderID = data
+		case "room_id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("room_id"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RoomID = data
 		}
 	}
 
@@ -5651,7 +7091,7 @@ func (ec *executionContext) unmarshalInputUploadFileInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"filename", "content_hash", "size_bytes", "mime_type", "encrypted_key", "file_data"}
+	fieldsInOrder := [...]string{"filename", "content_hash", "size_bytes", "mime_type", "encrypted_key", "folder_id", "file_data"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -5693,6 +7133,13 @@ func (ec *executionContext) unmarshalInputUploadFileInput(ctx context.Context, o
 				return it, err
 			}
 			it.EncryptedKey = data
+		case "folder_id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("folder_id"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FolderID = data
 		case "file_data":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("file_data"))
 			data, err := ec.unmarshalNUpload2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚐUpload(ctx, v)
@@ -5897,6 +7344,174 @@ func (ec *executionContext) _File(ctx context.Context, sel ast.SelectionSet, obj
 	return out
 }
 
+var folderImplementors = []string{"Folder"}
+
+func (ec *executionContext) _Folder(ctx context.Context, sel ast.SelectionSet, obj *models.Folder) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, folderImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Folder")
+		case "id":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Folder_id(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "user_id":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Folder_user_id(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "name":
+			out.Values[i] = ec._Folder_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "parent_id":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Folder_parent_id(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "created_at":
+			out.Values[i] = ec._Folder_created_at(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "updated_at":
+			out.Values[i] = ec._Folder_updated_at(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "user":
+			out.Values[i] = ec._Folder_user(ctx, field, obj)
+		case "parent":
+			out.Values[i] = ec._Folder_parent(ctx, field, obj)
+		case "children":
+			out.Values[i] = ec._Folder_children(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "files":
+			out.Values[i] = ec._Folder_files(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var mutationImplementors = []string{"Mutation"}
 
 func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -5926,6 +7541,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "login":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_login(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "logout":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_logout(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -6003,6 +7625,55 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "removeFileFromRoom":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_removeFileFromRoom(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createFolder":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createFolder(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "renameFolder":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_renameFolder(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteFolder":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteFolder(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "moveFolder":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_moveFolder(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "moveFile":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_moveFile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "shareFolderToRoom":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_shareFolderToRoom(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "removeFolderFromRoom":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_removeFolderFromRoom(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -6183,6 +7854,47 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_room(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "myFolders":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_myFolders(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "folder":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_folder(ctx, field)
 				return res
 			}
 
@@ -6416,6 +8128,42 @@ func (ec *executionContext) _Room(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "folders":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Room_folders(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -6855,6 +8603,39 @@ func (ec *executionContext) _UserFile(ctx context.Context, sel ast.SelectionSet,
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "folder_id":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._UserFile_folder_id(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "created_at":
 			out.Values[i] = ec._UserFile_created_at(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -6869,6 +8650,8 @@ func (ec *executionContext) _UserFile(ctx context.Context, sel ast.SelectionSet,
 			out.Values[i] = ec._UserFile_user(ctx, field, obj)
 		case "file":
 			out.Values[i] = ec._UserFile_file(ctx, field, obj)
+		case "folder":
+			out.Values[i] = ec._UserFile_folder(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -7330,9 +9113,72 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
+func (ec *executionContext) unmarshalNCreateFolderInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐCreateFolderInput(ctx context.Context, v any) (model.CreateFolderInput, error) {
+	res, err := ec.unmarshalInputCreateFolderInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNCreateRoomInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐCreateRoomInput(ctx context.Context, v any) (model.CreateRoomInput, error) {
 	res, err := ec.unmarshalInputCreateRoomInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNFolder2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐFolder(ctx context.Context, sel ast.SelectionSet, v models.Folder) graphql.Marshaler {
+	return ec._Folder(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNFolder2ᚕᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐFolderᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.Folder) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNFolder2ᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐFolder(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFolder2ᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐFolder(ctx context.Context, sel ast.SelectionSet, v *models.Folder) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Folder(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNID2string(ctx context.Context, v any) (string, error) {
@@ -7388,8 +9234,23 @@ func (ec *executionContext) unmarshalNLoginInput2githubᚗcomᚋbalkanidᚋaegis
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNMoveFileInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐMoveFileInput(ctx context.Context, v any) (model.MoveFileInput, error) {
+	res, err := ec.unmarshalInputMoveFileInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNMoveFolderInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐMoveFolderInput(ctx context.Context, v any) (model.MoveFolderInput, error) {
+	res, err := ec.unmarshalInputMoveFolderInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNRegisterInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐRegisterInput(ctx context.Context, v any) (model.RegisterInput, error) {
 	res, err := ec.unmarshalInputRegisterInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNRenameFolderInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐRenameFolderInput(ctx context.Context, v any) (model.RenameFolderInput, error) {
+	res, err := ec.unmarshalInputRenameFolderInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
@@ -7520,6 +9381,11 @@ func (ec *executionContext) marshalNRoomRole2githubᚗcomᚋbalkanidᚋaegisᚑb
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNShareFolderToRoomInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐShareFolderToRoomInput(ctx context.Context, v any) (model.ShareFolderToRoomInput, error) {
+	res, err := ec.unmarshalInputShareFolderToRoomInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {
@@ -8003,6 +9869,31 @@ func (ec *executionContext) unmarshalOFileFilterInput2ᚖgithubᚗcomᚋbalkanid
 	}
 	res, err := ec.unmarshalInputFileFilterInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOFolder2ᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐFolder(ctx context.Context, sel ast.SelectionSet, v *models.Folder) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Folder(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOID2ᚖstring(ctx context.Context, v any) (*string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalID(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOID2ᚖstring(ctx context.Context, sel ast.SelectionSet, v *string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalID(*v)
+	return res
 }
 
 func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v any) (*int, error) {

@@ -35,6 +35,7 @@ type UserFile struct {
 	ID            uint           `gorm:"primaryKey" json:"id"`
 	UserID        uint           `gorm:"not null;index" json:"user_id"`
 	FileID        uint           `gorm:"not null;index" json:"file_id"`
+	FolderID      *uint          `gorm:"index" json:"folder_id"` // Nullable folder reference
 	Filename      string         `gorm:"not null" json:"filename"`
 	MimeType      string         `gorm:"not null" json:"mime_type"`
 	EncryptionKey string         `gorm:"not null" json:"-"` // Encrypted symmetric key for E2EE
@@ -43,8 +44,9 @@ type UserFile struct {
 	DeletedAt     gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Associations
-	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	File File `gorm:"foreignKey:FileID" json:"file,omitempty"`
+	User   User   `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	File   File   `gorm:"foreignKey:FileID" json:"file,omitempty"`
+	Folder *Folder `gorm:"foreignKey:FolderID" json:"folder,omitempty"`
 }
 
 // Room represents a collaborative file sharing room
@@ -100,6 +102,35 @@ type DownloadLog struct {
 	DownloaderUser User     `gorm:"foreignKey:DownloaderUserID" json:"downloader_user,omitempty"`
 }
 
+// Folder represents a user's folder for organizing files
+type Folder struct {
+	ID        uint           `gorm:"primaryKey" json:"id"`
+	UserID    uint           `gorm:"not null;index" json:"user_id"`
+	Name      string         `gorm:"not null" json:"name"`
+	ParentID  *uint          `gorm:"index" json:"parent_id"` // Nullable parent folder
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	// Associations
+	User     User      `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Parent   *Folder   `gorm:"foreignKey:ParentID" json:"parent,omitempty"`
+	Children []*Folder `gorm:"foreignKey:ParentID" json:"children,omitempty"`
+	Files    []*UserFile `gorm:"foreignKey:FolderID" json:"files,omitempty"`
+}
+
+// RoomFolder represents a folder shared within a room
+type RoomFolder struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	RoomID    uint      `gorm:"not null;index" json:"room_id"`
+	FolderID  uint      `gorm:"not null;index" json:"folder_id"`
+	CreatedAt time.Time `json:"created_at"`
+
+	// Associations
+	Room   Room   `gorm:"foreignKey:RoomID" json:"room,omitempty"`
+	Folder Folder `gorm:"foreignKey:FolderID" json:"folder,omitempty"`
+}
+
 // RoomRole defines the possible roles in a room
 type RoomRole string
 
@@ -141,4 +172,12 @@ func (RoomFile) TableName() string {
 
 func (DownloadLog) TableName() string {
 	return "download_logs"
+}
+
+func (Folder) TableName() string {
+	return "folders"
+}
+
+func (RoomFolder) TableName() string {
+	return "room_folders"
 }

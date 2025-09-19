@@ -66,7 +66,7 @@ func main() {
 	r := gin.Default()
 
 	// Add CORS middleware
-	r.Use(middleware.CORS())
+	r.Use(middleware.CORS(cfg.CORSAllowedOrigins))
 
 	// Health check endpoint
 	r.GET("/health", func(c *gin.Context) {
@@ -82,8 +82,18 @@ func main() {
 	}
 
 	// GraphQL endpoint with authentication middleware
-	r.POST("/graphql", middleware.AuthMiddleware(cfg), gin.WrapH(srv))
-	r.GET("/graphql", middleware.AuthMiddleware(cfg), gin.WrapH(srv))
+	r.POST("/graphql", middleware.AuthMiddleware(cfg), func(c *gin.Context) {
+		// Add gin context to GraphQL context
+		ctx := context.WithValue(c.Request.Context(), "gin", c)
+		c.Request = c.Request.WithContext(ctx)
+		srv.ServeHTTP(c.Writer, c.Request)
+	})
+	r.GET("/graphql", middleware.AuthMiddleware(cfg), func(c *gin.Context) {
+		// Add gin context to GraphQL context
+		ctx := context.WithValue(c.Request.Context(), "gin", c)
+		c.Request = c.Request.WithContext(ctx)
+		srv.ServeHTTP(c.Writer, c.Request)
+	})
 
 	// File download endpoint with authentication middleware
 	r.GET("/api/files/:id/download", middleware.AuthMiddleware(cfg), fileHandler.DownloadFile)

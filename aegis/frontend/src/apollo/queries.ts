@@ -33,6 +33,12 @@ export const LOGIN_MUTATION = gql`
   }
 `;
 
+export const LOGOUT_MUTATION = gql`
+  mutation Logout {
+    logout
+  }
+`;
+
 // User Queries
 export const GET_ME = gql`
   query GetMe {
@@ -54,11 +60,16 @@ export const GET_MY_FILES = gql`
       filename
       mime_type
       encryption_key
+      folder_id
       created_at
       file {
         id
         size_bytes
         content_hash
+      }
+      folder {
+        id
+        name
       }
     }
   }
@@ -82,11 +93,16 @@ export const UPLOAD_FILE_MUTATION = gql`
       id
       filename
       mime_type
+      folder_id
       created_at
       file {
         id
         size_bytes
         content_hash
+      }
+      folder {
+        id
+        name
       }
     }
   }
@@ -98,11 +114,16 @@ export const UPLOAD_FILE_FROM_MAP_MUTATION = gql`
       id
       filename
       mime_type
+      folder_id
       created_at
       file {
         id
         size_bytes
         content_hash
+      }
+      folder {
+        id
+        name
       }
     }
   }
@@ -127,11 +148,16 @@ export const GET_MY_TRASHED_FILES = gql`
       id
       filename
       mime_type
+      folder_id
       created_at
       file {
         id
         size_bytes
         content_hash
+      }
+      folder {
+        id
+        name
       }
     }
   }
@@ -189,10 +215,116 @@ export const GET_ROOM = gql`
         filename
         mime_type
         encryption_key
+        folder_id
         created_at
         file {
           id
           size_bytes
+        }
+        user {
+          id
+          email
+        }
+        folder {
+          id
+          name
+        }
+      }
+      folders {
+        id
+        name
+        parent_id
+        created_at
+        updated_at
+        user {
+          id
+          email
+        }
+        parent {
+          id
+          name
+        }
+        children {
+          id
+          name
+        }
+        files {
+          id
+          filename
+          mime_type
+        }
+      }
+    }
+  }
+`;
+
+// Folder Queries
+export const GET_MY_FOLDERS = gql`
+  query GetMyFolders {
+    myFolders {
+      id
+      name
+      parent_id
+      created_at
+      updated_at
+      user {
+        id
+        email
+      }
+      parent {
+        id
+        name
+      }
+      children {
+        id
+        name
+        created_at
+      }
+      files {
+        id
+        filename
+        mime_type
+        created_at
+        file {
+          size_bytes
+        }
+      }
+    }
+  }
+`;
+
+export const GET_FOLDER = gql`
+  query GetFolder($id: ID!) {
+    folder(id: $id) {
+      id
+      name
+      parent_id
+      created_at
+      updated_at
+      user {
+        id
+        email
+      }
+      parent {
+        id
+        name
+      }
+      children {
+        id
+        name
+        created_at
+        updated_at
+      }
+      files {
+        id
+        filename
+        mime_type
+        encryption_key
+        created_at
+        file {
+          id
+          size_bytes
+          content_hash
         }
         user {
           id
@@ -230,6 +362,63 @@ export const REMOVE_ROOM_MEMBER_MUTATION = gql`
 export const SHARE_FILE_TO_ROOM_MUTATION = gql`
   mutation ShareFileToRoom($user_file_id: ID!, $room_id: ID!) {
     shareFileToRoom(user_file_id: $user_file_id, room_id: $room_id)
+  }
+`;
+
+// Folder Mutations
+export const CREATE_FOLDER_MUTATION = gql`
+  mutation CreateFolder($input: CreateFolderInput!) {
+    createFolder(input: $input) {
+      id
+      name
+      parent_id
+      created_at
+      updated_at
+      user {
+        id
+        email
+      }
+      parent {
+        id
+        name
+      }
+    }
+  }
+`;
+
+export const RENAME_FOLDER_MUTATION = gql`
+  mutation RenameFolder($input: RenameFolderInput!) {
+    renameFolder(input: $input)
+  }
+`;
+
+export const DELETE_FOLDER_MUTATION = gql`
+  mutation DeleteFolder($id: ID!) {
+    deleteFolder(id: $id)
+  }
+`;
+
+export const MOVE_FOLDER_MUTATION = gql`
+  mutation MoveFolder($input: MoveFolderInput!) {
+    moveFolder(input: $input)
+  }
+`;
+
+export const MOVE_FILE_MUTATION = gql`
+  mutation MoveFile($input: MoveFileInput!) {
+    moveFile(input: $input)
+  }
+`;
+
+export const SHARE_FOLDER_TO_ROOM_MUTATION = gql`
+  mutation ShareFolderToRoom($input: ShareFolderToRoomInput!) {
+    shareFolderToRoom(input: $input)
+  }
+`;
+
+export const REMOVE_FOLDER_FROM_ROOM_MUTATION = gql`
+  mutation RemoveFolderFromRoom($folder_id: ID!, $room_id: ID!) {
+    removeFolderFromRoom(folder_id: $folder_id, room_id: $room_id)
   }
 `;
 
@@ -276,6 +465,7 @@ export const GET_ALL_FILES = gql`
       filename
       mime_type
       encryption_key
+      folder_id
       created_at
       user {
         id
@@ -285,6 +475,10 @@ export const GET_ALL_FILES = gql`
         id
         size_bytes
         content_hash
+      }
+      folder {
+        id
+        name
       }
     }
   }

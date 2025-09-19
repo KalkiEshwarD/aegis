@@ -27,6 +27,11 @@ type AuthPayload struct {
 	User  *models.User `json:"user"`
 }
 
+type CreateFolderInput struct {
+	Name     string  `json:"name"`
+	ParentID *string `json:"parent_id,omitempty"`
+}
+
 type CreateRoomInput struct {
 	Name string `json:"name"`
 }
@@ -46,6 +51,16 @@ type LoginInput struct {
 	Password string `json:"password"`
 }
 
+type MoveFileInput struct {
+	ID       string  `json:"id"`
+	FolderID *string `json:"folder_id,omitempty"`
+}
+
+type MoveFolderInput struct {
+	ID       string  `json:"id"`
+	ParentID *string `json:"parent_id,omitempty"`
+}
+
 type Mutation struct {
 }
 
@@ -55,6 +70,16 @@ type Query struct {
 type RegisterInput struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+type RenameFolderInput struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type ShareFolderToRoomInput struct {
+	FolderID string `json:"folder_id"`
+	RoomID   string `json:"room_id"`
 }
 
 type UploadFileFromMapInput struct {
@@ -67,6 +92,7 @@ type UploadFileInput struct {
 	SizeBytes    int            `json:"size_bytes"`
 	MimeType     string         `json:"mime_type"`
 	EncryptedKey string         `json:"encrypted_key"`
+	FolderID     *string        `json:"folder_id,omitempty"`
 	FileData     graphql.Upload `json:"file_data"`
 }
 

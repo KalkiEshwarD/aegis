@@ -6,242 +6,125 @@
 
 ## Executive Summary
 
-This security audit identified multiple critical and high-priority vulnerabilities in the Aegis codebase that require immediate attention. The most concerning issues include hardcoded credentials, insecure token storage, and excessive debug logging containing sensitive information. The assessment covers backend (Go), frontend (React/TypeScript), and infrastructure (Docker) components.
+This security audit identified multiple critical and high-priority vulnerabilities in the Aegis codebase that require immediate attention. The most concerning issues include exposed secrets in version control, oversized monolithic files, authentication token storage inconsistencies, and potential XSS vectors. The assessment covers backend (Go), frontend (React/TypeScript), and infrastructure components. While the application demonstrates good practices in SQL injection prevention, JWT authentication, and client-side encryption, critical security gaps must be addressed before production deployment.
 
-## 🔴 Critical Issues
+## Detailed Findings
 
-### 1. Exposed Secrets and Hardcoded Credentials
+### Critical Issues
+
+#### 1. Exposed Secrets in Version Control
 - **Severity:** Critical
 - **CVSS Score:** 9.8 (CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H)
-- **Location:**
-  - `aegis/backend/internal/config/config.go`
-  - `aegis/docker-compose.yml`
-- **Description:** Default credentials are hardcoded in source code and Docker configuration
-- **Affected Components:**
-  - Database: `postgres://aegis_user:aegis_password@localhost:5432/aegis`
-  - MinIO: `minioadmin` / `minioadmin123`
-  - JWT Secret: `your-super-secret-jwt-key-change-in-production`
-- **Impact:** Complete system compromise if deployed with default credentials
-- **Exploitability:** High - credentials are visible in source code
+- **Location:** `aegis/.env`
+- **Description:** The `.env` file containing sensitive credentials (database password, MinIO access keys, JWT secret) is committed to the repository. The `.gitignore` file does not exclude `.env`.
+- **Evidence:** File contains hardcoded values including `JWT_SECRET=super_secure_jwt_secret_key_for_development_only_12345678901234567890`
+- **Impact:** Complete system compromise if repository is exposed
 - **Remediation:**
-  1. Remove all hardcoded credentials from source code
-  2. Use environment variables with secure random values
-  3. Implement secret management system (HashiCorp Vault, AWS Secrets Manager, etc.)
-  4. Add validation to prevent use of default values in production
+  1. Remove `.env` from version control: `git rm --cached aegis/.env`
+  2. Add `.env` to `.gitignore`
+  3. Create `.env.example` with placeholder values
+  4. Use secure secret management for production
 
-### 2. Excessive Debug Logging with Sensitive Data
-- **Severity:** Critical
-- **CVSS Score:** 7.5 (CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N)
-- **Location:**
-  - `aegis/backend/internal/middleware/auth.go`
-  - `aegis/backend/internal/services/file_service.go`
-  - `aegis/backend/graph/schema.resolvers.go`
-  - `aegis/frontend/src/utils/crypto.ts`
-- **Description:** Debug logs contain sensitive information including tokens, encryption keys, user IDs, and file contents
-- **Impact:** Information disclosure through log files
-- **Exploitability:** Medium - requires access to log files
+#### 2. Oversized Monolithic Files
+- **Severity:** High
+- **CVSS Score:** 6.5 (CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:L/I:L/A:N)
+- **Locations:**
+  - `aegis/backend/graph/schema.resolvers.go` (912 lines)
+  - `aegis/backend/internal/services/file_service.go` (553 lines)
+- **Description:** Files exceed 500 lines and contain multiple responsibilities, violating single responsibility principle.
+- **Impact:** Increased bug surface area, difficult maintenance, complex security reviews
 - **Remediation:**
-  1. Remove or disable debug logging in production
-  2. Implement structured logging with sensitive data redaction
-  3. Use log levels appropriately (DEBUG for development, INFO/WARN/ERROR for production)
-  4. Never log sensitive data like passwords, tokens, or encryption keys
+  1. Split `schema.resolvers.go` into domain-specific resolvers (auth, files, rooms, admin)
+  2. Extract file operations into smaller, focused services
+  3. Implement proper separation of concerns
 
-### 3. Insecure Token Storage
+#### 3. Authentication Token Storage Inconsistency
 - **Severity:** Critical
 - **CVSS Score:** 8.1 (CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H)
-- **Location:** `aegis/frontend/src/contexts/AuthContext.tsx`
-- **Description:** JWT tokens stored in localStorage, vulnerable to XSS attacks
-- **Impact:** Token theft leading to account compromise
-- **Exploitability:** High - XSS vulnerabilities could steal tokens
+- **Location:** `aegis/frontend/src/components/common/FileTable.tsx:104`
+- **Description:** Frontend retrieves JWT tokens from `localStorage` for file downloads, contradicting the HttpOnly cookie implementation used elsewhere.
+- **Evidence:** `const token = localStorage.getItem('aegis_token');`
+- **Impact:** Token exposure to XSS attacks if localStorage is compromised
 - **Remediation:**
-  1. Move tokens to HttpOnly cookies
-  2. Implement CSRF protection
-  3. Add token refresh mechanism
-  4. Implement proper session management
+  1. Standardize on HttpOnly cookies for all token storage
+  2. Remove localStorage token usage
+  3. Implement CSRF protection
 
-### 4. Permissive CORS Configuration
-- **Severity:** Critical
-- **CVSS Score:** 7.4 (CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N)
-- **Location:** `aegis/backend/internal/middleware/auth.go:21`
-- **Description:** `Access-Control-Allow-Origin: *` allows requests from any domain
-- **Impact:** Enables cross-origin attacks and data theft
-- **Exploitability:** Medium - requires malicious website in same browser session
-- **Remediation:**
-  1. Restrict CORS to specific allowed origins
-  2. Use environment-specific CORS policies
-  3. Implement proper origin validation
+### High Priority Issues
 
-## 🟠 High Priority Issues
-
-### 5. Encryption Key Exposure
-- **Severity:** High
-- **CVSS Score:** 7.4 (CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:N/A:N)
-- **Location:** `aegis/backend/graph/schema.resolvers.go:555-566`
-- **Description:** File encryption keys returned directly to users via GraphQL API
-- **Impact:** Users can potentially decrypt each other's files
-- **Exploitability:** Medium - requires API access and key interception
-- **Remediation:**
-  1. Implement proper key management with user-specific key derivation
-  2. Never expose encryption keys via API
-  3. Use envelope encryption with master keys
-  4. Implement key rotation policies
-
-### 6. Weak Authentication for GraphQL
-- **Severity:** High
-- **CVSS Score:** 8.1 (CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N)
-- **Location:** `aegis/backend/internal/middleware/auth.go:54-100`
-- **Description:** GraphQL allows unauthenticated requests, authentication handled at resolver level
-- **Impact:** Potential authentication bypass
-- **Exploitability:** High - misconfiguration could allow unauthorized access
-- **Remediation:**
-  1. Require authentication at middleware level for all GraphQL requests
-  2. Implement proper GraphQL authorization patterns
-  3. Add comprehensive authentication checks
-
-### 7. Missing Input Validation
-- **Severity:** High
-- **CVSS Score:** 7.3 (CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:L)
-- **Location:** File upload handlers and GraphQL resolvers
-- **Description:** Insufficient validation on file names, sizes, and content types
-- **Impact:** Path traversal, malicious file uploads, resource exhaustion
-- **Exploitability:** High - common attack vectors
-- **Remediation:**
-  1. Implement comprehensive input validation
-  2. Sanitize file names and paths
-  3. Validate MIME types server-side
-  4. Add file content scanning (virus/malware detection)
-
-## 🟡 Medium Priority Issues
-
-### 8. No Rate Limiting
+#### 4. Potential XSS in User-Generated Content Display
 - **Severity:** Medium
-- **CVSS Score:** 6.5 (CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L)
-- **Location:** Throughout the application
-- **Description:** No rate limiting on authentication, file uploads, or API calls
-- **Impact:** Brute force attacks, DoS via resource exhaustion
-- **Exploitability:** High - easy to implement attacks
+- **CVSS Score:** 6.1 (CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N)
+- **Locations:**
+  - `aegis/frontend/src/components/common/FileTable.tsx:244` (filename display)
+  - `aegis/frontend/src/components/common/FileTable.tsx:252` (MIME type display)
+- **Description:** User-controlled filenames and MIME types are displayed without sanitization.
+- **Evidence:** `{file.filename}` and `{file.mime_type.split('/')[1]?.toUpperCase()}`
+- **Impact:** Malicious users could inject HTML/JS via crafted filenames
 - **Remediation:**
-  1. Implement rate limiting middleware
-  2. Add exponential backoff for failed authentication
-  3. Monitor and alert on suspicious activity patterns
+  1. Implement input sanitization for filenames
+  2. Use React's built-in XSS protection consistently
+  3. Add server-side filename validation
 
-### 9. Cryptographic Implementation Issues
-- **Severity:** Medium
-- **CVSS Score:** 5.9 (CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:N/A:N)
-- **Location:** `aegis/frontend/src/utils/crypto.ts`
-- **Description:** Encryption keys generated randomly without proper key derivation
-- **Impact:** Weak key management and potential compromise
-- **Exploitability:** Low - requires sophisticated attacks
-- **Remediation:**
-  1. Implement proper key derivation (PBKDF2, Argon2) from user credentials
-  2. Use cryptographically secure random number generation
-  3. Implement key rotation and versioning
-
-### 10. Hardcoded URLs
-- **Severity:** Medium
-- **CVSS Score:** 4.3 (CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:N)
-- **Location:** `aegis/backend/internal/services/file_service.go:353`
-- **Description:** Download URLs hardcoded to localhost
-- **Impact:** Application won't function in production environments
-- **Exploitability:** Low - configuration issue
-- **Remediation:**
-  1. Use configurable base URLs via environment variables
-  2. Implement proper URL generation logic
-
-## 🟢 Low Priority Issues
-
-### 11. Large Files (Potential Monoliths)
-- **Severity:** Low
-- **CVSS Score:** 3.7 (CVSS:3.1/AV:L/AC:H/PR:L/UI:N/S:U/C:L/I:N/A:N)
-- **Location:**
-  - `aegis/backend/graph/schema.resolvers.go` (596 lines)
-  - `aegis/backend/internal/services/file_service.go` (455 lines)
-  - `aegis/frontend/src/components/common/FileUploadDropzone.tsx` (330 lines)
-- **Description:** Large files may indicate monolithic architecture
-- **Impact:** Maintenance and testing difficulties
-- **Remediation:**
-  1. Break down large files into smaller, focused modules
-  2. Implement proper separation of concerns
-  3. Add comprehensive unit testing
-
-### 12. Missing Security Headers
+#### 5. Direct Environment Variable Coupling
 - **Severity:** Low
 - **CVSS Score:** 4.3 (CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:N)
-- **Location:** Backend middleware
-- **Description:** No security headers (CSP, HSTS, X-Frame-Options, etc.)
-- **Impact:** Vulnerable to various web attacks
+- **Location:** Various files using `os.Getenv()` directly
+- **Description:** Environment variables accessed directly without centralized validation or defaults beyond config package.
+- **Impact:** Runtime errors if variables are missing or invalid
 - **Remediation:**
-  1. Implement security headers middleware
-  2. Add Content Security Policy (CSP)
-  3. Enable HTTP Strict Transport Security (HSTS)
-  4. Set X-Frame-Options and X-Content-Type-Options
+  1. Strengthen config validation in `config.go`
+  2. Add comprehensive environment variable validation
+  3. Implement graceful degradation for missing variables
 
-## 📋 Recommended Security Improvements
+### Medium Priority Issues
+
+#### 6. SQL Injection Protection Verified
+- **Status:** Secure
+- **Location:** Backend database queries
+- **Description:** Application uses parameterized queries with GORM, preventing SQL injection.
+- **Evidence:** Queries like `db.Where("user_id = ?", userID)` throughout codebase
+
+#### 7. Authentication Mechanisms
+- **Status:** Mostly Secure
+- **Description:** Proper JWT implementation with HttpOnly cookies, user existence validation, and admin privilege checks.
+- **Evidence:** `middleware/auth.go` implements comprehensive JWT validation
+
+#### 8. Data Handling and Crypto
+- **Status:** Secure
+- **Description:** Client-side file encryption using NaCl, secure key generation, and proper base64 encoding.
+- **Evidence:** `crypto.ts` implements robust encryption utilities
+
+## Recommendations
 
 ### Immediate Actions (Critical - Fix Before Production)
-1. **Remove all hardcoded credentials** from source code and Docker configs
-2. **Implement secure secret management** using environment variables
-3. **Fix token storage** to use HttpOnly cookies instead of localStorage
-4. **Restrict CORS** to specific allowed origins
-5. **Remove sensitive debug logging** from production deployments
+1. **Remove exposed secrets** from version control and implement secure secret management
+2. **Resolve authentication token storage** inconsistency by standardizing on HttpOnly cookies
+3. **Refactor monolithic files** to improve maintainability and security reviewability
 
 ### Short-term Actions (High Priority - Fix Within 30 Days)
-1. **Implement proper key management** with user-specific key derivation
-2. **Add comprehensive input validation** for all user inputs
-3. **Require authentication at middleware level** for GraphQL requests
-4. **Add rate limiting** to prevent abuse and DoS attacks
-5. **Implement essential security headers**
+1. **Implement XSS protection** for user-generated content display
+2. **Strengthen environment variable handling** with better validation
+3. **Add comprehensive input validation** for file uploads and user inputs
 
 ### Long-term Actions (Medium Priority - Ongoing)
-1. **Refactor large files** into smaller, focused modules
-2. **Add comprehensive logging and monitoring** with SIEM integration
-3. **Implement proper session management** with refresh tokens
-4. **Add security testing** including penetration testing and dependency scanning
-5. **Consider implementing OAuth2/JWT best practices**
+1. **Implement security headers** (CSP, HSTS, X-Frame-Options)
+2. **Add rate limiting** for authentication and upload endpoints
+3. **Regular security testing** including dependency scanning and penetration testing
 
-### Additional Security Recommendations
-- **Development Security:**
-  - Use security linters (gosec for Go, ESLint security plugins for JavaScript)
-  - Implement pre-commit hooks for security checks
-  - Add security-focused code reviews
+### Security Testing Tools
+- **Static Analysis:** SonarQube, Semgrep for Go/JavaScript
+- **Dependency Scanning:** `npm audit`, `go mod audit`, Trivy
+- **Dynamic Analysis:** OWASP ZAP for API testing
+- **Container Security:** Trivy, Clair for Docker images
 
-- **Operational Security:**
-  - Implement proper error handling without information disclosure
-  - Add security-focused unit and integration tests
-  - Regular security dependency updates and vulnerability scanning
-  - Implement audit logging for sensitive operations
+## References
 
-- **Infrastructure Security:**
-  - Use container security scanning (Trivy, Clair)
-  - Implement network segmentation
-  - Use Web Application Firewall (WAF)
-  - Regular security assessments and penetration testing
-
-## Risk Assessment Summary
-
-| Risk Level | Count | Description |
-|------------|-------|-------------|
-| Critical | 4 | Immediate production blockers |
-| High | 3 | Should be fixed before production |
-| Medium | 3 | Important for security posture |
-| Low | 2 | Maintenance and best practices |
-
-## Compliance Considerations
-
-This assessment should be reviewed against relevant compliance frameworks:
-- **GDPR:** Data protection and privacy requirements
-- **SOX:** Financial data handling (if applicable)
-- **PCI DSS:** Payment card data (if applicable)
-- **ISO 27001:** Information security management
-
-## Next Steps
-
-1. **Immediate:** Address all Critical issues before any production deployment
-2. **Short-term:** Implement High priority fixes within 30 days
-3. **Ongoing:** Regular security assessments and continuous improvement
-4. **Testing:** Comprehensive security testing including penetration testing
-5. **Monitoring:** Implement security monitoring and alerting
+- **OWASP Top 10:** https://owasp.org/www-project-top-ten/
+- **CVSS Calculator:** https://www.first.org/cvss/calculator/3.1
+- **JWT Security Best Practices:** https://tools.ietf.org/html/rfc8725
+- **React Security:** https://reactjs.org/docs/security.html
 
 ---
 
-**Disclaimer:** This assessment represents a point-in-time analysis of the codebase. Security is an ongoing process that requires continuous monitoring, testing, and improvement. Regular security assessments should be conducted as the application evolves.
+**Disclaimer:** This assessment represents a point-in-time analysis. Security requires continuous monitoring and improvement.

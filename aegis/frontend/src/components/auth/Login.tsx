@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -29,19 +29,35 @@ const Login: React.FC = () => {
 
   const { login } = useAuth();
   const navigate = useNavigate();
+  const isMountedRef = useRef(true);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isMountedRef.current) return;
+
     setError('');
     setLoading(true);
 
     try {
       await login(email, password);
-      navigate('/dashboard');
+      if (isMountedRef.current) {
+        navigate('/dashboard');
+      }
     } catch (err: any) {
-      setError(err.message || 'Login failed. Please check your credentials.');
+      if (isMountedRef.current) {
+        setError(err.message || 'Login failed. Please check your credentials.');
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 

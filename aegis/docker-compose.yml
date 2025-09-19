@@ -4,15 +4,15 @@ services:
     container_name: aegis_postgres
     environment:
       POSTGRES_DB: aegis
-      POSTGRES_USER: aegis_user
-      POSTGRES_PASSWORD: aegis_password
+      POSTGRES_USER: ${POSTGRES_USER:-aegis_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aegis_password}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/migrations:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aegis_user -d aegis"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aegis_user} -d aegis"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -21,8 +21,8 @@ services:
     image: minio/minio:latest
     container_name: aegis_minio
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -41,16 +41,16 @@ services:
       dockerfile: Dockerfile
     container_name: aegis_backend
     environment:
-      DATABASE_URL: postgres://aegis_user:aegis_password@postgres:5432/aegis?sslmode=disable
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin123
-      MINIO_BUCKET: aegis-files
-      JWT_SECRET: your-super-secret-jwt-key-change-in-production
-      PORT: 8080
-      GIN_MODE: debug
+      DATABASE_URL: ${DATABASE_URL:-postgres://${POSTGRES_USER:-aegis_user}:${POSTGRES_PASSWORD:-aegis_password}@postgres:5432/aegis?sslmode=disable}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-minioadmin}}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-minioadmin123}}
+      MINIO_BUCKET: ${MINIO_BUCKET:-aegis-files}
+      JWT_SECRET: ${JWT_SECRET:-aegis_jwt_secret_key_change_in_production}
+      PORT: ${PORT:-8080}
+      GIN_MODE: ${GIN_MODE:-debug}
     ports:
-      - "8080:8080"
+      - "${PORT:-8080}:${PORT:-8080}"
     depends_on:
       postgres:
         condition: service_healthy

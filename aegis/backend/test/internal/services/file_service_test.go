@@ -1,8 +1,10 @@
 package services_test
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"testing"
 	"time"
@@ -1035,6 +1037,27 @@ func (suite *FileServiceTestSuite) TestGetUserFiles_FilterTrashedFiles() {
 // Helper function for creating boolean pointers
 func boolPtr(b bool) *bool {
 	return &b
+}
+
+func (suite *FileServiceTestSuite) TestFileService_NoSensitiveDataInLogs() {
+	// Capture log output to verify no sensitive data is logged
+	var buf bytes.Buffer
+	originalLogger := log.Writer()
+	log.SetOutput(&buf)
+	defer log.SetOutput(originalLogger)
+
+	// Perform a delete operation
+	err := suite.fileService.DeleteFile(suite.testUser.ID, suite.testUserFile.ID)
+
+	// Verify operation succeeded
+	assert.NoError(suite.T(), err)
+
+	// Verify no sensitive data in logs (user ID, file ID, filename should not be logged)
+	logOutput := buf.String()
+	assert.NotContains(suite.T(), logOutput, fmt.Sprintf("%d", suite.testUser.ID), "User ID should not be logged")
+	assert.NotContains(suite.T(), logOutput, fmt.Sprintf("%d", suite.testUserFile.ID), "File ID should not be logged")
+	assert.NotContains(suite.T(), logOutput, suite.testUserFile.Filename, "Filename should not be logged")
+	assert.NotContains(suite.T(), logOutput, suite.testUserFile.EncryptionKey, "Encryption key should not be logged")
 }
 
 func TestFileServiceSuite(t *testing.T) {
