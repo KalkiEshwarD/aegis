@@ -98,8 +98,49 @@ const Dashboard: React.FC = () => {
       <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
         <Toolbar />
         
-        {/* Header */}
+        {/* Header with Breadcrumbs */}
         <Box sx={{ mb: 3 }}>
+          {/* Back Navigation and Breadcrumbs - Only show when in folder navigation mode */}
+          {selectedNav === 'home' && selectedFolderId && (
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <IconButton 
+                onClick={handleNavigateBack}
+                disabled={!canNavigateBack}
+                sx={{ mr: 1 }}
+                size="small"
+              >
+                <ArrowBackIcon />
+              </IconButton>
+              <Breadcrumbs 
+                separator={<ChevronRightIcon fontSize="small" />}
+                sx={{ flexGrow: 1 }}
+              >
+                {folderPath.map((pathItem, index) => (
+                  <Link
+                    key={pathItem.id || 'root'}
+                    color={index === folderPath.length - 1 ? 'text.primary' : 'primary'}
+                    component="button"
+                    variant="body2"
+                    onClick={() => handleBreadcrumbClick(index)}
+                    sx={{
+                      textDecoration: 'none',
+                      '&:hover': {
+                        textDecoration: index === folderPath.length - 1 ? 'none' : 'underline',
+                      },
+                      cursor: index === folderPath.length - 1 ? 'default' : 'pointer',
+                      border: 'none',
+                      background: 'none',
+                      padding: 0,
+                      font: 'inherit',
+                    }}
+                  >
+                    {pathItem.name}
+                  </Link>
+                ))}
+              </Breadcrumbs>
+            </Box>
+          )}
+          
           <Typography variant="h4" sx={{ fontWeight: 600, color: '#1f2937', mb: 1 }}>
             {selectedNav === 'trash' ? 'Trash' : selectedFolderId ? 'Folder Files' : 'My Files'}
           </Typography>
@@ -172,7 +213,7 @@ const Dashboard: React.FC = () => {
               folderId={selectedFolderId}
               onFileDeleted={handleFileDeleted}
               onUploadComplete={handleUploadComplete}
-              onFolderClick={handleFolderSelect}
+              onFolderClick={(folderId, folderName) => handleFolderSelect(folderId, folderName)}
               key={refreshTrigger}
             />
           </Paper>

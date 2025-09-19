@@ -30,7 +30,7 @@ interface FileGridProps {
   onContextMenu: (event: React.MouseEvent, fileId: string) => void;
   onDownload: (file: UserFile) => void;
   onDelete: (file: UserFile) => void;
-  onFolderClick?: (folderId: string) => void;
+  onFolderClick?: (folderId: string, folderName: string) => void;
   onFileMove?: (fileIds: string[], targetFolderId: string | null) => Promise<void>;
 }
 
@@ -38,10 +38,10 @@ interface FileItemProps {
   item: FileExplorerItem;
   style: React.CSSProperties;
   selectedFiles: Set<string>;
-  isFocused?: boolean;
+  isFocused: boolean;
   onFileClick: (fileId: string, event: React.MouseEvent) => void;
   onContextMenu: (event: React.MouseEvent, fileId: string) => void;
-  onFolderClick?: (folderId: string) => void;
+  onFolderClick?: (folderId: string, folderName: string) => void;
   onFileMove?: (fileIds: string[], targetFolderId: string | null) => Promise<void>;
 }
 
@@ -103,7 +103,7 @@ const FileGrid: React.FC<FileGridProps> = ({
     
     const handleClick = (e: React.MouseEvent) => {
       if (isItemFolder && onFolderClick) {
-        onFolderClick(item.id);
+        onFolderClick(item.id, item.name);
       } else if (isFile(item)) {
         onFileClick(item.id, e);
       }

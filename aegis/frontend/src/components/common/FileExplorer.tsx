@@ -36,7 +36,7 @@ interface FileExplorerProps {
   folderId?: string | null;
   onFileDeleted?: () => void;
   onUploadComplete?: () => void;
-  onFolderClick?: (folderId: string) => void;
+  onFolderClick?: (folderId: string, folderName: string) => void;
 }
 
 const FileExplorer: React.FC<FileExplorerProps> = ({
@@ -53,6 +53,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<UserFile | null>(null);
+  const [folderDeleteDialogOpen, setFolderDeleteDialogOpen] = useState(false);
+  const [folderToDelete, setFolderToDelete] = useState<Folder | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [createFolderDialogOpen, setCreateFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -63,6 +65,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const [renameError, setRenameError] = useState<string | null>(null);
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
   const [cutItems, setCutItems] = useState<Set<string>>(new Set());
+  const [copiedItems, setCopiedItems] = useState<Set<string>>(new Set());
   const [snackbarMessage, setSnackbarMessage] = useState<string>('');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -367,6 +370,13 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
           handleCutKey();
         }
         break;
+      case 'c':
+      case 'C':
+        if (cmdOrCtrl) {
+          event.preventDefault();
+          handleCopyKey();
+        }
+        break;
       case 'v':
       case 'V':
         if (cmdOrCtrl) {
@@ -411,7 +421,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     if (focusedIndex >= 0 && focusedIndex < allItems.length) {
       const item = allItems[focusedIndex];
       if (isFolder(item) && onFolderClick) {
-        onFolderClick(item.id);
+        onFolderClick(item.id, item.name);
       } else if (isFile(item)) {
         // For files, just select it (could be extended to open/download)
         setSelectedFiles(new Set([item.id]));
@@ -451,78 +461,122 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     const selectedItemIds = Array.from(selectedFiles);
     if (selectedItemIds.length > 0) {
       setCutItems(new Set(selectedItemIds));
+      setCopiedItems(new Set()); // Clear copied items when cutting
       setSnackbarMessage(`${selectedItemIds.length} item(s) cut`);
       setSnackbarOpen(true);
     }
   }, [selectedFiles]);
 
-  const handlePasteKey = useCallback(async () => {
-    if (cutItems.size === 0) return;
-
-    try {
-      const cutItemIds = Array.from(cutItems);
-      for (const itemId of cutItemIds) {
-        const item = allItems.find(i => i.id === itemId);
-        if (!item) continue;
-
-        if (isFile(item)) {
-          await moveFileMutation({
-            variables: {
-              input: {
-                id: item.id,
-                folder_id: folderId,
-              },
-            },
-          });
-        } else if (isFolder(item)) {
-          await moveFolderMutation({
-            variables: {
-              input: {
-                id: item.id,
-                parent_id: folderId,
-              },
-            },
-          });
-        }
-      }
-
-      setCutItems(new Set());
-      refetch();
-      refetchFolders();
-      setSnackbarMessage(`${cutItemIds.length} item(s) moved`);
-      setSnackbarOpen(true);
-
-      if (onUploadComplete) {
-        onUploadComplete();
-      }
-    } catch (error: any) {
-      console.error('Error moving items:', error);
-      setSnackbarMessage('Error moving items');
+  const handleCopyKey = useCallback(() => {
+    const selectedItemIds = Array.from(selectedFiles);
+    if (selectedItemIds.length > 0) {
+      setCopiedItems(new Set(selectedItemIds));
+      setCutItems(new Set()); // Clear cut items when copying
+      setSnackbarMessage(`${selectedItemIds.length} item(s) copied`);
       setSnackbarOpen(true);
     }
-  }, [cutItems, allItems, folderId, moveFileMutation, moveFolderMutation, refetch, refetchFolders, onUploadComplete]);
+  }, [selectedFiles]);
+
+  const handlePasteKey = useCallback(async () => {
+    // Handle cut items (move operation)
+    if (cutItems.size > 0) {
+      try {
+        const cutItemIds = Array.from(cutItems);
+        for (const itemId of cutItemIds) {
+          const item = allItems.find(i => i.id === itemId);
+          if (!item) continue;
+
+          if (isFile(item)) {
+            await moveFileMutation({
+              variables: {
+                input: {
+                  id: item.id,
+                  folder_id: folderId,
+                },
+              },
+            });
+          } else if (isFolder(item)) {
+            await moveFolderMutation({
+              variables: {
+                input: {
+                  id: item.id,
+                  parent_id: folderId,
+                },
+              },
+            });
+          }
+        }
+
+        setCutItems(new Set());
+        refetch();
+        refetchFolders();
+        setSnackbarMessage(`${cutItemIds.length} item(s) moved`);
+        setSnackbarOpen(true);
+
+        if (onUploadComplete) {
+          onUploadComplete();
+        }
+        return;
+      } catch (error: any) {
+        console.error('Error moving items:', error);
+        setSnackbarMessage('Error moving items');
+        setSnackbarOpen(true);
+        return;
+      }
+    }
+
+    // Handle copied items (copy operation)
+    if (copiedItems.size > 0) {
+      setSnackbarMessage('Copy functionality requires backend API implementation. Only cut/paste (move) is currently supported.');
+      setSnackbarOpen(true);
+      return;
+    }
+
+    // No items to paste
+    setSnackbarMessage('No files or folders to paste');
+    setSnackbarOpen(true);
+  }, [
+    cutItems,
+    copiedItems,
+    allItems,
+    folderId,
+    moveFileMutation,
+    moveFolderMutation,
+    refetch,
+    refetchFolders,
+    onUploadComplete
+  ]);
 
   const handleDeleteFolder = useCallback(async (folder: Folder) => {
+    setFolderToDelete(folder);
+    setFolderDeleteDialogOpen(true);
+  }, []);
+
+  const handleDeleteFolderConfirm = useCallback(async () => {
+    if (!folderToDelete) return;
+
     try {
       await deleteFolderMutation({
-        variables: { id: folder.id },
+        variables: { id: folderToDelete.id },
       });
       refetch();
       refetchFolders();
       setSelectedFiles(prev => {
         const newSet = new Set(prev);
-        newSet.delete(folder.id);
+        newSet.delete(folderToDelete.id);
         return newSet;
       });
       if (onFileDeleted) {
         onFileDeleted();
       }
+      setFolderDeleteDialogOpen(false);
+      setFolderToDelete(null);
     } catch (error: any) {
       console.error('Error deleting folder:', error);
       setSnackbarMessage('Error deleting folder');
       setSnackbarOpen(true);
     }
-  }, [deleteFolderMutation, refetch, refetchFolders, onFileDeleted]);
+  }, [folderToDelete, deleteFolderMutation, refetch, refetchFolders, onFileDeleted]);
 
   // Rename handlers
   const handleRenameConfirm = useCallback(async () => {
@@ -719,7 +773,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
               {isItemFolder && (
                 <>
                   <MenuItem onClick={() => {
-                    if (onFolderClick) onFolderClick(item.id);
+                    if (onFolderClick) onFolderClick(item.id, item.name);
                     handleContextMenuClose();
                   }}>
                     <FolderIcon sx={{ mr: 1 }} />
@@ -784,6 +838,23 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         <DialogActions>
           <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
           <Button onClick={handleDeleteConfirm} color="error" variant="contained">
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Folder Delete Confirmation Dialog */}
+      <Dialog open={folderDeleteDialogOpen} onClose={() => setFolderDeleteDialogOpen(false)}>
+        <DialogTitle>Delete Folder</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete the folder "{folderToDelete?.name}" and all its contents?
+            This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setFolderDeleteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleDeleteFolderConfirm} color="error" variant="contained">
             Delete
           </Button>
         </DialogActions>
