@@ -1,3 +1,0 @@
-This is a test file for user-specific deduplication testing.
-It contains some content to verify the upload works correctly.
-User-specific deduplication should allow different users to upload the same file.

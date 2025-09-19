@@ -1213,6 +1213,7 @@ input FileFilterInput {
   date_from: Time
   date_to: Time
   includeTrashed: Boolean
+  folder_id: ID
 }
 
 input CreateRoomInput {
@@ -6885,7 +6886,7 @@ func (ec *executionContext) unmarshalInputFileFilterInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"filename", "mime_type", "min_size", "max_size", "date_from", "date_to", "includeTrashed"}
+	fieldsInOrder := [...]string{"filename", "mime_type", "min_size", "max_size", "date_from", "date_to", "includeTrashed", "folder_id"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -6941,6 +6942,13 @@ func (ec *executionContext) unmarshalInputFileFilterInput(ctx context.Context, o
 				return it, err
 			}
 			it.IncludeTrashed = data
+		case "folder_id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("folder_id"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FolderID = data
 		}
 	}
 

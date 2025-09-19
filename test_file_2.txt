@@ -1,4 +1,0 @@
-This is another test file for upload testing.
-This file contains different content to test multiple file uploads.
-File: test_file_2.txt
-JSON content: {"name": "test", "value": 123, "active": true}

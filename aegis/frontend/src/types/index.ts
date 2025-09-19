@@ -120,6 +120,7 @@ export interface FileFilterInput {
   max_size?: number;
   date_from?: string;
   date_to?: string;
+  folder_id?: string;
 }
 
 export interface CreateRoomInput {

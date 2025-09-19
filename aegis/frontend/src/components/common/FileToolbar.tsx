@@ -8,10 +8,12 @@ import {
   SelectChangeEvent,
   IconButton,
   InputAdornment,
+  Button,
 } from '@mui/material';
 import {
   Search as SearchIcon,
   Sort as SortIcon,
+  CreateNewFolder as CreateNewFolderIcon,
 } from '@mui/icons-material';
 import { FileFilterInput } from '../../types';
 
@@ -25,6 +27,7 @@ interface FileToolbarProps {
   onFilterChange: (field: keyof FileFilterInput, value: string) => void;
   onSortChange: (value: SortOption) => void;
   onToggleSortDirection: () => void;
+  onCreateFolder?: () => void;
 }
 
 const FileToolbar: React.FC<FileToolbarProps> = ({
@@ -34,6 +37,7 @@ const FileToolbar: React.FC<FileToolbarProps> = ({
   onFilterChange,
   onSortChange,
   onToggleSortDirection,
+  onCreateFolder,
 }) => {
   const handleSortChange = (event: SelectChangeEvent) => {
     onSortChange(event.target.value as SortOption);
@@ -73,6 +77,19 @@ const FileToolbar: React.FC<FileToolbarProps> = ({
           transition: 'transform 0.2s'
         }} />
       </IconButton>
+
+      {/* New Folder Button */}
+      {onCreateFolder && (
+        <Button
+          variant="contained"
+          startIcon={<CreateNewFolderIcon />}
+          onClick={onCreateFolder}
+          size="small"
+          sx={{ ml: 'auto' }}
+        >
+          New Folder
+        </Button>
+      )}
     </Box>
   );
 };

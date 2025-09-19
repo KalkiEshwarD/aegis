@@ -649,6 +649,9 @@ func (r *queryResolver) MyFiles(ctx context.Context, filter *model.FileFilterInp
 			dateTo := interface{}(*filter.DateTo)
 			fileFilter.DateTo = &dateTo
 		}
+		if filter.FolderID != nil {
+			fileFilter.FolderID = filter.FolderID
+		}
 		// TODO: Add IncludeTrashed handling after gqlgen regeneration
 		// if filter.IncludeTrashed != nil {
 		// 	includeTrashed := *filter.IncludeTrashed

@@ -5,9 +5,14 @@ import {
   Typography,
   Paper,
   Chip,
+  Breadcrumbs,
+  IconButton,
+  Link,
 } from '@mui/material';
 import {
   FilterList as FilterIcon,
+  ArrowBack as ArrowBackIcon,
+  ChevronRight as ChevronRightIcon,
 } from '@mui/icons-material';
 import { useQuery } from '@apollo/client';
 import { GET_MY_STATS } from '../../apollo/files';
@@ -33,9 +38,13 @@ const Dashboard: React.FC = () => {
   const {
     selectedNav,
     selectedFolderId,
+    folderPath,
+    canNavigateBack,
     refreshTrigger,
     handleNavChange,
     handleFolderSelect,
+    handleNavigateBack,
+    handleBreadcrumbClick,
     triggerRefresh,
   } = useDashboardNavigation();
 

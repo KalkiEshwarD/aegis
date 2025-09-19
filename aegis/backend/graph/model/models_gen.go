@@ -44,6 +44,7 @@ type FileFilterInput struct {
 	DateFrom       *time.Time `json:"date_from,omitempty"`
 	DateTo         *time.Time `json:"date_to,omitempty"`
 	IncludeTrashed *bool      `json:"includeTrashed,omitempty"`
+	FolderID       *string    `json:"folder_id,omitempty"`
 }
 
 type LoginInput struct {

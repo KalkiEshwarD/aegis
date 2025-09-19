@@ -9,21 +9,21 @@ import (
 	"github.com/balkanid/aegis-backend/internal/repositories"
 )
 
-type FolderService struct{
+type FolderService struct {
 	*BaseService
-	userResourceRepo     *repositories.UserResourceRepository
+	userResourceRepo      *repositories.UserResourceRepository
 	fileOperationsService *FileOperationsService
-	extensions           *RoomServiceExtensions
-	validationService    *ValidationService
+	extensions            *RoomServiceExtensions
+	validationService     *ValidationService
 }
 
 func NewFolderService(db *database.DB) *FolderService {
 	return &FolderService{
 		BaseService:           NewBaseService(db),
-		userResourceRepo:     repositories.NewUserResourceRepository(db),
+		userResourceRepo:      repositories.NewUserResourceRepository(db),
 		fileOperationsService: NewFileOperationsService(db),
-		extensions:           NewRoomServiceExtensions(db),
-		validationService:    NewValidationService(db),
+		extensions:            NewRoomServiceExtensions(db),
+		validationService:     NewValidationService(db),
 	}
 }
 
@@ -129,7 +129,8 @@ func (fs *FolderService) MoveFolder(userID, folderID uint, newParentID *uint) er
 	return nil
 }
 
-// DeleteFolder soft deletes a folder and all its contents
+// DeleteFolder soft deletes a folder and handles cascading deletion of child folders
+// All files in deleted folders are moved to the root folder (folder_id = NULL)
 func (fs *FolderService) DeleteFolder(userID, folderID uint) error {
 	db := fs.db.GetDB()
 
@@ -139,12 +140,96 @@ func (fs *FolderService) DeleteFolder(userID, folderID uint) error {
 		return err
 	}
 
-	// Soft delete the folder (this will cascade to files via application logic)
-	if err := db.Delete(&folder).Error; err != nil {
-		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to delete folder")
+	// Start a transaction to ensure atomicity
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.Wrap(tx.Error, apperrors.ErrCodeInternal, "failed to start transaction")
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Recursively collect all descendant folder IDs
+	folderIDsToDelete, err := fs.collectDescendantFolders(tx, folderID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	// Include the root folder itself
+	folderIDsToDelete = append(folderIDsToDelete, folderID)
+
+	// Move all files from these folders to root (folder_id = NULL)
+	if len(folderIDsToDelete) > 0 {
+		if err := tx.Model(&models.UserFile{}).
+			Where("folder_id IN (?) AND user_id = ?", folderIDsToDelete, userID).
+			Update("folder_id", nil).Error; err != nil {
+			tx.Rollback()
+			return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to move files to root")
+		}
+
+		// Remove files from all rooms to avoid foreign key constraint issues
+		var fileIDs []uint
+		if err := tx.Model(&models.UserFile{}).
+			Where("folder_id IN (?) AND user_id = ?", folderIDsToDelete, userID).
+			Pluck("id", &fileIDs).Error; err != nil {
+			tx.Rollback()
+			return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to get file IDs")
+		}
+
+		if len(fileIDs) > 0 {
+			if err := tx.Where("user_file_id IN (?)", fileIDs).Delete(&models.RoomFile{}).Error; err != nil {
+				tx.Rollback()
+				return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to remove files from rooms")
+			}
+		}
+
+		// Remove folders from all rooms
+		if err := tx.Where("folder_id IN (?)", folderIDsToDelete).Delete(&models.RoomFolder{}).Error; err != nil {
+			tx.Rollback()
+			return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to remove folders from rooms")
+		}
+
+		// Soft delete all folders (from bottom up to respect foreign key constraints)
+		for i := len(folderIDsToDelete) - 1; i >= 0; i-- {
+			if err := tx.Where("id = ? AND user_id = ?", folderIDsToDelete[i], userID).Delete(&models.Folder{}).Error; err != nil {
+				tx.Rollback()
+				return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to delete folder")
+			}
+		}
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to commit transaction")
 	}
 
 	return nil
+}
+
+// collectDescendantFolders recursively collects all descendant folder IDs
+func (fs *FolderService) collectDescendantFolders(db *gorm.DB, parentID uint) ([]uint, error) {
+	var folderIDs []uint
+	var children []models.Folder
+
+	// Get direct children
+	if err := db.Where("parent_id = ?", parentID).Find(&children).Error; err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to get child folders")
+	}
+
+	for _, child := range children {
+		folderIDs = append(folderIDs, child.ID)
+
+		// Recursively get descendants
+		descendants, err := fs.collectDescendantFolders(db, child.ID)
+		if err != nil {
+			return nil, err
+		}
+		folderIDs = append(folderIDs, descendants...)
+	}
+
+	return folderIDs, nil
 }
 
 // MoveFile moves a file to a different folder

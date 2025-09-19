@@ -14,7 +14,7 @@ import {
   Close as CloseIcon,
 } from '@mui/icons-material';
 import { useMutation } from '@apollo/client';
-import { UPLOAD_FILE_FROM_MAP_MUTATION } from '../../apollo/files';
+import { UPLOAD_FILE_FROM_MAP_MUTATION, GET_MY_STATS } from '../../apollo/files';
 import {
   generateEncryptionKey,
   encryptFile,
@@ -153,6 +153,7 @@ const FileUploadDropzone: React.FC<FileUploadDropzoneProps> = ({
       // Upload file using the new uploadFileFromMap mutation
       const result = await uploadFileMutation({
         variables: mutationVars,
+        refetchQueries: [{ query: GET_MY_STATS }],
       });
 
       setUploads(prev => prev.map(u =>

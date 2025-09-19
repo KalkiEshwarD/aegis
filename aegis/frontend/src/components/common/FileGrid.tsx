@@ -1,11 +1,10 @@
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import { FixedSizeGrid as Grid } from 'react-window';
 import {
   Box,
   Paper,
   Typography,
   IconButton,
-  Chip,
 } from '@mui/material';
 import {
   InsertDriveFile as FileIcon,
@@ -16,8 +15,6 @@ import {
   Description as DocumentIcon,
   Archive as ArchiveIcon,
   Code as CodeIcon,
-  Download as DownloadIcon,
-  Delete as DeleteIcon,
   MoreVert as MoreVertIcon,
   Folder as FolderIcon,
 } from '@mui/icons-material';
@@ -28,31 +25,37 @@ interface FileGridProps {
   files: FileExplorerItem[];
   selectedFiles: Set<string>;
   downloadingFile: string | null;
+  focusedIndex?: number;
   onFileClick: (fileId: string, event: React.MouseEvent) => void;
   onContextMenu: (event: React.MouseEvent, fileId: string) => void;
   onDownload: (file: UserFile) => void;
   onDelete: (file: UserFile) => void;
   onFolderClick?: (folderId: string) => void;
+  onFileMove?: (fileIds: string[], targetFolderId: string | null) => Promise<void>;
 }
 
 interface FileItemProps {
   item: FileExplorerItem;
   style: React.CSSProperties;
   selectedFiles: Set<string>;
+  isFocused?: boolean;
   onFileClick: (fileId: string, event: React.MouseEvent) => void;
   onContextMenu: (event: React.MouseEvent, fileId: string) => void;
   onFolderClick?: (folderId: string) => void;
+  onFileMove?: (fileIds: string[], targetFolderId: string | null) => Promise<void>;
 }
 
 const FileGrid: React.FC<FileGridProps> = ({
   files,
   selectedFiles,
   downloadingFile,
+  focusedIndex = -1,
   onFileClick,
   onContextMenu,
   onDownload,
   onDelete,
   onFolderClick,
+  onFileMove,
 }) => {
   // File type icons
   const getItemIcon = (item: FileExplorerItem) => {
@@ -86,10 +89,15 @@ const FileGrid: React.FC<FileGridProps> = ({
     item,
     style,
     selectedFiles,
+    isFocused = false,
     onFileClick,
     onContextMenu,
     onFolderClick,
+    onFileMove,
   }) => {
+    const [isDragOver, setIsDragOver] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
+
     const isItemSelected = selectedFiles.has(item.id);
     const isItemFolder = isFolder(item);
     
@@ -103,6 +111,55 @@ const FileGrid: React.FC<FileGridProps> = ({
 
     const handleContextMenu = (e: React.MouseEvent) => {
       onContextMenu(e, item.id);
+    };
+
+    // Drag and drop handlers
+    const handleDragStart = (e: React.DragEvent) => {
+      if (!isFile(item)) return;
+
+      setIsDragging(true);
+      // Set drag data with file IDs (selected files or just this file)
+      const draggedFileIds = isItemSelected && selectedFiles.size > 1
+        ? Array.from(selectedFiles)
+        : [item.id];
+
+      e.dataTransfer.setData('application/json', JSON.stringify({
+        type: 'files',
+        fileIds: draggedFileIds
+      }));
+      e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleDragEnd = () => {
+      setIsDragging(false);
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+      if (!isItemFolder) return;
+
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      setIsDragOver(true);
+    };
+
+    const handleDragLeave = () => {
+      setIsDragOver(false);
+    };
+
+    const handleDrop = async (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragOver(false);
+
+      if (!isItemFolder || !onFileMove) return;
+
+      try {
+        const dragData = JSON.parse(e.dataTransfer.getData('application/json'));
+        if (dragData.type === 'files' && dragData.fileIds) {
+          await onFileMove(dragData.fileIds, item.id);
+        }
+      } catch (error) {
+        console.error('Error handling file drop:', error);
+      }
     };
 
     const getItemName = () => {
@@ -124,17 +181,32 @@ const FileGrid: React.FC<FileGridProps> = ({
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            cursor: 'pointer',
-            border: isItemSelected ? '2px solid #3b82f6' : '1px solid #e5e7eb',
-            backgroundColor: isItemSelected ? '#eff6ff' : 'background.paper',
+            cursor: isFile(item) ? 'grab' : 'pointer',
+            border: isFocused ? '2px solid #f59e0b' :
+                    isItemSelected ? '2px solid #3b82f6' :
+                    isDragOver ? '2px solid #10b981' : '1px solid #e5e7eb',
+            backgroundColor: isFocused ? '#fef3c7' :
+                            isItemSelected ? '#eff6ff' :
+                            isDragOver ? '#d1fae5' :
+                            isDragging ? '#fef3c7' : 'background.paper',
+            opacity: isDragging ? 0.5 : 1,
             '&:hover': {
-              backgroundColor: isItemSelected ? '#dbeafe' : '#f9fafb',
+              backgroundColor: isFocused ? '#fde68a' :
+                              isItemSelected ? '#dbeafe' :
+                              isDragOver ? '#a7f3d0' : '#f9fafb',
             },
             position: 'relative',
             height: '100%',
+            transition: 'all 0.2s ease-in-out',
           }}
+          draggable={isFile(item)}
           onClick={handleClick}
           onContextMenu={handleContextMenu}
+          onDragStart={isFile(item) ? handleDragStart : undefined}
+          onDragEnd={isFile(item) ? handleDragEnd : undefined}
+          onDragOver={isItemFolder ? handleDragOver : undefined}
+          onDragLeave={isItemFolder ? handleDragLeave : undefined}
+          onDrop={isItemFolder ? handleDrop : undefined}
         >
           {getItemIcon(item)}
           <Typography
@@ -191,9 +263,11 @@ const FileGrid: React.FC<FileGridProps> = ({
           itemData={{
             files,
             selectedFiles,
+            focusedIndex,
             onFileClick,
             onContextMenu,
             onFolderClick,
+            onFileMove,
           }}
         >
           {({ columnIndex, rowIndex, style, data }) => {
@@ -208,9 +282,11 @@ const FileGrid: React.FC<FileGridProps> = ({
                 item={item}
                 style={style}
                 selectedFiles={data.selectedFiles}
+                isFocused={data.focusedIndex === index}
                 onFileClick={data.onFileClick}
                 onContextMenu={data.onContextMenu}
                 onFolderClick={data.onFolderClick}
+                onFileMove={data.onFileMove}
               />
             );
           }}
@@ -227,15 +303,17 @@ const FileGrid: React.FC<FileGridProps> = ({
       gap: 2,
       height: '100%'
     }}>
-      {files.map((item) => (
+      {files.map((item, index) => (
         <FileItem
           key={item.id}
           item={item}
           style={{}}
           selectedFiles={selectedFiles}
+          isFocused={focusedIndex === index}
           onFileClick={onFileClick}
           onContextMenu={onContextMenu}
           onFolderClick={onFolderClick}
+          onFileMove={onFileMove}
         />
       ))}
     </Box>

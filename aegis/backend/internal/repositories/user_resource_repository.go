@@ -149,6 +149,15 @@ func (urr *UserResourceRepository) FindUserFilesWithFilters(userID uint, filters
 		query = query.Where("user_files.created_at <= ?", dateTo)
 	}
 
+	if folderID, ok := filters["folder_id"].(*string); ok && folderID != nil {
+		if *folderID == "" {
+			// Empty string means root folder (null folder_id)
+			query = query.Where("user_files.folder_id IS NULL")
+		} else {
+			query = query.Where("user_files.folder_id = ?", *folderID)
+		}
+	}
+
 	if includeTrashed, ok := filters["include_trashed"].(*bool); ok && includeTrashed != nil && *includeTrashed {
 		// Include trashed files - use Unscoped() to include soft-deleted records
 		log.Printf("DEBUG: Including trashed files for user %d", userID)

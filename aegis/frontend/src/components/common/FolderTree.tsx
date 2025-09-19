@@ -1,4 +1,4 @@
-import React, { useState, useCallback, memo } from 'react';
+import React, { useState, useCallback, memo, useEffect } from 'react';
 import {
   Box,
   List,
@@ -48,6 +48,17 @@ interface FolderTreeItemProps {
   onToggleExpand: (folderId: string) => void;
   onFolderSelect: (folderId: string | null) => void;
   onContextMenu: (event: React.MouseEvent, folder: Folder) => void;
+}
+
+interface FolderSelectionDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: (destinationId: string | null) => void;
+  folders: Folder[];
+  folderToMove: Folder | null;
+  currentParentId?: string | null;
+  isMoving?: boolean;
+  moveError?: string | null;
 }
 
 const FolderTreeItem: React.FC<FolderTreeItemProps> = ({
@@ -158,6 +169,262 @@ const FolderTreeItem: React.FC<FolderTreeItemProps> = ({
   );
 };
 
+// Helper function to get all descendant folder IDs
+const getDescendantIds = (folder: Folder): string[] => {
+  const descendants: string[] = [];
+  if (folder.children) {
+    for (const child of folder.children) {
+      descendants.push(child.id);
+      descendants.push(...getDescendantIds(child));
+    }
+  }
+  return descendants;
+};
+
+// Component for folder selection in move dialog
+const FolderSelectionDialog: React.FC<FolderSelectionDialogProps> = ({
+  open,
+  onClose,
+  onConfirm,
+  folders,
+  folderToMove,
+  currentParentId,
+  isMoving = false,
+  moveError = null,
+}) => {
+  const [selectedDestinationId, setSelectedDestinationId] = useState<string | null>(null);
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+
+  // Reset selection when dialog opens
+  useEffect(() => {
+    if (open) {
+      setSelectedDestinationId(null);
+      setExpandedFolders(new Set());
+    }
+  }, [open]);
+
+  if (!folderToMove) return null;
+
+  // Get invalid destination IDs (folder itself, descendants, current parent)
+  const invalidIds = new Set<string>();
+  invalidIds.add(folderToMove.id); // Cannot move into itself
+  getDescendantIds(folderToMove).forEach(id => invalidIds.add(id)); // Cannot move into descendants
+  if (currentParentId) {
+    invalidIds.add(currentParentId); // Cannot move to same location
+  }
+
+  const handleToggleExpand = (folderId: string) => {
+    setExpandedFolders(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(folderId)) {
+        newSet.delete(folderId);
+      } else {
+        newSet.add(folderId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleDestinationSelect = (folderId: string | null) => {
+    if (folderId && invalidIds.has(folderId)) return;
+    setSelectedDestinationId(folderId);
+  };
+
+  const handleConfirm = () => {
+    onConfirm(selectedDestinationId);
+  };
+
+  const rootFolders = folders.filter(folder => !folder.parent_id);
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Select Destination Folder</DialogTitle>
+      <DialogContent>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Moving "{folderToMove.name}" to:
+        </Typography>
+        {moveError && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {moveError}
+          </Alert>
+        )}
+        <List sx={{ maxHeight: 300, overflow: 'auto' }}>
+          {/* Root/Home folder */}
+          <ListItem disablePadding>
+            <ListItemButton
+              selected={selectedDestinationId === null}
+              disabled={invalidIds.has('root') || currentParentId === null}
+              onClick={() => handleDestinationSelect(null)}
+              sx={{
+                borderRadius: 1,
+                '&.Mui-selected': {
+                  backgroundColor: '#eff6ff',
+                  color: '#2563eb',
+                },
+                '&.Mui-disabled': {
+                  opacity: 0.5,
+                },
+                '&:hover:not(.Mui-disabled)': {
+                  backgroundColor: '#f8fafc',
+                }
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 32, color: '#6b7280' }}>
+                <FolderIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText
+                primary="Home (Root)"
+                primaryTypographyProps={{
+                  fontSize: '0.875rem',
+                  fontWeight: selectedDestinationId === null ? 600 : 400,
+                }}
+              />
+            </ListItemButton>
+          </ListItem>
+
+          {/* Folder tree */}
+          {rootFolders.map((folder) => (
+            <FolderSelectionTreeItem
+              key={folder.id}
+              folder={folder}
+              level={1}
+              expandedFolders={expandedFolders}
+              selectedFolderId={selectedDestinationId}
+              invalidIds={invalidIds}
+              onToggleExpand={handleToggleExpand}
+              onFolderSelect={handleDestinationSelect}
+            />
+          ))}
+
+          {rootFolders.length === 0 && (
+            <Typography variant="body2" color="text.secondary" sx={{ px: 2, py: 1 }}>
+              No folders available
+            </Typography>
+          )}
+        </List>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} disabled={isMoving}>
+          Cancel
+        </Button>
+        <Button
+          onClick={handleConfirm}
+          color="primary"
+          variant="contained"
+          disabled={selectedDestinationId === currentParentId || isMoving}
+          startIcon={isMoving ? <CircularProgress size={16} /> : null}
+        >
+          {isMoving ? 'Moving...' : 'Move Here'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+// Tree item for folder selection (without context menu)
+interface FolderSelectionTreeItemProps {
+  folder: Folder;
+  level: number;
+  expandedFolders: Set<string>;
+  selectedFolderId: string | null;
+  invalidIds: Set<string>;
+  onToggleExpand: (folderId: string) => void;
+  onFolderSelect: (folderId: string | null) => void;
+}
+
+const FolderSelectionTreeItem: React.FC<FolderSelectionTreeItemProps> = ({
+  folder,
+  level,
+  expandedFolders,
+  selectedFolderId,
+  invalidIds,
+  onToggleExpand,
+  onFolderSelect,
+}) => {
+  const isExpanded = expandedFolders.has(folder.id);
+  const isSelected = selectedFolderId === folder.id;
+  const isInvalid = invalidIds.has(folder.id);
+  const hasChildren = folder.children && folder.children.length > 0;
+
+  const handleClick = () => {
+    if (isInvalid) return;
+    if (hasChildren) {
+      onToggleExpand(folder.id);
+    }
+    onFolderSelect(folder.id);
+  };
+
+  return (
+    <>
+      <ListItem disablePadding sx={{ pl: level * 2 }}>
+        <ListItemButton
+          selected={isSelected}
+          disabled={isInvalid}
+          onClick={handleClick}
+          sx={{
+            borderRadius: 1,
+            '&.Mui-selected': {
+              backgroundColor: '#eff6ff',
+              color: '#2563eb',
+            },
+            '&.Mui-disabled': {
+              opacity: 0.5,
+            },
+            '&:hover:not(.Mui-disabled)': {
+              backgroundColor: '#f8fafc',
+            }
+          }}
+        >
+          {hasChildren && (
+            <IconButton
+              size="small"
+              disabled={isInvalid}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleExpand(folder.id);
+              }}
+              sx={{ mr: 0.5, p: 0.5 }}
+            >
+              {isExpanded ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+            </IconButton>
+          )}
+          {!hasChildren && <Box sx={{ width: 24, mr: 0.5 }} />}
+          <ListItemIcon sx={{ minWidth: 32, color: '#6b7280' }}>
+            {isExpanded ? <FolderOpenIcon fontSize="small" /> : <FolderIcon fontSize="small" />}
+          </ListItemIcon>
+          <ListItemText
+            primary={folder.name}
+            primaryTypographyProps={{
+              fontSize: '0.875rem',
+              fontWeight: isSelected ? 600 : 400,
+              noWrap: true,
+            }}
+          />
+        </ListItemButton>
+      </ListItem>
+
+      {hasChildren && (
+        <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+          <List component="div" disablePadding>
+            {folder.children.map((child) => (
+              <FolderSelectionTreeItem
+                key={child.id}
+                folder={child}
+                level={level + 1}
+                expandedFolders={expandedFolders}
+                selectedFolderId={selectedFolderId}
+                invalidIds={invalidIds}
+                onToggleExpand={onToggleExpand}
+                onFolderSelect={onFolderSelect}
+              />
+            ))}
+          </List>
+        </Collapse>
+      )}
+    </>
+  );
+};
+
 const FolderTree: React.FC<FolderTreeProps> = ({
   selectedFolderId,
   onFolderSelect,
@@ -170,9 +437,11 @@ const FolderTree: React.FC<FolderTreeProps> = ({
     folder: Folder | null;
   } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [folderSelectionDialogOpen, setFolderSelectionDialogOpen] = useState(false);
   const [folderToDelete, setFolderToDelete] = useState<Folder | null>(null);
   const [folderToMove, setFolderToMove] = useState<Folder | null>(null);
+  const [moveError, setMoveError] = useState<string | null>(null);
+  const [isMoving, setIsMoving] = useState(false);
 
   const { data, loading, error, refetch } = useQuery(GET_MY_FOLDERS, {
     fetchPolicy: 'cache-and-network',
@@ -286,30 +555,38 @@ const FolderTree: React.FC<FolderTreeProps> = ({
   const handleMoveFolder = () => {
     if (!contextMenu?.folder) return;
     setFolderToMove(contextMenu.folder);
-    setMoveDialogOpen(true);
+    setFolderSelectionDialogOpen(true);
     handleCloseContextMenu();
   };
 
-  const handleMoveConfirm = async () => {
+  const handleMoveConfirm = async (destinationId: string | null) => {
     if (!folderToMove) return;
+
+    setIsMoving(true);
+    setMoveError(null);
 
     try {
       await moveFolder({
         variables: {
           input: {
             id: folderToMove.id,
-            parent_id: null,
+            parent_id: destinationId,
           },
         },
       });
       refetch();
       onRefresh?.();
-    } catch (error) {
+      setFolderSelectionDialogOpen(false);
+      setFolderToMove(null);
+    } catch (error: any) {
       console.error('Error moving folder:', error);
-      alert('Failed to move folder');
+      const errorMessage = error?.graphQLErrors?.[0]?.message ||
+                          error?.networkError?.message ||
+                          'Failed to move folder. Please try again.';
+      setMoveError(errorMessage);
+    } finally {
+      setIsMoving(false);
     }
-    setMoveDialogOpen(false);
-    setFolderToMove(null);
   };
 
   if (loading) {
@@ -435,21 +712,20 @@ const FolderTree: React.FC<FolderTreeProps> = ({
         </DialogActions>
       </Dialog>
 
-      {/* Move Confirmation Dialog */}
-      <Dialog open={moveDialogOpen} onClose={() => setMoveDialogOpen(false)}>
-        <DialogTitle>Move Folder</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Move "{folderToMove?.name}" to root folder?
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setMoveDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleMoveConfirm} color="primary" variant="contained">
-            Move
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* Folder Selection Dialog for Move */}
+      <FolderSelectionDialog
+        open={folderSelectionDialogOpen}
+        onClose={() => {
+          setFolderSelectionDialogOpen(false);
+          setMoveError(null);
+        }}
+        onConfirm={handleMoveConfirm}
+        folders={data?.myFolders || []}
+        folderToMove={folderToMove}
+        currentParentId={folderToMove?.parent_id || null}
+        isMoving={isMoving}
+        moveError={moveError}
+      />
     </>
   );
 };

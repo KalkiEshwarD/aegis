@@ -120,6 +120,7 @@ input FileFilterInput {
   date_from: Time
   date_to: Time
   includeTrashed: Boolean
+  folder_id: ID
 }
 
 input CreateRoomInput {

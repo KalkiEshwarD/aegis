@@ -216,6 +216,9 @@ func (s *StorageService) GetUserFiles(userID uint, filter *FileFilter) ([]*model
 		if filter.DateTo != nil {
 			filters["date_to"] = filter.DateTo
 		}
+		if filter.FolderID != nil {
+			filters["folder_id"] = filter.FolderID
+		}
 	}
 
 	return s.userResourceRepo.FindUserFilesWithFilters(userID, filters, "File", "Folder")
@@ -436,4 +439,5 @@ type FileFilter struct {
 	DateFrom       *interface{} // Time
 	DateTo         *interface{} // Time
 	IncludeTrashed *bool
+	FolderID       *string
 }

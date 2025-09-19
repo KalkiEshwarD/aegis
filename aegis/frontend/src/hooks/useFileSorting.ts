@@ -12,7 +12,10 @@ export const useFileSorting = (files: UserFile[] | undefined) => {
   const sortedFiles = useMemo(() => {
     if (!files) return [];
 
-    return [...files].sort((a, b) => {
+    // Filter out null/undefined items to prevent map errors
+    const validFiles = files.filter(file => file != null);
+
+    return [...validFiles].sort((a, b) => {
       let aValue: any, bValue: any;
 
       switch (sortBy) {

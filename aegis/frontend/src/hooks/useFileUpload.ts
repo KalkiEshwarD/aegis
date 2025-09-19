@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useMutation } from '@apollo/client';
-import { UPLOAD_FILE_FROM_MAP_MUTATION } from '../apollo/queries';
+import { UPLOAD_FILE_FROM_MAP_MUTATION, GET_MY_STATS } from '../apollo/queries';
 import {
   generateEncryptionKey,
   encryptFile,
@@ -15,6 +15,20 @@ import { getErrorMessage } from '../utils/errorHandling';
 export const useFileUpload = (onUploadComplete?: () => void) => {
   const [uploads, setUploads] = useState<FileUploadProgress[]>([]);
   const [uploadFileMutation] = useMutation(UPLOAD_FILE_FROM_MAP_MUTATION);
+  const isMountedRef = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    abortControllerRef.current = new AbortController();
+
+    return () => {
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const validateFile = useCallback((file: File): string | null => {
     const maxFileSize = 10 * 1024 * 1024; // 10MB
@@ -27,10 +41,16 @@ export const useFileUpload = (onUploadComplete?: () => void) => {
     return null;
   }, []);
 
+  const safeSetUploads = useCallback((updater: (prev: FileUploadProgress[]) => FileUploadProgress[]) => {
+    if (isMountedRef.current) {
+      setUploads(updater);
+    }
+  }, []);
+
   const processFile = useCallback(async (file: File): Promise<void> => {
     const validationError = validateFile(file);
     if (validationError) {
-      setUploads(prev => [...prev, {
+      safeSetUploads(prev => [...prev, {
         file,
         progress: 0,
         status: 'error',
@@ -39,24 +59,24 @@ export const useFileUpload = (onUploadComplete?: () => void) => {
       return;
     }
 
-    setUploads(prev => [...prev, {
+    safeSetUploads(prev => [...prev, {
       file,
       progress: 0,
       status: 'pending',
     }]);
 
     try {
-      setUploads(prev => prev.map(u =>
+      safeSetUploads(prev => prev.map(u =>
         u.file === file ? { ...u, status: 'uploading', progress: 10 } : u
       ));
 
       const contentHash = await calculateFileHash(file);
-      setUploads(prev => prev.map(u =>
+      safeSetUploads(prev => prev.map(u =>
         u.file === file ? { ...u, progress: 30 } : u
       ));
 
       const encryptionKey = generateEncryptionKey();
-      setUploads(prev => prev.map(u =>
+      safeSetUploads(prev => prev.map(u =>
         u.file === file ? { ...u, progress: 40 } : u
       ));
 
@@ -67,7 +87,7 @@ export const useFileUpload = (onUploadComplete?: () => void) => {
       encryptedDataWithNonce.set(nonce, 0);
       encryptedDataWithNonce.set(encryptedData, nonce.length);
 
-      setUploads(prev => prev.map(u =>
+      safeSetUploads(prev => prev.map(u =>
         u.file === file ? { ...u, progress: 70 } : u
       ));
 
@@ -90,9 +110,15 @@ export const useFileUpload = (onUploadComplete?: () => void) => {
             data: JSON.stringify(uploadData),
           },
         },
+        refetchQueries: [{ query: GET_MY_STATS }],
+        context: {
+          fetchOptions: {
+            signal: abortControllerRef.current?.signal,
+          },
+        },
       });
 
-      setUploads(prev => prev.map(u =>
+      safeSetUploads(prev => prev.map(u =>
         u.file === file ? { ...u, status: 'completed', progress: 100 } : u
       ));
 
@@ -101,13 +127,18 @@ export const useFileUpload = (onUploadComplete?: () => void) => {
       }
 
     } catch (err: any) {
+      // Don't update state if the error is due to abort
+      if (err.name === 'AbortError') {
+        return;
+      }
+
       console.error('Upload error:', err);
       const errorMessage = getErrorMessage(err) || 'Upload failed';
-      setUploads(prev => prev.map(u =>
+      safeSetUploads(prev => prev.map(u =>
         u.file === file ? { ...u, status: 'error', error: errorMessage } : u
       ));
     }
-  }, [uploadFileMutation, onUploadComplete, validateFile]);
+  }, [uploadFileMutation, onUploadComplete, validateFile, safeSetUploads]);
 
   const handleFiles = useCallback(async (files: File[]) => {
     if (!files || files.length === 0) return;
