@@ -9,6 +9,7 @@ import (
 // User represents a user in the system
 type User struct {
 	ID           uint           `gorm:"primaryKey" json:"id"`
+	Username     string         `gorm:"uniqueIndex;not null" json:"username"`
 	Email        string         `gorm:"uniqueIndex;not null" json:"email"`
 	PasswordHash string         `gorm:"not null" json:"-"`
 	StorageQuota int64          `gorm:"default:10485760" json:"storage_quota"` // 10MB default

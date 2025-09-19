@@ -7,6 +7,7 @@ import { BrowserRouter } from 'react-router-dom';
 // Mock data
 const getMockUser = () => ({
   id: '1',
+  username: 'testuser',
   email: 'test@example.com',
   storage_quota: 1000000,
   used_storage: 500000,

@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"strings"
+	"regexp"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -27,24 +27,49 @@ func NewUserService(cfg *config.Config) *UserService {
 }
 
 // Register creates a new user account
-func (s *UserService) Register(email, password string) (*models.User, string, error) {
+func (s *UserService) Register(username, email, password string) (*models.User, string, error) {
+	// Validate username
+	if username == "" {
+		return nil, "", errors.New("username is required")
+	}
+	if len(username) < 3 || len(username) > 50 {
+		return nil, "", errors.New("username must be between 3 and 50 characters")
+	}
+	if matched, _ := regexp.MatchString("^[a-zA-Z0-9]+$", username); !matched {
+		return nil, "", errors.New("username must contain only alphanumeric characters")
+	}
+
 	// Validate email
 	if email == "" {
 		return nil, "", errors.New("email is required")
 	}
-	if !strings.Contains(email, "@") || !strings.Contains(email, ".") {
+	emailRegex := regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
+	if !emailRegex.MatchString(email) {
 		return nil, "", errors.New("invalid email format")
 	}
 
 	// Validate password
-	if len(password) < 6 {
-		return nil, "", errors.New("password must be at least 6 characters long")
+	if len(password) < 8 {
+		return nil, "", errors.New("password must be at least 8 characters long")
+	}
+
+	// Check for required character types
+	hasLower := regexp.MustCompile(`[a-z]`).MatchString(password)
+	hasUpper := regexp.MustCompile(`[A-Z]`).MatchString(password)
+	hasDigit := regexp.MustCompile(`\d`).MatchString(password)
+	hasSpecial := regexp.MustCompile(`[@$!%*?&]`).MatchString(password)
+
+	if !hasLower || !hasUpper || !hasDigit || !hasSpecial {
+		return nil, "", errors.New("password must contain at least one uppercase letter, one lowercase letter, one number, and one special character")
 	}
 
 	// Check if user already exists
 	var existingUser models.User
 	if err := database.GetDB().Where("email = ?", email).First(&existingUser).Error; err == nil {
 		return nil, "", errors.New("user with this email already exists")
+	}
+	if err := database.GetDB().Where("username = ?", username).First(&existingUser).Error; err == nil {
+		return nil, "", errors.New("user with this username already exists")
 	}
 
 	// Hash password
@@ -55,6 +80,7 @@ func (s *UserService) Register(email, password string) (*models.User, string, er
 
 	// Create user
 	user := &models.User{
+		Username:     username,
 		Email:        email,
 		PasswordHash: string(hashedPassword),
 		StorageQuota: 104857600, // 100MB default
@@ -76,10 +102,10 @@ func (s *UserService) Register(email, password string) (*models.User, string, er
 }
 
 // Login authenticates a user and returns a JWT token
-func (s *UserService) Login(email, password string) (*models.User, string, error) {
-	// Find user by email
+func (s *UserService) Login(identifier, password string) (*models.User, string, error) {
+	// Find user by email or username
 	var user models.User
-	if err := database.GetDB().Where("email = ?", email).First(&user).Error; err != nil {
+	if err := database.GetDB().Where("email = ? OR username = ?", identifier, identifier).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, "", errors.New("invalid credentials")
 		}

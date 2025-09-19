@@ -1,321 +1,443 @@
-# Project Execution Plan: Production-Grade Secure File Vault
+# Backend Refactoring Plan: Aegis File Management System
 
-## 1. Understand Requirements
-This section synthesizes the core requirements from the project document and the additional specified features into a clear set of functional and non-functional goals.
+## Executive Summary
 
-### Functional Requirements
+This document outlines a comprehensive refactoring plan to simplify the backend code while preserving all security features. The plan addresses critical security vulnerabilities, eliminates technical debt, and improves maintainability based on the code analysis and security audit reports.
 
-#### User & Authentication:
-- User registration and login
-- JWT-based authentication for API access
+## Current State Analysis
 
-#### File Operations:
-- Single and multiple file uploads with drag-and-drop support
-- Content hashing (SHA-256) for integrity verification
-- MIME type validation to prevent content mismatches
-- List, view, and delete owned files
+### Critical Issues Identified
+1. **Security Vulnerabilities**: Exposed secrets, insecure MinIO configuration, JWT token storage inconsistencies
+2. **Code Quality**: Monolithic files (553+ lines), mixed concerns, inconsistent error handling
+3. **Performance Issues**: Memory-inefficient file handling, N+1 queries, lack of streaming
+4. **Architecture Problems**: Tight coupling, no separation of concerns, debug logging in production code
 
-#### Search & Filtering:
-- Performant search by filename
-- Combine filters for MIME type, size, date range, and uploader
+### Key Areas for Refactoring
+- GraphQL upload workarounds (UploadFileFromMap)
+- Authentication middleware with debug logging
+- File service with mixed responsibilities
+- Error handling scattered across layers
+- ID parsing utilities needed
+- Streaming downloads not implemented
+- Encryption key exposure risks
 
-#### Collaboration & Sharing (Rooms):
-- Create secure, invite-only "File Rooms"
-- Assign granular roles to room members: Admin, Content Creator, Content Editor, Content Viewer
-- Share files within a room context based on user permissions
+## Phased Implementation Plan
 
-#### Admin Panel:
-- Dashboard to view system-wide statistics
-- Manage all users, files, and rooms
-- View detailed analytics like download counts and user access lists
+### Phase 1: Critical Security Fixes (Priority: Critical)
+**Duration**: 2-3 days
+**Risk Level**: High (security-related)
+**Dependencies**: None
 
-#### Statistics:
-- Users can view their storage usage and file counts
+#### Objectives
+- Address all critical security vulnerabilities
+- Remove exposed secrets from version control
+- Fix JWT token storage inconsistencies
+- Implement secure configuration management
 
-### Non-Functional Requirements
+#### Tasks
+1. **Remove Exposed Secrets**
+   - Delete `.env` from version control: `git rm --cached aegis/.env`
+   - Create `.env.example` with placeholder values
+   - Implement secure secret management (environment variables only)
+   - Update Docker Compose with proper secret handling
 
-#### Security:
-- **End-to-End Encryption (E2EE)**: Files must be encrypted on the client side before upload and decrypted only on the client side. The server must never have access to unencrypted file content
-- Role-Based Access Control (RBAC) for all file and room operations
+2. **Fix JWT Token Storage**
+   - Standardize on HttpOnly cookies for all token storage
+   - Remove localStorage usage in FileTable.tsx
+   - Implement CSRF protection
+   - Update AuthContext to use cookies consistently
 
-#### Performance:
-- Per-user API rate limiting (configurable, e.g., 2 requests/sec)
-- Per-user storage quotas (configurable, e.g., 10 MB)
-- Optimized database queries for fast search and filtering at scale
+3. **Secure MinIO Configuration**
+   - Change `Secure: false` to `Secure: true` in file_service.go
+   - Implement proper SSL certificate validation
+   - Add environment-based configuration for MinIO endpoints
 
-#### Scalability:
-- The architecture must support horizontal scaling of the backend service
+4. **Dynamic URL Configuration**
+   - Move hardcoded localhost URLs to environment configuration
+   - Implement proper URL building based on environment
+   - Add configuration validation
 
-#### Deployability:
-- The entire application stack must be containerized using Docker and manageable via Docker Compose
+#### Risk Assessment
+- **High Risk**: Breaking authentication for existing users
+- **Mitigation**: Implement gradual rollout with backward compatibility
+- **Testing**: Comprehensive authentication testing required
 
-#### Testability:
-- The system must be designed for automated testing, with a defined strategy for UI, API, and unit tests
+### Phase 2: Authentication Separation (Priority: High)
+**Duration**: 2-3 days
+**Risk Level**: Medium
+**Dependencies**: Phase 1 completion
 
-## 2. System Architecture
-We will adopt a modern, containerized, three-tier architecture that separates concerns, enhances security, and is built for scalability.
+#### Objectives
+- Separate authentication concerns from business logic
+- Remove debug logging from production code
+- Implement clean authentication middleware
+- Create reusable authentication utilities
 
-### Architecture Diagram
+#### Tasks
+1. **Extract Authentication Service**
+   - Create `internal/services/auth_service.go`
+   - Move JWT validation logic from middleware
+   - Implement token refresh mechanism
+   - Add proper session management
 
+2. **Clean Authentication Middleware**
+   - Remove all debug logging from auth.go
+   - Simplify middleware logic
+   - Add proper error responses
+   - Implement rate limiting
+
+3. **Create ID Parsing Utilities**
+   - Add `internal/utils/id_parser.go`
+   - Implement safe string-to-uint conversion
+   - Add validation for all ID parameters
+   - Centralize ID parsing logic
+
+4. **Update GraphQL Resolvers**
+   - Remove debug logging from schema.resolvers.go
+   - Use new ID parsing utilities
+   - Simplify resolver logic
+   - Add proper error handling
+
+#### Risk Assessment
+- **Medium Risk**: Authentication failures during transition
+- **Mitigation**: Maintain backward compatibility during migration
+- **Testing**: Full authentication flow testing required
+
+### Phase 3: File Service Refactoring (Priority: High)
+**Duration**: 3-4 days
+**Risk Level**: Medium
+**Dependencies**: Phase 2 completion
+
+#### Objectives
+- Break down monolithic file_service.go (553 lines)
+- Separate concerns (storage, business logic, validation)
+- Implement proper error handling
+- Add comprehensive validation
+
+#### Tasks
+1. **Split File Service**
+   - Create `internal/services/storage_service.go` for MinIO operations
+   - Create `internal/services/validation_service.go` for input validation
+   - Keep `file_service.go` for business logic coordination
+   - Implement interface-based design for testability
+
+2. **Implement Storage Abstraction**
+   - Create `internal/storage/storage.go` interface
+   - Implement MinIO and mock storage adapters
+   - Add storage configuration management
+   - Implement connection pooling
+
+3. **Add Comprehensive Validation**
+   - Implement file type restrictions
+   - Add content scanning capabilities
+   - Validate file sizes and metadata
+   - Add configurable size limits
+
+4. **Database Query Optimization**
+   - Implement eager loading to prevent N+1 queries
+   - Add database indexes for frequently queried fields
+   - Implement query result caching
+   - Add transaction management for multi-step operations
+
+#### Risk Assessment
+- **Medium Risk**: File upload/download failures
+- **Mitigation**: Implement feature flags for gradual rollout
+- **Testing**: Comprehensive file operation testing required
+
+### Phase 4: GraphQL Upload Workarounds Elimination (Priority: Medium)
+**Duration**: 2-3 days
+**Risk Level**: Low
+**Dependencies**: Phase 3 completion
+
+#### Objectives
+- Remove UploadFileFromMap workaround
+- Implement proper GraphQL upload handling
+- Simplify upload flow
+- Add proper type safety
+
+#### Tasks
+1. **Update GraphQL Schema**
+   - Remove `uploadFileFromMap` mutation
+   - Implement proper Upload scalar handling
+   - Update input types for better type safety
+   - Add upload size validation in schema
+
+2. **Refactor Upload Resolvers**
+   - Remove `UploadFileFromMap` resolver
+   - Simplify `UploadFile` resolver logic
+   - Use new validation and storage services
+   - Implement proper error handling
+
+3. **Update Frontend Integration**
+   - Remove map-based upload calls
+   - Implement proper file upload handling
+   - Update Apollo Client configuration
+   - Add upload progress tracking
+
+4. **Clean Upload Converter**
+   - Remove or repurpose `upload_converter.go`
+   - Move useful utilities to appropriate services
+   - Update tests to use new upload flow
+
+#### Risk Assessment
+- **Low Risk**: Frontend can be updated incrementally
+- **Mitigation**: Maintain backward compatibility during transition
+- **Testing**: Upload functionality testing required
+
+### Phase 5: Streaming Downloads Implementation (Priority: Medium)
+**Duration**: 2-3 days
+**Risk Level**: Low
+**Dependencies**: Phase 4 completion
+
+#### Objectives
+- Implement streaming for large file downloads
+- Reduce memory usage for file operations
+- Add download progress tracking
+- Implement resumable downloads
+
+#### Tasks
+1. **Implement Streaming Infrastructure**
+   - Update `StreamFile` method in file service
+   - Implement chunked file processing
+   - Add streaming response handling in GraphQL
+   - Implement proper content-type detection
+
+2. **Update Download URLs**
+   - Remove hardcoded localhost URLs
+   - Implement proper download URL generation
+   - Add download token validation
+   - Implement secure download links
+
+3. **Add Download Progress**
+   - Implement progress tracking for large downloads
+   - Add resumable download support
+   - Update frontend to handle streaming responses
+   - Add download cancellation support
+
+4. **Memory Optimization**
+   - Remove `GetFile` method (memory-inefficient)
+   - Update all download operations to use streaming
+   - Implement connection pooling for MinIO
+   - Add timeout handling for long downloads
+
+#### Risk Assessment
+- **Low Risk**: Can be implemented alongside existing methods
+- **Mitigation**: Gradual rollout with feature flags
+- **Testing**: Large file download testing required
+
+### Phase 6: Error Handling Consolidation (Priority: Medium)
+**Duration**: 2-3 days
+**Risk Level**: Low
+**Dependencies**: Phase 5 completion
+
+#### Objectives
+- Implement consistent error handling across all services
+- Create centralized error types
+- Add proper error logging and monitoring
+- Implement user-friendly error messages
+
+#### Tasks
+1. **Create Error Types**
+   - Define standard error types in `internal/errors/`
+   - Implement error wrapping and chaining
+   - Add error codes for API responses
+   - Create error translation layer
+
+2. **Update Service Error Handling**
+   - Implement consistent error patterns in all services
+   - Add proper error context and metadata
+   - Implement error recovery mechanisms
+   - Add circuit breaker patterns
+
+3. **GraphQL Error Handling**
+   - Implement proper GraphQL error responses
+   - Add error masking for security
+   - Implement error logging middleware
+   - Add error monitoring and alerting
+
+4. **Frontend Error Integration**
+   - Update error handling in Apollo Client
+   - Implement user-friendly error messages
+   - Add error reporting and monitoring
+   - Implement retry mechanisms
+
+#### Risk Assessment
+- **Low Risk**: Error handling improvements are additive
+- **Mitigation**: Implement logging to track error patterns
+- **Testing**: Error scenario testing required
+
+### Phase 7: Debug Logging Removal (Priority: Low)
+**Duration**: 1-2 days
+**Risk Level**: Low
+**Dependencies**: Phase 6 completion
+
+#### Objectives
+- Remove all debug logging from production code
+- Implement structured logging
+- Add configurable log levels
+- Implement proper log aggregation
+
+#### Tasks
+1. **Audit and Remove Debug Logs**
+   - Remove all `fmt.Printf` debug statements
+   - Remove `log.Printf` debug statements
+   - Clean up authentication middleware logging
+   - Remove debug logs from resolvers
+
+2. **Implement Structured Logging**
+   - Add structured logging library (logrus/zap)
+   - Implement log levels (DEBUG, INFO, WARN, ERROR)
+   - Add request ID tracking
+   - Implement log aggregation
+
+3. **Add Production Logging**
+   - Implement security event logging
+   - Add audit logging for sensitive operations
+   - Implement performance logging
+   - Add error tracking with context
+
+4. **Configuration Management**
+   - Add log level configuration
+   - Implement log rotation
+   - Add log shipping to external systems
+   - Implement log retention policies
+
+#### Risk Assessment
+- **Low Risk**: Debug removal is safe
+- **Mitigation**: Implement proper production logging
+- **Testing**: Log output verification required
+
+### Phase 8: Testing and Validation (Priority: High)
+**Duration**: 3-4 days
+**Risk Level**: Medium
+**Dependencies**: All previous phases
+
+#### Objectives
+- Implement comprehensive testing suite
+- Validate all security fixes
+- Performance testing and optimization
+- Documentation updates
+
+#### Tasks
+1. **Security Testing**
+   - Implement security-focused tests
+   - Test authentication bypass attempts
+   - Validate input sanitization
+   - Test encryption key handling
+
+2. **Integration Testing**
+   - Implement full-stack integration tests
+   - Test with real MinIO and database instances
+   - Add performance benchmarks
+   - Test large file operations
+
+3. **Performance Testing**
+   - Implement load testing with Artillery
+   - Add performance benchmarks for file operations
+   - Test memory usage with large files
+   - Implement caching validation
+
+4. **Documentation and Validation**
+   - Update API documentation
+   - Create deployment guides
+   - Implement monitoring and alerting
+   - Final security audit
+
+#### Risk Assessment
+- **Medium Risk**: Testing may reveal new issues
+- **Mitigation**: Implement comprehensive test coverage
+- **Testing**: All functionality must pass tests
+
+## Dependencies and Critical Path
+
+### Phase Dependencies
 ```
-+----------------+      +-------------------------+      +--------------------+
-|                |      |                         |      |                    |
-|   User/Client  |----->|   Go Backend Service    |----->|  PostgreSQL DB     |
-| (React.js SPA) |      |     (GraphQL API)       |      | (Metadata, Users)  |
-|                |      |                         |      +--------------------+
-+----------------+      +-------------------------+      +--------------------+
-                         |                         |      |                    |
-                         |                         |      |  MinIO Object      |
-                         +------------------------->|  Storage (S3 API)  |
-                                                   | (Encrypted Files)  |
-                                                   +--------------------+
+Phase 1 (Security) → Phase 2 (Auth) → Phase 3 (File Service)
+                                      ↓
+Phase 4 (GraphQL) ←───────────────────┘
+                                      ↓
+Phase 5 (Streaming) → Phase 6 (Errors) → Phase 7 (Logging) → Phase 8 (Testing)
 ```
 
-### Component Breakdown
-
-**Frontend (Client)**: A React.js Single Page Application (SPA) responsible for all UI rendering and user interaction. It handles client-side encryption/decryption and communicates with the backend via a GraphQL API.
-
-**Backend (Go Service)**: A stateless Go application that serves the GraphQL API. It manages business logic, user authentication, authorization (RBAC), file metadata, and interactions with the database and object storage. It never handles unencrypted file data.
-
-**Database (PostgreSQL)**: Stores all metadata, including user information, file hashes, user_file mappings, room details, permissions, and statistics. It does not store file content (blobs).
-
-**File Storage (MinIO)**: An S3-compatible object storage server. It stores the actual file content, which is received in its encrypted form. All interactions with MinIO are proxied through the Go backend to ensure security and control.
-
-### Data Flow (File Upload with E2EE)
-
-1. **Client**: The user selects a file. The React app reads the file, calculates its SHA-256 hash, and encrypts the file content using a symmetric key.
-
-2. **API Call**: The client sends the encrypted file content along with metadata (filename, hash, size) to the Go backend via a GraphQL mutation.
-
-3. **Backend**: The backend checks if a file with the same hash already exists in the files table.
-   - **If duplicate**: It simply creates a new entry in the user_files table, linking the current user to the existing file blob.
-   - **If new**: It uploads the encrypted file content to MinIO via its S3 API and creates entries in the files and user_files tables.
-
-4. **Client**: Receives confirmation from the backend after successful upload.
-
-5. **Download**: For downloads, the client requests the file via GraphQL; the backend retrieves the encrypted file from MinIO and streams it back to the client, which then decrypts it.
-## 3. Tech Stack & Tools
-The tech stack is chosen to align with the project requirements and to facilitate rapid development.
-
-### Backend
-- **Language**: Go (Golang)
-- **API Layer**: GraphQL (gqlgen library)
-- **Database**: PostgreSQL (GORM or sqlx for DB interaction)
-
-### Frontend
-- **Framework**: React.js with TypeScript
-- **UI Framework**: Material-UI or Chakra UI (for pre-built components to speed up development)
-- **State/API**: Apollo Client for React
-
-### Infrastructure
-- **Containerization**: Docker & Docker Compose
-- **Object Storage**: MinIO
-
-### Testing
-- **E2E/API Automation**: Playwright
-- **Backend Unit Tests**: Go's standard testing package
-- **CI/CD**: GitHub Actions
-
-### Security
-- **Password Hashing**: golang.org/x/crypto/bcrypt
-- **Client-side E2EE**: A robust JS crypto library (tweetnacl-js or similar)
-
-## 4. Design Phase
-
-### Design Principles
-
-**Security-First**: All design decisions prioritize security, especially data privacy through E2EE and strict access controls.
-
-**Modularity**: The Go backend will be structured into distinct layers (API handler, service, data access) to ensure separation of concerns and ease of testing.
-
-**Stateless Services**: The Go backend will be stateless to allow for easy horizontal scaling behind a load balancer.
-
-### Database Schema (High-Level)
-
-- **users**: id, email, password_hash, storage_quota, used_storage
-- **files**: id, content_hash (SHA-256, UNIQUE), size_bytes
-- **user_files**: id, user_id (owner), file_id, filename, metadata (stores encrypted key)
-- **rooms**: id, name, creator_id
-- **room_members**: room_id, user_id, role (e.g., 'admin', 'viewer')
-- **room_files**: room_id, user_file_id
-- **download_logs**: id, user_file_id, downloader_user_id, timestamp
-
-### API Design (GraphQL Snippets)
-
-```graphql
-type Mutation {
-  uploadFile(input: UploadFileInput!): UserFile!
-  createRoom(name: String!): Room!
-  addUserToRoom(roomId: ID!, userId: ID!, role: Role!): Boolean!
-}
-
-type Query {
-  myFiles(filter: FileFilterInput): [UserFile!]!
-  room(id: ID!): RoomDetails!
-  adminStats: AdminDashboard!
-}
-
-enum Role {
-  ADMIN
-  CONTENT_CREATOR
-  CONTENT_EDITOR
-  CONTENT_VIEWER
-}
-```
-
-### Frontend Component Design
-
-- **AuthLayout**: Handles login and registration pages
-- **AppLayout**: Main authenticated view with sidebar and content area
-- **FileUploadDropzone**: Reusable component for file uploads
-- **FileTable**: Displays lists of files with actions (download, delete, share)
-- **RoomManager**: Component for creating rooms, inviting users, and setting permissions
-- **AdminDashboard**: A view with charts and tables for admin analytics
-
-## 5. Development Plan (7-Day Schedule)
-This is an aggressive timeline focused on delivering a Minimum Viable Product (MVP) first, then layering on advanced features.
-
-**MVP Definition**: A user can register, log in, upload files (with E2EE), view their own files, and delete them. All within a Dockerized environment.
-
-### Day 1: Project Scaffolding & Foundation
-**Goal**: Create a runnable "hello world" across the entire stack.
-
-**Tasks**:
-- Initialize Git repository
-- Create docker-compose.yml for Go, Postgres, MinIO, and React services
-- Backend: Set up Go project structure, basic GraphQL server, and database connection
-- Database: Write initial schema migration files
-- Frontend: Initialize React/TS app with basic routing and API client setup
-
-### Day 2: User Authentication & Core File Upload
-**Goal**: Users can sign up, log in, and upload a file.
-
-**Tasks**:
-- Backend: Implement user registration and login mutations (with password hashing and JWT generation)
-- Backend: Implement the core file upload logic (hash check, metadata storage, pre-signed URL generation)
-- Frontend: Build Login/Registration forms and connect to the API
-- Frontend: Implement the file upload component
-
-### Day 3: E2EE & File Management
-**Goal**: Secure uploads and allow users to manage their files.
-
-**Tasks**:
-- Frontend: Integrate a crypto library to perform client-side encryption before upload
-- Backend: Implement GraphQL queries for listing and deleting user_files
-- Frontend: Build the main dashboard to list encrypted files. Add decryption logic for downloads
-
-**Milestone**: MVP is feature-complete.
-
-### Day 4: Search & Statistics
-**Goal**: Implement server-side search and display user stats.
-
-**Tasks**:
-- Backend: Implement the search/filter GraphQL query
-- Backend: Implement logic to calculate storage savings
-- Frontend: Build the search bar and filter UI
-- Frontend: Add a statistics component to the user dashboard
-
-### Day 5: Collaborative Rooms & Permissions
-**Goal**: Users can create rooms and share files securely.
-
-**Tasks**:
-- Backend: Implement GraphQL mutations/queries for creating rooms, managing members, and assigning roles
-- Backend: Implement RBAC logic for all room-related actions
-- Frontend: Build the UI for creating/managing rooms and viewing files within them
-- E2EE Strategy: Implement key sharing (e.g., room owner encrypts the room's symmetric key with each member's public key)
-
-### Day 6: Admin Panel & Automated Testing
-**Goal**: Build the admin view and establish a testing foundation.
-
-**Tasks**:
-- Backend: Create admin-only GraphQL queries for system-wide data
-- Frontend: Build the Admin Panel UI with basic stats and management tables
-- Testing: Write critical Playwright tests for login, file upload, and file deletion flows
-
-### Day 7: CI/CD, Deployment Prep, and Polish
-**Goal**: Automate the build process and prepare for deployment.
-
-**Tasks**:
-- CI/CD: Create a GitHub Actions workflow to build, lint, and run tests on every push
-- Deployment: Finalize production Dockerfiles and a docker-compose.prod.yml
-- Documentation: Write the README.md, API documentation, and setup instructions
-- Reserve this day for bug fixing, UI polish, and final validation
-
-## 6. Testing Strategy
-**Unit Testing (Go)**: Focus on testing pure business logic functions in the backend, such as hashing algorithms, validation logic, and permission checks.
-
-**Integration Testing (Go)**: Test the interaction between the service layer and the database to ensure queries are correct.
-
-**End-to-End (E2E) & API Testing (Playwright)**: Automate critical user flows from the UI down to the API.
-
-### User Acceptance Testing (UAT) Checklist
-
-#### Authentication:
-- [ ] A new user can successfully register
-- [ ] A registered user can log in and out
-- [ ] An unauthenticated user cannot access protected resources
-
-#### File Management:
-- [ ] A user can upload a file via drag-and-drop
-- [ ] A user can download their own file, and it decrypts correctly
-- [ ] A user can delete their own file
-
-#### Collaboration:
-- [ ] A user can create a new room
-- [ ] A room admin can add a user with a Content Viewer role
-- [ ] The Content Viewer can see files in the room but cannot upload or delete
-
-#### Admin:
-- [ ] An admin user can log in and see the admin dashboard
-- [ ] The admin can view a list of all files in the system
-
-## 7. Implementation & Deployment
-
-### CI/CD Pipeline (GitHub Actions)
-A workflow file (`.github/workflows/main.yml`) will automate the following on every push to the main branch:
-
-1. **Checkout Code**: Fetch the latest commit
-2. **Run Backend Tests**: Build the Go service and run all unit and integration tests
-3. **Run Frontend Tests**: Install dependencies and run Playwright E2E tests
-4. **Build Docker Images**: If all tests pass, build production-ready Docker images for the backend and frontend
-5. **Push to Registry**: Tag and push the images to a container registry (e.g., GitHub Container Registry or Docker Hub)
-
-### Deployment Strategy
-**Environment**: A single Linux server (VPS) running Docker.
-
-**Process**:
-1. SSH into the server
-2. Pull the latest version of the `docker-compose.prod.yml` file from the repo
-3. Run `docker-compose -f docker-compose.prod.yml pull` to fetch the new images built by the CI pipeline
-4. Run `docker-compose -f docker-compose.prod.yml up -d` to restart the services with the new images
-
-**Monitoring & Rollback**:
-- **Monitoring**: Basic application health can be checked via `docker ps` and `docker logs`. A dedicated health check endpoint (`/healthz`) will be added to the Go service
-- **Rollback**: In case of failure, deployment can be rolled back by manually pulling the previous Docker image tag and restarting the containers
-
-## 8. Validation & Go-Live
-Before the final deadline, a thorough validation process will be executed:
-
-- **Requirement Check**: Go through every functional and non-functional requirement and verify its implementation against the UAT checklist.
-- **Security Audit**: Perform a manual review for common security vulnerabilities (e.g., OWASP Top 10), ensuring no secrets are hardcoded and all API endpoints enforce correct permissions.
-- **Deployment Dry-Run**: Simulate a full deployment on a clean environment to ensure the process is smooth and documented correctly.
-- **Final Review**: Review all deliverables: code, documentation, and Docker setup.
-
-## 9. Risk Management
-
-### Risk 1: Timeline Constraint & Scope Creep
-**Mitigation**: Adhere strictly to the 7-day plan. De-scope non-essential "nice-to-have" features if time runs short. The MVP is the primary goal. Daily check-ins will be crucial to stay on track.
-
-### Risk 2: Complexity of E2EE Key Management for Rooms
-**Mitigation**: Implement a simple and well-documented key-sharing mechanism. Avoid complex schemes like key rotation or perfect forward secrecy, which are out of scope for a 7-day project. Clearly document the security model and its limitations.
-
-### Risk 3: Integration or Tooling Issues
-**Mitigation**: Rely on mature, well-documented libraries and tools. Allocate buffer time on Day 7 specifically for troubleshooting unforeseen technical hurdles.
-
-## 10. Best Practices for Long-Term Success
-
-- **Configuration Management**: All configuration (database URLs, secret keys, quotas) will be managed through environment variables, never hardcoded.
-- **Comprehensive Logging**: Implement structured logging (e.g., JSON format) in the Go backend to facilitate easier debugging and monitoring in a production environment.
-- **Database Migrations**: Use a migration tool (like golang-migrate/migrate) to manage database schema changes versionally and reliably.
-- **Code Quality**: Enforce code formatting (gofmt) and linting in the CI pipeline to maintain a clean and consistent codebase.
-- **Documentation**: Ensure GoDoc for backend functions and clear comments for complex frontend logic are written during development, not as an afterthought.
+### Critical Path Items
+1. **Security fixes must be completed first** - Cannot proceed without addressing critical vulnerabilities
+2. **Authentication separation** - Required before other middleware changes
+3. **File service refactoring** - Foundation for upload and streaming improvements
+4. **Testing phase** - Must validate all changes work together
+
+## Risk Assessment Summary
+
+### High Risk Items
+1. **Authentication Changes**: Could break user access - requires thorough testing
+2. **File Upload/Download**: Core functionality - must maintain backward compatibility
+3. **Security Vulnerabilities**: Must be completely resolved before production
+
+### Mitigation Strategies
+1. **Gradual Rollout**: Use feature flags for major changes
+2. **Backward Compatibility**: Maintain old APIs during transition
+3. **Comprehensive Testing**: Implement automated tests for all critical paths
+4. **Monitoring**: Add extensive logging and monitoring during rollout
+5. **Rollback Plan**: Ability to revert changes quickly if issues arise
+
+## Success Metrics
+
+### Security Metrics
+- All critical vulnerabilities resolved
+- No exposed secrets in version control
+- Consistent secure token storage
+- Proper input validation implemented
+
+### Performance Metrics
+- Memory usage reduced by 50% for large files
+- Streaming downloads implemented
+- Database query optimization completed
+- Response times improved by 30%
+
+### Code Quality Metrics
+- File sizes reduced (no files > 300 lines)
+- Test coverage > 80%
+- Error handling standardized
+- Debug logging eliminated
+
+## Timeline and Milestones
+
+### Week 1: Foundation (Days 1-3)
+- Phase 1: Critical Security Fixes
+- Phase 2: Authentication Separation
+- Milestone: Security vulnerabilities resolved
+
+### Week 2: Core Refactoring (Days 4-7)
+- Phase 3: File Service Refactoring
+- Phase 4: GraphQL Upload Workarounds
+- Milestone: Core functionality simplified
+
+### Week 3: Advanced Features (Days 8-10)
+- Phase 5: Streaming Downloads
+- Phase 6: Error Handling Consolidation
+- Milestone: Performance optimizations complete
+
+### Week 4: Polish and Testing (Days 11-14)
+- Phase 7: Debug Logging Removal
+- Phase 8: Testing and Validation
+- Milestone: Production-ready codebase
+
+## Resource Requirements
+
+### Team Requirements
+- 1 Senior Backend Developer (Go)
+- 1 Frontend Developer (React/TypeScript)
+- 1 DevOps Engineer (Docker/Kubernetes)
+- 1 Security Engineer (for audit validation)
+
+### Tool Requirements
+- Go 1.21+
+- PostgreSQL 15+
+- MinIO Server
+- Docker & Docker Compose
+- Testing frameworks (Go testing, Jest, Playwright)
+
+## Conclusion
+
+This refactoring plan provides a structured approach to addressing all identified issues while maintaining system stability and security. The phased approach ensures that critical security fixes are addressed first, followed by architectural improvements and performance optimizations. Regular testing and validation at each phase will ensure the refactored system meets all requirements and maintains backward compatibility.
+
+The plan prioritizes security, maintainability, and performance while providing clear milestones and risk mitigation strategies. Successful completion will result in a production-ready, secure, and maintainable file management system.

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useMutation, useQuery } from '@apollo/client';
-import { LOGIN_MUTATION, REGISTER_MUTATION, GET_ME, LOGOUT_MUTATION } from '../apollo/queries';
+import { LOGIN_MUTATION, REGISTER_MUTATION, GET_ME, LOGOUT_MUTATION, REFRESH_TOKEN_MUTATION } from '../apollo/auth';
 import { AuthContextType, User, AuthPayload } from '../types';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -16,6 +16,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loginMutation] = useMutation(LOGIN_MUTATION);
   const [registerMutation] = useMutation(REGISTER_MUTATION);
   const [logoutMutation] = useMutation(LOGOUT_MUTATION);
+  const [refreshTokenMutation] = useMutation(REFRESH_TOKEN_MUTATION);
 
   const { refetch: refetchMe } = useQuery(GET_ME, {
     skip: true, // Skip initial query
@@ -43,12 +44,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const login = async (email: string, password: string): Promise<void> => {
+  const refreshToken = async (): Promise<boolean> => {
+    try {
+      const { data, errors } = await refreshTokenMutation();
+
+      if (errors && errors.length > 0) {
+        console.error('Token refresh failed:', errors[0].message);
+        setUser(null);
+        return false;
+      }
+
+      if (data?.refreshToken) {
+        const authPayload: AuthPayload = data.refreshToken;
+        setUser(authPayload.user);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      setUser(null);
+      return false;
+    }
+  };
+
+  const login = async (identifier: string, password: string): Promise<void> => {
     try {
       setLoading(true);
       const { data, errors } = await loginMutation({
         variables: {
-          input: { email, password }
+          input: { identifier, password }
         }
       });
 
@@ -59,8 +84,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (data?.login) {
         const authPayload: AuthPayload = data.login;
         setUser(authPayload.user);
-        // Store token in localStorage for subsequent requests
-        localStorage.setItem('auth_token', authPayload.token);
+        // Token is now stored in HttpOnly cookies by the backend
+        // No longer storing in localStorage for security
       } else {
         throw new Error('Login failed: No data returned');
       }
@@ -71,12 +96,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const register = async (email: string, password: string): Promise<void> => {
+  const register = async (username: string, email: string, password: string): Promise<void> => {
     try {
       setLoading(true);
       const { data, errors } = await registerMutation({
         variables: {
-          input: { email, password }
+          input: { username, email, password }
         }
       });
 
@@ -87,8 +112,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (data?.register) {
         const authPayload: AuthPayload = data.register;
         setUser(authPayload.user);
-        // Store token in localStorage for subsequent requests
-        localStorage.setItem('auth_token', authPayload.token);
+        // Token is now stored in HttpOnly cookies by the backend
+        // No longer storing in localStorage for security
       } else {
         throw new Error('Registration failed: No data returned');
       }
@@ -107,17 +132,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Logout error:', error);
     } finally {
       setUser(null);
-      // Clear token from localStorage
-      localStorage.removeItem('auth_token');
+      // Cookies will be cleared by the backend during logout
     }
   };
 
   const value: AuthContextType = {
     user,
-    token: localStorage.getItem('auth_token'), // Token accessible from localStorage
+    token: null, // Token is now stored in HttpOnly cookies, not accessible to frontend
     login,
     register,
     logout,
+    refreshToken,
     loading
   };
 

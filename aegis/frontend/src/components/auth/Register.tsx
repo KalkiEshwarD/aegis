@@ -1,5 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { useForm, Controller } from 'react-hook-form';
+import { yupResolver } from '@hookform/resolvers/yup';
+import * as yup from 'yup';
 import {
   Box,
   Container,
@@ -10,23 +13,71 @@ import {
   Link,
   Alert,
   InputAdornment,
-  IconButton
+  IconButton,
+  Snackbar
 } from '@mui/material';
-import { Visibility, VisibilityOff, Storage, Email } from '@mui/icons-material';
+import { Visibility, VisibilityOff, Storage, Email, Person } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
+import { sanitizeUserInput, isValidEmail, isValidUsername } from '../../utils/sanitization';
+
+// Validation schema
+const validationSchema = yup.object({
+  username: yup
+    .string()
+    .required('Username is required')
+    .min(3, 'Username must be at least 3 characters')
+    .max(50, 'Username must be at most 50 characters')
+    .matches(/^[a-zA-Z0-9]+$/, 'Username must contain only alphanumeric characters'),
+  email: yup
+    .string()
+    .required('Email is required')
+    .email('Please enter a valid email address'),
+  password: yup
+    .string()
+    .required('Password is required')
+    .min(8, 'Password must be at least 8 characters')
+    .matches(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/,
+      'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character'
+    ),
+  confirmPassword: yup
+    .string()
+    .required('Please confirm your password')
+    .oneOf([yup.ref('password')], 'Passwords must match'),
+});
+
+interface RegisterFormData {
+  username: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+}
 
 const Register: React.FC = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
 
-  const { register } = useAuth();
+  const { register: registerUser } = useAuth();
   const navigate = useNavigate();
   const isMountedRef = useRef(true);
+
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isValid }
+  } = useForm<RegisterFormData>({
+    resolver: yupResolver(validationSchema),
+    mode: 'onChange', // Enable real-time validation
+    defaultValues: {
+      username: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+    },
+  });
 
   // Cleanup on unmount
   useEffect(() => {
@@ -35,33 +86,40 @@ const Register: React.FC = () => {
     };
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSubmit = async (data: RegisterFormData) => {
     if (!isMountedRef.current) return;
 
     setError('');
-
-    // Basic validation
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long');
-      return;
-    }
-
     setLoading(true);
 
     try {
-      await register(email, password);
+      // Sanitize inputs
+      const sanitizedUsername = sanitizeUserInput(data.username);
+      const sanitizedEmail = sanitizeUserInput(data.email);
+      const sanitizedPassword = sanitizeUserInput(data.password);
+
+      // Additional validation
+      if (!sanitizedUsername || !sanitizedEmail || !sanitizedPassword) {
+        throw new Error('Invalid input data');
+      }
+
+      // Validate formats
+      if (!isValidUsername(sanitizedUsername)) {
+        throw new Error('Invalid username format');
+      }
+
+      if (!isValidEmail(sanitizedEmail)) {
+        throw new Error('Invalid email format');
+      }
+
+      await registerUser(sanitizedUsername, sanitizedEmail, sanitizedPassword);
       if (isMountedRef.current) {
         navigate('/dashboard');
       }
     } catch (err: any) {
       if (isMountedRef.current) {
         setError(err.message || 'Registration failed. Please try again.');
+        setSnackbarOpen(true);
       }
     } finally {
       if (isMountedRef.current) {
@@ -106,132 +164,185 @@ const Register: React.FC = () => {
               Create your secure vault
             </Typography>
 
-            {error && (
-              <Alert severity="error" sx={{ width: '100%', mb: 2 }}>
-                {error}
-              </Alert>
-            )}
-
-            <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3, width: '100%' }}>
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                id="email"
-                label="Email Address"
+            <Box component="form" role="form" onSubmit={handleSubmit(onSubmit)} sx={{ mt: 3, width: '100%' }}>
+              <Controller
+                name="username"
+                control={control}
+                render={({ field }: { field: any }) => (
+                  <TextField
+                    {...field}
+                    margin="normal"
+                    required
+                    fullWidth
+                    id="username"
+                    label="Username"
+                    name="username"
+                    autoComplete="username"
+                    autoFocus
+                    error={!!errors.username}
+                    helperText={errors.username?.message}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Person sx={{ color: '#6b7280' }} />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        '& fieldset': {
+                          borderColor: errors.username ? '#ef4444' : '#d1d5db',
+                        },
+                        '&:hover fieldset': {
+                          borderColor: errors.username ? '#ef4444' : '#3b82f6',
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: errors.username ? '#ef4444' : '#3b82f6',
+                        },
+                      },
+                    }}
+                  />
+                )}
+              />
+              <Controller
                 name="email"
-                autoComplete="email"
-                autoFocus
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Email sx={{ color: '#6b7280' }} />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    '& fieldset': {
-                      borderColor: '#d1d5db',
-                    },
-                    '&:hover fieldset': {
-                      borderColor: '#3b82f6',
-                    },
-                    '&.Mui-focused fieldset': {
-                      borderColor: '#3b82f6',
-                    },
-                  },
-                }}
+                control={control}
+                render={({ field }: { field: any }) => (
+                  <TextField
+                    {...field}
+                    margin="normal"
+                    required
+                    fullWidth
+                    id="email"
+                    label="Email Address"
+                    name="email"
+                    autoComplete="email"
+                    error={!!errors.email}
+                    helperText={errors.email?.message}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Email sx={{ color: '#6b7280' }} />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        '& fieldset': {
+                          borderColor: errors.email ? '#ef4444' : '#d1d5db',
+                        },
+                        '&:hover fieldset': {
+                          borderColor: errors.email ? '#ef4444' : '#3b82f6',
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: errors.email ? '#ef4444' : '#3b82f6',
+                        },
+                      },
+                    }}
+                  />
+                )}
               />
-              <TextField
-                margin="normal"
-                required
-                fullWidth
+              <Controller
                 name="password"
-                label="Password"
-                type={showPassword ? 'text' : 'password'}
-                id="password"
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        aria-label="toggle password visibility"
-                        onClick={() => setShowPassword(!showPassword)}
-                        edge="end"
-                        sx={{ color: '#6b7280' }}
-                      >
-                        {showPassword ? <VisibilityOff /> : <Visibility />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    '& fieldset': {
-                      borderColor: '#d1d5db',
-                    },
-                    '&:hover fieldset': {
-                      borderColor: '#3b82f6',
-                    },
-                    '&.Mui-focused fieldset': {
-                      borderColor: '#3b82f6',
-                    },
-                  },
-                }}
+                control={control}
+                render={({ field }: { field: any }) => (
+                  <TextField
+                    {...field}
+                    margin="normal"
+                    required
+                    fullWidth
+                    name="password"
+                    label="Password"
+                    type={showPassword ? 'text' : 'password'}
+                    id="password"
+                    autoComplete="new-password"
+                    error={!!errors.password}
+                    helperText={errors.password?.message}
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            aria-label="toggle password visibility"
+                            onClick={() => setShowPassword(!showPassword)}
+                            edge="end"
+                            sx={{ color: '#6b7280' }}
+                          >
+                            {showPassword ? <VisibilityOff /> : <Visibility />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        '& fieldset': {
+                          borderColor: errors.password ? '#ef4444' : '#d1d5db',
+                        },
+                        '&:hover fieldset': {
+                          borderColor: errors.password ? '#ef4444' : '#3b82f6',
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: errors.password ? '#ef4444' : '#3b82f6',
+                        },
+                      },
+                    }}
+                  />
+                )}
               />
-              <TextField
-                margin="normal"
-                required
-                fullWidth
+              <Controller
                 name="confirmPassword"
-                label="Confirm Password"
-                type={showConfirmPassword ? 'text' : 'password'}
-                id="confirmPassword"
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        aria-label="toggle confirm password visibility"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        edge="end"
-                        sx={{ color: '#6b7280' }}
-                      >
-                        {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    '& fieldset': {
-                      borderColor: '#d1d5db',
-                    },
-                    '&:hover fieldset': {
-                      borderColor: '#3b82f6',
-                    },
-                    '&.Mui-focused fieldset': {
-                      borderColor: '#3b82f6',
-                    },
-                  },
-                }}
+                control={control}
+                render={({ field }: { field: any }) => (
+                  <TextField
+                    {...field}
+                    margin="normal"
+                    required
+                    fullWidth
+                    name="confirmPassword"
+                    label="Confirm Password"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    id="confirmPassword"
+                    autoComplete="new-password"
+                    error={!!errors.confirmPassword}
+                    helperText={errors.confirmPassword?.message}
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            aria-label="toggle confirm password visibility"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            edge="end"
+                            sx={{ color: '#6b7280' }}
+                          >
+                            {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        '& fieldset': {
+                          borderColor: errors.confirmPassword ? '#ef4444' : '#d1d5db',
+                        },
+                        '&:hover fieldset': {
+                          borderColor: errors.confirmPassword ? '#ef4444' : '#3b82f6',
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: errors.confirmPassword ? '#ef4444' : '#3b82f6',
+                        },
+                      },
+                    }}
+                  />
+                )}
               />
               <Button
                 type="submit"
                 fullWidth
                 variant="contained"
-                disabled={loading}
-                sx={{ 
-                  mt: 3, 
+                disabled={loading || !isValid}
+                sx={{
+                  mt: 3,
                   mb: 2,
-                  backgroundColor: '#3b82f6',
+                  backgroundColor: isValid ? '#3b82f6' : '#9ca3af',
                   color: 'white',
                   fontSize: '1rem',
                   fontWeight: 600,
@@ -239,7 +350,7 @@ const Register: React.FC = () => {
                   borderRadius: 2,
                   textTransform: 'none',
                   '&:hover': {
-                    backgroundColor: '#2563eb',
+                    backgroundColor: isValid ? '#2563eb' : '#9ca3af',
                   },
                   '&:disabled': {
                     backgroundColor: '#9ca3af',
@@ -269,8 +380,23 @@ const Register: React.FC = () => {
           </Box>
         </Paper>
       </Container>
+
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={6000}
+        onClose={() => setSnackbarOpen(false)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setSnackbarOpen(false)} 
+          severity="error" 
+          sx={{ width: '100%' }}
+        >
+          {error}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
 
-export default Register;
+export default memo(Register);

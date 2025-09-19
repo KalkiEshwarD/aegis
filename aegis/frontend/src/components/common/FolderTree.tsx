@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, memo } from 'react';
 import {
   Box,
   List,
@@ -31,7 +31,7 @@ import {
   MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
 import { useQuery, useMutation } from '@apollo/client';
-import { GET_MY_FOLDERS, CREATE_FOLDER_MUTATION, RENAME_FOLDER_MUTATION, DELETE_FOLDER_MUTATION, MOVE_FOLDER_MUTATION } from '../../apollo/queries';
+import { GET_MY_FOLDERS, CREATE_FOLDER_MUTATION, RENAME_FOLDER_MUTATION, DELETE_FOLDER_MUTATION, MOVE_FOLDER_MUTATION } from '../../apollo/folders';
 import { Folder } from '../../types';
 
 interface FolderTreeProps {
@@ -454,4 +454,4 @@ const FolderTree: React.FC<FolderTreeProps> = ({
   );
 };
 
-export default FolderTree;
+export default memo(FolderTree);

@@ -53,6 +53,7 @@ func (suite *FileServiceTestSuite) SetupSuite() {
 
 	// Create test configuration (without MinIO for unit tests)
 	cfg := &config.Config{
+		BaseURL:        "http://localhost:8080",
 		MinIOEndpoint:  "", // Empty to disable MinIO
 		MinIOAccessKey: "",
 		MinIOSecretKey: "",
@@ -81,6 +82,7 @@ func (suite *FileServiceTestSuite) SetupTest() {
 
 	// Create test user
 	suite.testUser = models.User{
+		Username:     "testuser",
 		Email:        "test@example.com",
 		PasswordHash: "hash",
 		StorageQuota: 10485760, // 10MB
@@ -193,6 +195,7 @@ func (suite *FileServiceTestSuite) TestUploadFile_Success() {
 		"new_encryption_key",
 		reader,
 		int64(len(fileContent)),
+		nil, // folderID
 	)
 
 	assert.NoError(suite.T(), err)
@@ -215,6 +218,7 @@ func (suite *FileServiceTestSuite) TestUploadFile_ReuploadAfterDelete() {
 		"key1",
 		reader1,
 		int64(len(fileContent)),
+		nil, // folderID
 	)
 	assert.NoError(suite.T(), err)
 
@@ -244,6 +248,7 @@ func (suite *FileServiceTestSuite) TestUploadFile_ReuploadAfterDelete() {
 		"key2",
 		reader2,
 		int64(len(fileContent)),
+		nil, // folderID
 	)
 	assert.NoError(suite.T(), err)
 
@@ -270,6 +275,7 @@ func (suite *FileServiceTestSuite) TestUploadFile_EmptyFile() {
 		"key",
 		reader,
 		0,
+		nil, // folderID
 	)
 
 	assert.NoError(suite.T(), err)
@@ -289,6 +295,7 @@ func (suite *FileServiceTestSuite) TestUploadFile_SpecialCharactersInFilename() 
 		"key",
 		reader,
 		int64(len("content")),
+		nil, // folderID
 	)
 
 	assert.NoError(suite.T(), err)
@@ -307,6 +314,7 @@ func (suite *FileServiceTestSuite) TestUploadFile_InvalidUserID() {
 		"key",
 		reader,
 		int64(len("content")),
+		nil, // folderID
 	)
 
 	// This should still succeed as we don't validate user existence in upload
@@ -318,6 +326,7 @@ func (suite *FileServiceTestSuite) TestUploadFile_InvalidUserID() {
 func (suite *FileServiceTestSuite) TestGetUserFiles_NoFiles() {
 	// Create a new user with no files
 	newUser := models.User{
+		Username:     "emptyuser",
 		Email:        "empty@example.com",
 		PasswordHash: "hash",
 		StorageQuota: 10485760,
@@ -427,6 +436,7 @@ func (suite *FileServiceTestSuite) TestDeleteFile_FileNotFound() {
 func (suite *FileServiceTestSuite) TestDeleteFile_WrongUser() {
 	// Create another user
 	otherUser := models.User{
+		Username:     "otheruser",
 		Email:        "other@example.com",
 		PasswordHash: "hash",
 		StorageQuota: 10485760,
@@ -498,6 +508,7 @@ func (suite *FileServiceTestSuite) TestGetFileDownloadURL_FileNotFound() {
 
 func (suite *FileServiceTestSuite) TestGetFileDownloadURL_WrongUser() {
 	otherUser := models.User{
+		Username:     "otheruser3",
 		Email:        "other@example.com",
 		PasswordHash: "hash",
 		StorageQuota: 10485760,
@@ -534,6 +545,7 @@ func (suite *FileServiceTestSuite) TestGetFile_FileNotFound() {
 
 func (suite *FileServiceTestSuite) TestGetFile_WrongUser() {
 	otherUser := models.User{
+		Username:     "otheruser2",
 		Email:        "other@example.com",
 		PasswordHash: "hash",
 		StorageQuota: 10485760,
@@ -572,6 +584,7 @@ func (suite *FileServiceTestSuite) TestGetAllFiles_Empty() {
 func (suite *FileServiceTestSuite) TestGetAllFiles_MultipleUsers() {
 	// Create another user and file
 	otherUser := models.User{
+		Username:     "otheruser4",
 		Email:        "other@example.com",
 		PasswordHash: "hash",
 		StorageQuota: 10485760,
@@ -648,6 +661,7 @@ func (suite *FileServiceTestSuite) TestDeleteFile_SoftDelete_FileNotFound() {
 func (suite *FileServiceTestSuite) TestDeleteFile_SoftDelete_WrongUser() {
 	// Create another user
 	otherUser := models.User{
+		Username:     "otheruser5",
 		Email:        "other@example.com",
 		PasswordHash: "hash",
 		StorageQuota: 10485760,
@@ -740,6 +754,7 @@ func (suite *FileServiceTestSuite) TestRestoreFile_WrongUser() {
 
 	// Create another user
 	otherUser := models.User{
+		Username:     "otheruser6",
 		Email:        "other@example.com",
 		PasswordHash: "hash",
 		StorageQuota: 10485760,
@@ -797,6 +812,7 @@ func (suite *FileServiceTestSuite) TestPermanentlyDeleteFile_WrongUser() {
 
 	// Create another user
 	otherUser := models.User{
+		Username:     "otheruser7",
 		Email:        "other@example.com",
 		PasswordHash: "hash",
 		StorageQuota: 10485760,
@@ -822,6 +838,7 @@ func (suite *FileServiceTestSuite) TestPermanentlyDeleteFile_NotInTrash() {
 func (suite *FileServiceTestSuite) TestPermanentlyDeleteFile_WithMultipleReferences() {
 	// Create another user
 	otherUser := models.User{
+		Username:     "otheruser8",
 		Email:        "other@example.com",
 		PasswordHash: "hash",
 		StorageQuota: 10485760,
@@ -910,6 +927,7 @@ func (suite *FileServiceTestSuite) TestGetTrashedFiles_Success() {
 func (suite *FileServiceTestSuite) TestGetTrashedFiles_NoTrashedFiles() {
 	// Create a new user with no trashed files
 	newUser := models.User{
+		Username:     "newuser",
 		Email:        "new@example.com",
 		PasswordHash: "hash",
 		StorageQuota: 10485760,

@@ -7,6 +7,7 @@ export const REGISTER_MUTATION = gql`
       token
       user {
         id
+        username
         email
         storage_quota
         used_storage
@@ -23,6 +24,7 @@ export const LOGIN_MUTATION = gql`
       token
       user {
         id
+        username
         email
         storage_quota
         used_storage
@@ -36,6 +38,23 @@ export const LOGIN_MUTATION = gql`
 export const LOGOUT_MUTATION = gql`
   mutation Logout {
     logout
+  }
+`;
+
+export const REFRESH_TOKEN_MUTATION = gql`
+  mutation RefreshToken {
+    refreshToken {
+      token
+      user {
+        id
+        username
+        email
+        storage_quota
+        used_storage
+        is_admin
+        created_at
+      }
+    }
   }
 `;
 

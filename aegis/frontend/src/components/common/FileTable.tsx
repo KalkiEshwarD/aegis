@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import {
   Table,
   TableBody,
@@ -27,7 +27,8 @@ import {
   InsertDriveFile as FileIcon,
 } from '@mui/icons-material';
 import { useQuery, useMutation } from '@apollo/client';
-import { GET_MY_FILES, DELETE_FILE_MUTATION, DOWNLOAD_FILE_MUTATION } from '../../apollo/queries';
+import { GET_MY_FILES } from '../../apollo/files';
+import { DELETE_FILE_MUTATION, DOWNLOAD_FILE_MUTATION } from '../../apollo/files';
 import {
   decryptFile,
   base64ToEncryptionKey,
@@ -37,6 +38,7 @@ import {
   extractNonceAndData,
 } from '../../utils/crypto';
 import { UserFile, FileFilterInput } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface FileTableProps {
   folderId?: string | null;
@@ -49,6 +51,8 @@ const FileTable: React.FC<FileTableProps> = ({ folderId, onFileDeleted }) => {
   const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FileFilterInput>({});
+
+  const { token } = useAuth();
 
   const { data, loading, error: queryError, refetch } = useQuery(GET_MY_FILES, {
     variables: {
@@ -100,9 +104,6 @@ const FileTable: React.FC<FileTableProps> = ({ folderId, onFileDeleted }) => {
         throw new Error('No encryption key available for this file');
       }
 
-      // Get the authentication token
-      const token = localStorage.getItem('aegis_token');
-
       // Get download URL from server
       const result = await downloadFileMutation({
         variables: { id: file.id },
@@ -119,6 +120,7 @@ const FileTable: React.FC<FileTableProps> = ({ folderId, onFileDeleted }) => {
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
         },
+        credentials: 'include', // Include cookies for authentication
       });
 
       if (!response.ok) {
@@ -310,4 +312,4 @@ const FileTable: React.FC<FileTableProps> = ({ folderId, onFileDeleted }) => {
   );
 };
 
-export default FileTable;
+export default memo(FileTable);

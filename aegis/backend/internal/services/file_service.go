@@ -35,7 +35,7 @@ func NewFileService(cfg *config.Config) *FileService {
 		var err error
 		minioClient, err = minio.New(cfg.MinIOEndpoint, &minio.Options{
 			Creds:  credentials.NewStaticV4(cfg.MinIOAccessKey, cfg.MinIOSecretKey, ""),
-			Secure: false, // Set to true for HTTPS
+			Secure: true, // Use HTTPS for secure communication
 		})
 		if err != nil {
 			log.Fatalf("Failed to initialize MinIO client: %v", err)
@@ -415,7 +415,7 @@ func (fs *FileService) GetFileDownloadURL(userID, userFileID uint) (string, erro
 	}
 
 	// Generate download URL - use backend proxy instead of presigned URL
-	downloadURL := fmt.Sprintf("http://localhost:8080/api/files/%d/download", userFileID)
+	downloadURL := fmt.Sprintf("%s/api/files/%d/download", fs.cfg.BaseURL, userFileID)
 
 	// Log download event
 	downloadLog := &models.DownloadLog{

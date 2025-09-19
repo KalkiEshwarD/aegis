@@ -41,7 +41,7 @@ func (suite *RoomIntegrationTestSuite) TestRoomCreationSuccess() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -135,7 +135,7 @@ func (suite *RoomIntegrationTestSuite) TestRoomMembershipManagement() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -318,7 +318,7 @@ func (suite *RoomIntegrationTestSuite) TestRoleBasedAccessControl() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    adminEmail,
+			"identifier":    adminEmail,
 			"password": password,
 		},
 	}
@@ -411,7 +411,7 @@ func (suite *RoomIntegrationTestSuite) TestRoleBasedAccessControl() {
 	// Test permissions - login as different users
 	regularLoginVars := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    suite.TestData.RegularUser.Email,
+			"identifier":    suite.TestData.RegularUser.Email,
 			"password": password,
 		},
 	}
@@ -470,7 +470,7 @@ func (suite *RoomIntegrationTestSuite) TestFileSharingInRooms() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -632,7 +632,7 @@ func (suite *RoomIntegrationTestSuite) TestRoomQueries() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -719,7 +719,7 @@ func (suite *RoomIntegrationTestSuite) TestRoomAccessControl() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -785,7 +785,7 @@ func (suite *RoomIntegrationTestSuite) TestConcurrentRoomOperations() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}

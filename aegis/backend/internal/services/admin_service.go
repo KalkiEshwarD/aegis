@@ -1,6 +1,8 @@
 package services
 
 import (
+	"fmt"
+
 	"github.com/balkanid/aegis-backend/internal/database"
 	"github.com/balkanid/aegis-backend/internal/models"
 )
@@ -34,6 +36,10 @@ func (as *AdminService) GetDashboardStats() (*AdminDashboard, error) {
 		Order("created_at DESC").
 		Limit(10).
 		Find(&recentUploads)
+
+	// Debug logging
+	fmt.Printf("DEBUG: AdminService - TotalUsers: %d, TotalFiles: %d, TotalStorageUsed: %d, RecentUploads: %d\n",
+		totalUsers, totalFiles, totalStorageUsed, len(recentUploads))
 
 	return &AdminDashboard{
 		TotalUsers:       int(totalUsers),

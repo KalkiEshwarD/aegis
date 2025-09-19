@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -19,7 +20,14 @@ func CreateTestUser(db *gorm.DB, email, password string, isAdmin bool) (*models.
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
+	// Generate username from email (remove @ and domain)
+	username := email[:strings.Index(email, "@")]
+	if username == "" {
+		username = "testuser"
+	}
+
 	user := &models.User{
+		Username:     username,
 		Email:        email,
 		PasswordHash: string(hashedPassword),
 		StorageQuota: 104857600, // 100MB for tests

@@ -40,7 +40,7 @@ func TestLoad_WithDefaultValues(t *testing.T) {
 	os.Setenv("DATABASE_URL", "postgres://test_user:test_pass@localhost:5432/testdb")
 	os.Setenv("MINIO_ACCESS_KEY", "test_access")
 	os.Setenv("MINIO_SECRET_KEY", "test_secret")
-	os.Setenv("JWT_SECRET", "test_jwt_secret")
+	os.Setenv("JWT_SECRET", "test_jwt_secret_that_is_at_least_32_characters_long")
 
 	cfg := config.Load()
 
@@ -49,7 +49,7 @@ func TestLoad_WithDefaultValues(t *testing.T) {
 	assert.Equal(t, "test_access", cfg.MinIOAccessKey)
 	assert.Equal(t, "test_secret", cfg.MinIOSecretKey)
 	assert.Equal(t, "aegis-files", cfg.MinIOBucket)
-	assert.Equal(t, "test_jwt_secret", cfg.JWTSecret)
+	assert.Equal(t, "test_jwt_secret_that_is_at_least_32_characters_long", cfg.JWTSecret)
 	assert.Equal(t, "8080", cfg.Port)
 	assert.Equal(t, "debug", cfg.GinMode)
 }
@@ -85,7 +85,7 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 	os.Setenv("MINIO_ACCESS_KEY", "testaccess")
 	os.Setenv("MINIO_SECRET_KEY", "testsecret")
 	os.Setenv("MINIO_BUCKET", "test-bucket")
-	os.Setenv("JWT_SECRET", "test-jwt-secret")
+	os.Setenv("JWT_SECRET", "test-jwt-secret-that-is-at-least-32-characters")
 	os.Setenv("PORT", "3000")
 	os.Setenv("GIN_MODE", "release")
 	
@@ -96,7 +96,7 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 	assert.Equal(t, "testaccess", cfg.MinIOAccessKey)
 	assert.Equal(t, "testsecret", cfg.MinIOSecretKey)
 	assert.Equal(t, "test-bucket", cfg.MinIOBucket)
-	assert.Equal(t, "test-jwt-secret", cfg.JWTSecret)
+	assert.Equal(t, "test-jwt-secret-that-is-at-least-32-characters", cfg.JWTSecret)
 	assert.Equal(t, "3000", cfg.Port)
 	assert.Equal(t, "release", cfg.GinMode)
 }
@@ -132,7 +132,7 @@ func TestLoad_PartialEnvironmentVariables(t *testing.T) {
 	os.Setenv("DATABASE_URL", "postgres://custom:custom@localhost:5432/customdb")
 	os.Setenv("MINIO_ACCESS_KEY", "custom_access")
 	os.Setenv("MINIO_SECRET_KEY", "custom_secret")
-	os.Setenv("JWT_SECRET", "custom-jwt-secret")
+	os.Setenv("JWT_SECRET", "custom-jwt-secret-that-is-at-least-32-characters")
 	os.Setenv("MINIO_ENDPOINT", "custom.endpoint:9000")
 
 	cfg := config.Load()
@@ -142,7 +142,7 @@ func TestLoad_PartialEnvironmentVariables(t *testing.T) {
 	assert.Equal(t, "custom.endpoint:9000", cfg.MinIOEndpoint)
 	assert.Equal(t, "custom_access", cfg.MinIOAccessKey)
 	assert.Equal(t, "custom_secret", cfg.MinIOSecretKey)
-	assert.Equal(t, "custom-jwt-secret", cfg.JWTSecret)
+	assert.Equal(t, "custom-jwt-secret-that-is-at-least-32-characters", cfg.JWTSecret)
 
 	// Default values should be used for unset non-sensitive variables
 	assert.Equal(t, "aegis-files", cfg.MinIOBucket)
@@ -184,7 +184,7 @@ func TestLoad_EmptyEnvironmentVariables(t *testing.T) {
 	os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test")
 	os.Setenv("MINIO_ACCESS_KEY", "test_access")
 	os.Setenv("MINIO_SECRET_KEY", "test_secret")
-	os.Setenv("JWT_SECRET", "test_jwt")
+	os.Setenv("JWT_SECRET", "test_jwt_secret_that_is_at_least_32_characters_long")
 
 	cfg := config.Load()
 
@@ -192,7 +192,7 @@ func TestLoad_EmptyEnvironmentVariables(t *testing.T) {
 	assert.Equal(t, "postgres://test:test@localhost:5432/test", cfg.DatabaseURL)
 	assert.Equal(t, "test_access", cfg.MinIOAccessKey)
 	assert.Equal(t, "test_secret", cfg.MinIOSecretKey)
-	assert.Equal(t, "test_jwt", cfg.JWTSecret)
+	assert.Equal(t, "test_jwt_secret_that_is_at_least_32_characters_long", cfg.JWTSecret)
 }
 
 func TestValidateSecureConfig_InsecureDefaults(t *testing.T) {
@@ -225,7 +225,7 @@ func TestValidateSecureConfig_InsecureDefaults(t *testing.T) {
 	os.Setenv("DATABASE_URL", "postgres://secure_user:secure_pass@secure_host:5432/secure_db")
 	os.Setenv("MINIO_ACCESS_KEY", "secure_access_key")
 	os.Setenv("MINIO_SECRET_KEY", "secure_secret_key")
-	os.Setenv("JWT_SECRET", "secure_jwt_secret")
+	os.Setenv("JWT_SECRET", "secure_jwt_secret_that_is_at_least_32_characters_long")
 
 	// Should not panic
 	cfg := config.Load()
@@ -233,7 +233,7 @@ func TestValidateSecureConfig_InsecureDefaults(t *testing.T) {
 	assert.Equal(t, "postgres://secure_user:secure_pass@secure_host:5432/secure_db", cfg.DatabaseURL)
 	assert.Equal(t, "secure_access_key", cfg.MinIOAccessKey)
 	assert.Equal(t, "secure_secret_key", cfg.MinIOSecretKey)
-	assert.Equal(t, "secure_jwt_secret", cfg.JWTSecret)
+	assert.Equal(t, "secure_jwt_secret_that_is_at_least_32_characters_long", cfg.JWTSecret)
 }
 
 func TestGetEnvRequired_MissingVariable(t *testing.T) {

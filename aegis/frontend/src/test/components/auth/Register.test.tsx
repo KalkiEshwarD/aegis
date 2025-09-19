@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 
@@ -41,29 +41,33 @@ describe('Register Component', () => {
   it('renders registration form correctly', () => {
     renderRegister();
 
-    expect(screen.getByText('Join Aegis')).toBeInTheDocument();
-    expect(screen.getByText('Create your secure file vault')).toBeInTheDocument();
+    expect(screen.getByText('Join AegisDrive')).toBeInTheDocument();
+    expect(screen.getByText('Create your secure vault')).toBeInTheDocument();
+    expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^password \*/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^confirm password \*$/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /sign up/i })).toBeInTheDocument();
-    expect(screen.getByText("Already have an account? Sign In")).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument();
+    expect(screen.getByText("Already have an account? Sign in")).toBeInTheDocument();
   });
 
   it('updates form fields when user types', () => {
     renderRegister();
 
+    const usernameInput = screen.getByLabelText(/username/i) as HTMLInputElement;
     const emailInput = screen.getByLabelText(/email address/i) as HTMLInputElement;
     const passwordInput = screen.getByLabelText(/^password \*/i) as HTMLInputElement;
     const confirmPasswordInput = screen.getByLabelText(/^confirm password \*$/i) as HTMLInputElement;
 
+    fireEvent.change(usernameInput, { target: { value: 'testuser' } });
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-    fireEvent.change(passwordInput, { target: { value: 'password123' } });
-    fireEvent.change(confirmPasswordInput, { target: { value: 'password123' } });
+    fireEvent.change(passwordInput, { target: { value: 'TestPass123!' } });
+    fireEvent.change(confirmPasswordInput, { target: { value: 'TestPass123!' } });
 
+    expect(usernameInput.value).toBe('testuser');
     expect(emailInput.value).toBe('test@example.com');
-    expect(passwordInput.value).toBe('password123');
-    expect(confirmPasswordInput.value).toBe('password123');
+    expect(passwordInput.value).toBe('TestPass123!');
+    expect(confirmPasswordInput.value).toBe('TestPass123!');
   });
 
   it('toggles password visibility for both password fields', () => {
@@ -95,18 +99,25 @@ describe('Register Component', () => {
 
     renderRegister();
 
+    const usernameInput = screen.getByLabelText(/username/i);
     const emailInput = screen.getByLabelText(/email address/i);
     const passwordInput = screen.getByLabelText(/^password \*/i);
     const confirmPasswordInput = screen.getByLabelText(/^confirm password \*$/i);
-    const submitButton = screen.getByRole('button', { name: /sign up/i });
+    const submitButton = screen.getByRole('button', { name: /create account/i });
 
-    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-    fireEvent.change(passwordInput, { target: { value: 'password123' } });
-    fireEvent.change(confirmPasswordInput, { target: { value: 'password123' } });
-    fireEvent.click(submitButton);
+    await act(async () => {
+      fireEvent.change(usernameInput, { target: { value: 'testuser' } });
+      fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
+      fireEvent.change(passwordInput, { target: { value: 'TestPass123!' } });
+      fireEvent.change(confirmPasswordInput, { target: { value: 'TestPass123!' } });
+    });
+
+    await act(async () => {
+      fireEvent.click(submitButton);
+    });
 
     await waitFor(() => {
-      expect(mockRegister).toHaveBeenCalledWith('test@example.com', 'password123');
+      expect(mockRegister).toHaveBeenCalledWith('testuser', 'test@example.com', 'TestPass123!');
     });
   });
 
@@ -115,15 +126,22 @@ describe('Register Component', () => {
 
     renderRegister();
 
+    const usernameInput = screen.getByLabelText(/username/i);
     const emailInput = screen.getByLabelText(/email address/i);
     const passwordInput = screen.getByLabelText(/^password \*/i);
     const confirmPasswordInput = screen.getByLabelText(/^confirm password \*$/i);
-    const submitButton = screen.getByRole('button', { name: /sign up/i });
+    const submitButton = screen.getByRole('button', { name: /create account/i });
 
-    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-    fireEvent.change(passwordInput, { target: { value: 'password123' } });
-    fireEvent.change(confirmPasswordInput, { target: { value: 'password123' } });
-    fireEvent.click(submitButton);
+    await act(async () => {
+      fireEvent.change(usernameInput, { target: { value: 'testuser' } });
+      fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
+      fireEvent.change(passwordInput, { target: { value: 'TestPass123!' } });
+      fireEvent.change(confirmPasswordInput, { target: { value: 'TestPass123!' } });
+    });
+
+    await act(async () => {
+      fireEvent.click(submitButton);
+    });
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/dashboard');
@@ -133,18 +151,25 @@ describe('Register Component', () => {
   it('displays error message when passwords do not match', async () => {
     renderRegister();
 
+    const usernameInput = screen.getByLabelText(/username/i);
     const emailInput = screen.getByLabelText(/email address/i);
     const passwordInput = screen.getByLabelText(/^password \*/i);
     const confirmPasswordInput = screen.getByLabelText(/^confirm password \*$/i);
-    const submitButton = screen.getByRole('button', { name: /sign up/i });
+    const submitButton = screen.getByRole('button', { name: /create account/i });
 
-    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-    fireEvent.change(passwordInput, { target: { value: 'password123' } });
-    fireEvent.change(confirmPasswordInput, { target: { value: 'differentpassword' } });
-    fireEvent.click(submitButton);
+    await act(async () => {
+      fireEvent.change(usernameInput, { target: { value: 'testuser' } });
+      fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
+      fireEvent.change(passwordInput, { target: { value: 'TestPass123!' } });
+      fireEvent.change(confirmPasswordInput, { target: { value: 'DifferentPass123!' } });
+    });
+
+    await act(async () => {
+      fireEvent.click(submitButton);
+    });
 
     await waitFor(() => {
-      expect(screen.getByText('Passwords do not match')).toBeInTheDocument();
+      expect(screen.getByText('Passwords must match')).toBeInTheDocument();
     });
 
     expect(mockRegister).not.toHaveBeenCalled();
@@ -153,18 +178,25 @@ describe('Register Component', () => {
   it('displays error message when password is too short', async () => {
     renderRegister();
 
+    const usernameInput = screen.getByLabelText(/username/i);
     const emailInput = screen.getByLabelText(/email address/i);
     const passwordInput = screen.getByLabelText(/^password \*/i);
     const confirmPasswordInput = screen.getByLabelText(/^confirm password \*$/i);
-    const submitButton = screen.getByRole('button', { name: /sign up/i });
+    const submitButton = screen.getByRole('button', { name: /create account/i });
 
-    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-    fireEvent.change(passwordInput, { target: { value: '12345' } });
-    fireEvent.change(confirmPasswordInput, { target: { value: '12345' } });
-    fireEvent.click(submitButton);
+    await act(async () => {
+      fireEvent.change(usernameInput, { target: { value: 'testuser' } });
+      fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
+      fireEvent.change(passwordInput, { target: { value: '12345' } });
+      fireEvent.change(confirmPasswordInput, { target: { value: '12345' } });
+    });
+
+    await act(async () => {
+      fireEvent.click(submitButton);
+    });
 
     await waitFor(() => {
-      expect(screen.getByText('Password must be at least 6 characters long')).toBeInTheDocument();
+      expect(screen.getByText('Password must be at least 8 characters')).toBeInTheDocument();
     });
 
     expect(mockRegister).not.toHaveBeenCalled();
@@ -175,15 +207,22 @@ describe('Register Component', () => {
 
     renderRegister();
 
+    const usernameInput = screen.getByLabelText(/username/i);
     const emailInput = screen.getByLabelText(/email address/i);
     const passwordInput = screen.getByLabelText(/^password \*/i);
     const confirmPasswordInput = screen.getByLabelText(/^confirm password \*$/i);
-    const submitButton = screen.getByRole('button', { name: /sign up/i });
+    const submitButton = screen.getByRole('button', { name: /create account/i });
 
-    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-    fireEvent.change(passwordInput, { target: { value: 'password123' } });
-    fireEvent.change(confirmPasswordInput, { target: { value: 'password123' } });
-    fireEvent.click(submitButton);
+    await act(async () => {
+      fireEvent.change(usernameInput, { target: { value: 'testuser' } });
+      fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
+      fireEvent.change(passwordInput, { target: { value: 'TestPass123!' } });
+      fireEvent.change(confirmPasswordInput, { target: { value: 'TestPass123!' } });
+    });
+
+    await act(async () => {
+      fireEvent.click(submitButton);
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Registration failed')).toBeInTheDocument();
@@ -195,15 +234,22 @@ describe('Register Component', () => {
 
     renderRegister();
 
+    const usernameInput = screen.getByLabelText(/username/i);
     const emailInput = screen.getByLabelText(/email address/i);
     const passwordInput = screen.getByLabelText(/^password \*/i);
     const confirmPasswordInput = screen.getByLabelText(/^confirm password \*$/i);
-    const submitButton = screen.getByRole('button', { name: /sign up/i });
+    const submitButton = screen.getByRole('button', { name: /create account/i });
 
-    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-    fireEvent.change(passwordInput, { target: { value: 'password123' } });
-    fireEvent.change(confirmPasswordInput, { target: { value: 'password123' } });
-    fireEvent.click(submitButton);
+    await act(async () => {
+      fireEvent.change(usernameInput, { target: { value: 'testuser' } });
+      fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
+      fireEvent.change(passwordInput, { target: { value: 'TestPass123!' } });
+      fireEvent.change(confirmPasswordInput, { target: { value: 'TestPass123!' } });
+    });
+
+    await act(async () => {
+      fireEvent.click(submitButton);
+    });
 
     // Check loading state
     expect(screen.getByText('Creating Account...')).toBeInTheDocument();
@@ -219,15 +265,22 @@ describe('Register Component', () => {
 
     renderRegister();
 
+    const usernameInput = screen.getByLabelText(/username/i);
     const emailInput = screen.getByLabelText(/email address/i);
     const passwordInput = screen.getByLabelText(/^password \*/i);
     const confirmPasswordInput = screen.getByLabelText(/^confirm password \*$/i);
-    const submitButton = screen.getByRole('button', { name: /sign up/i });
+    const submitButton = screen.getByRole('button', { name: /create account/i });
 
-    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-    fireEvent.change(passwordInput, { target: { value: 'password123' } });
-    fireEvent.change(confirmPasswordInput, { target: { value: 'password123' } });
-    fireEvent.click(submitButton);
+    await act(async () => {
+      fireEvent.change(usernameInput, { target: { value: 'testuser' } });
+      fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
+      fireEvent.change(passwordInput, { target: { value: 'TestPass123!' } });
+      fireEvent.change(confirmPasswordInput, { target: { value: 'TestPass123!' } });
+    });
+
+    await act(async () => {
+      fireEvent.click(submitButton);
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Registration failed. Please try again.')).toBeInTheDocument();
@@ -241,24 +294,36 @@ describe('Register Component', () => {
 
     renderRegister();
 
+    const usernameInput = screen.getByLabelText(/username/i);
     const emailInput = screen.getByLabelText(/email address/i);
     const passwordInput = screen.getByLabelText(/^password \*/i);
     const confirmPasswordInput = screen.getByLabelText(/^confirm password \*$/i);
-    const submitButton = screen.getByRole('button', { name: /sign up/i });
+    const submitButton = screen.getByRole('button', { name: /create account/i });
 
     // First attempt - should fail
-    fireEvent.change(emailInput, { target: { value: 'existing@example.com' } });
-    fireEvent.change(passwordInput, { target: { value: 'password123' } });
-    fireEvent.change(confirmPasswordInput, { target: { value: 'password123' } });
-    fireEvent.click(submitButton);
+    await act(async () => {
+      fireEvent.change(usernameInput, { target: { value: 'testuser' } });
+      fireEvent.change(emailInput, { target: { value: 'existing@example.com' } });
+      fireEvent.change(passwordInput, { target: { value: 'TestPass123!' } });
+      fireEvent.change(confirmPasswordInput, { target: { value: 'TestPass123!' } });
+    });
+
+    await act(async () => {
+      fireEvent.click(submitButton);
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Email already exists')).toBeInTheDocument();
     });
 
     // Second attempt - should succeed and clear error
-    fireEvent.change(emailInput, { target: { value: 'new@example.com' } });
-    fireEvent.click(submitButton);
+    await act(async () => {
+      fireEvent.change(emailInput, { target: { value: 'new@example.com' } });
+    });
+
+    await act(async () => {
+      fireEvent.click(submitButton);
+    });
 
     await waitFor(() => {
       expect(screen.queryByText('Email already exists')).not.toBeInTheDocument();

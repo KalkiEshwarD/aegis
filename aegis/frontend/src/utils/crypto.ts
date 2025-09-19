@@ -2,6 +2,95 @@ import { randomBytes, secretbox } from 'tweetnacl';
 import { decodeUTF8, encodeUTF8, encodeBase64, decodeBase64 } from 'tweetnacl-util';
 import { EncryptionKey, EncryptedFile } from '../types';
 
+// Derive key from password using PBKDF2
+export const deriveKeyFromPassword = async (password: string, salt: Uint8Array): Promise<CryptoKey> => {
+  const encoder = new TextEncoder();
+  const passwordData = encoder.encode(password);
+
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    passwordData,
+    'PBKDF2',
+    false,
+    ['deriveBits', 'deriveKey']
+  );
+
+  const derivedKey = await crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt: salt as any,
+      iterations: 100000,
+      hash: 'SHA-256'
+    },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+
+  return derivedKey;
+};
+
+// Generate salt for password derivation
+export const generateSalt = (): Uint8Array => {
+  return randomBytes(16);
+};
+
+// Encrypt file encryption key with master password
+export const encryptFileKeyWithPassword = async (
+  fileKey: Uint8Array,
+  masterPassword: string
+): Promise<{ encryptedKey: string; salt: string; iv: string }> => {
+  const salt = generateSalt();
+  const derivedKey = await deriveKeyFromPassword(masterPassword, salt);
+
+  const iv = randomBytes(12); // 96-bit IV for AES-GCM
+
+  const encrypted = await crypto.subtle.encrypt(
+    {
+      name: 'AES-GCM',
+      iv: iv as any
+    },
+    derivedKey,
+    fileKey as any
+  );
+
+  return {
+    encryptedKey: encodeBase64(new Uint8Array(encrypted)),
+    salt: encodeBase64(salt),
+    iv: encodeBase64(iv)
+  };
+};
+
+// Decrypt file encryption key with master password
+export const decryptFileKeyWithPassword = async (
+  encryptedKey: string,
+  salt: string,
+  iv: string,
+  masterPassword: string
+): Promise<Uint8Array> => {
+  try {
+    const saltBytes = decodeBase64(salt);
+    const ivBytes = decodeBase64(iv);
+    const encryptedKeyBytes = decodeBase64(encryptedKey);
+
+    const derivedKey = await deriveKeyFromPassword(masterPassword, saltBytes);
+
+    const decrypted = await crypto.subtle.decrypt(
+      {
+        name: 'AES-GCM',
+        iv: ivBytes as any
+      },
+      derivedKey,
+      encryptedKeyBytes as any
+    );
+
+    return new Uint8Array(decrypted);
+  } catch (error) {
+    throw new Error('Failed to decrypt file key - invalid password or corrupted data');
+  }
+};
+
 // Generate a random encryption key
 export const generateEncryptionKey = (): EncryptionKey => {
   return {

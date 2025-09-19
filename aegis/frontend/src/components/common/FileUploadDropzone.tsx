@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, memo } from 'react';
 import {
   Box,
   Typography,
@@ -14,7 +14,7 @@ import {
   Close as CloseIcon,
 } from '@mui/icons-material';
 import { useMutation } from '@apollo/client';
-import { UPLOAD_FILE_FROM_MAP_MUTATION } from '../../apollo/queries';
+import { UPLOAD_FILE_FROM_MAP_MUTATION } from '../../apollo/files';
 import {
   generateEncryptionKey,
   encryptFile,
@@ -171,13 +171,13 @@ const FileUploadDropzone: React.FC<FileUploadDropzoneProps> = ({
     }
   }, [uploadFileMutation, onUploadComplete, validateFile]);
 
-  const handleFiles = useCallback(async (files: FileList | null) => {
-    if (!files) {
+  const handleFiles = useCallback(async (files: File[]) => {
+    if (!files || files.length === 0) {
       return;
     }
 
     setError(null);
-    const fileArray = Array.from(files);
+    const fileArray = files;
 
     // Process files sequentially to avoid overwhelming the server
     for (const file of fileArray) {
@@ -198,11 +198,13 @@ const FileUploadDropzone: React.FC<FileUploadDropzoneProps> = ({
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    handleFiles(e.dataTransfer.files);
+    handleFiles(Array.from(e.dataTransfer.files));
   }, [handleFiles]);
 
   const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    handleFiles(e.target.files);
+    if (e.target.files) {
+      handleFiles(Array.from(e.target.files));
+    }
     // Reset input value to allow re-uploading the same file
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -327,4 +329,4 @@ const FileUploadDropzone: React.FC<FileUploadDropzoneProps> = ({
   );
 };
 
-export default FileUploadDropzone;
+export default memo(FileUploadDropzone);

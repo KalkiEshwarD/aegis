@@ -56,9 +56,19 @@ func NewTestGraphQLServer(cfg *config.Config) *TestGraphQLServer {
 	// Add CORS middleware
 	r.Use(middleware.CORS(cfg.CORSAllowedOrigins))
 
-	// GraphQL endpoint with authentication middleware
-	r.POST("/graphql", middleware.AuthMiddleware(cfg), gin.WrapH(srv))
-	r.GET("/graphql", middleware.AuthMiddleware(cfg), gin.WrapH(srv))
+	// GraphQL endpoint with authentication middleware and gin context
+	r.POST("/graphql", middleware.AuthMiddleware(cfg), func(c *gin.Context) {
+		// Add gin context to GraphQL context
+		ctx := context.WithValue(c.Request.Context(), "gin", c)
+		c.Request = c.Request.WithContext(ctx)
+		srv.ServeHTTP(c.Writer, c.Request)
+	})
+	r.GET("/graphql", middleware.AuthMiddleware(cfg), func(c *gin.Context) {
+		// Add gin context to GraphQL context
+		ctx := context.WithValue(c.Request.Context(), "gin", c)
+		c.Request = c.Request.WithContext(ctx)
+		srv.ServeHTTP(c.Writer, c.Request)
+	})
 
 	// Create test server
 	testServer := httptest.NewServer(r)

@@ -40,7 +40,7 @@ func (suite *UploadFromMapIntegrationTestSuite) TestUploadFileFromMap_Success() 
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -147,7 +147,7 @@ func (suite *UploadFromMapIntegrationTestSuite) TestUploadFileFromMap_InvalidJSO
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import {
   Table,
   TableBody,
@@ -27,7 +27,7 @@ import {
   InsertDriveFile as FileIcon,
 } from '@mui/icons-material';
 import { useQuery, useMutation } from '@apollo/client';
-import { GET_MY_TRASHED_FILES, RESTORE_FILE_MUTATION, PERMANENTLY_DELETE_FILE_MUTATION } from '../../apollo/queries';
+import { GET_MY_TRASHED_FILES, RESTORE_FILE_MUTATION, PERMANENTLY_DELETE_FILE_MUTATION } from '../../apollo/trash';
 import { formatFileSize } from '../../utils/crypto';
 import { UserFile } from '../../types';
 
@@ -279,4 +279,4 @@ const TrashView: React.FC<TrashViewProps> = ({ onFileRestored, onFileDeleted }) 
   );
 };
 
-export default TrashView;
+export default memo(TrashView);

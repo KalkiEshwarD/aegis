@@ -25,8 +25,9 @@ func (suite *AuthIntegrationTestSuite) TestUserRegistrationSuccess() {
 	ctx := context.Background()
 
 	// Test data
+	username := "newuser"
 	email := "newuser@test.com"
-	password := "securepassword123"
+	password := "TestPass123!"
 
 	// GraphQL mutation for registration
 	query := `
@@ -35,6 +36,7 @@ func (suite *AuthIntegrationTestSuite) TestUserRegistrationSuccess() {
 				token
 				user {
 					id
+					username
 					email
 					is_admin
 					storage_quota
@@ -46,22 +48,26 @@ func (suite *AuthIntegrationTestSuite) TestUserRegistrationSuccess() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
+			"username": username,
 			"email":    email,
 			"password": password,
 		},
 	}
 
 	var response struct {
-		Register struct {
-			Token string `json:"token"`
-			User  struct {
-				ID           string `json:"id"`
-				Email        string `json:"email"`
-				IsAdmin      bool   `json:"is_admin"`
-				StorageQuota int    `json:"storage_quota"`
-				UsedStorage  int    `json:"used_storage"`
-			} `json:"user"`
-		} `json:"register"`
+		Data struct {
+			Register struct {
+				Token string `json:"token"`
+				User  struct {
+					ID           string `json:"id"`
+					Username     string `json:"username"`
+					Email        string `json:"email"`
+					IsAdmin      bool   `json:"is_admin"`
+					StorageQuota int    `json:"storage_quota"`
+					UsedStorage  int    `json:"used_storage"`
+				} `json:"user"`
+			} `json:"register"`
+		} `json:"data"`
 	}
 
 	// Execute the mutation
@@ -70,14 +76,16 @@ func (suite *AuthIntegrationTestSuite) TestUserRegistrationSuccess() {
 
 	// Validate response
 	suite.AssertGraphQLSuccess(response)
-	suite.NotEmpty(response.Register.Token, "JWT token should be returned")
-	suite.Equal(email, response.Register.User.Email, "Email should match")
-	suite.False(response.Register.User.IsAdmin, "New user should not be admin")
-	suite.Equal(104857600, response.Register.User.StorageQuota, "Storage quota should be default 100MB")
-	suite.Equal(0, response.Register.User.UsedStorage, "Used storage should be 0")
+	suite.NotEmpty(response.Data.Register.Token, "JWT token should be returned")
+	suite.Equal(username, response.Data.Register.User.Username, "Username should match")
+	suite.Equal(email, response.Data.Register.User.Email, "Email should match")
+	suite.False(response.Data.Register.User.IsAdmin, "New user should not be admin")
+	suite.Equal(104857600, response.Data.Register.User.StorageQuota, "Storage quota should be default 100MB")
+	suite.Equal(0, response.Data.Register.User.UsedStorage, "Used storage should be 0")
 
 	// Validate database state
 	user := suite.AssertUserExistsInDB(email)
+	suite.Equal(username, user.Username, "Username should match in database")
 	suite.False(user.IsAdmin, "User should not be admin in database")
 	suite.Equal(int64(104857600), user.StorageQuota, "Storage quota should match")
 	suite.Equal(int64(0), user.UsedStorage, "Used storage should be 0")
@@ -93,30 +101,42 @@ func (suite *AuthIntegrationTestSuite) TestUserRegistrationValidationErrors() {
 
 	testCases := []struct {
 		name      string
+		username  string
 		email     string
 		password  string
 		errorMsg  string
 	}{
 		{
+			name:     "Empty username",
+			username: "",
+			email:    "test@test.com",
+			password: "password123",
+			errorMsg: "username",
+		},
+		{
 			name:     "Empty email",
+			username: "testuser",
 			email:    "",
 			password: "password123",
 			errorMsg: "email",
 		},
 		{
 			name:     "Invalid email format",
+			username: "testuser",
 			email:    "invalid-email",
 			password: "password123",
-			errorMsg: "email",
+			errorMsg: "invalid email format",
 		},
 		{
 			name:     "Empty password",
+			username: "testuser",
 			email:    "test@test.com",
 			password: "",
 			errorMsg: "password",
 		},
 		{
 			name:     "Password too short",
+			username: "testuser",
 			email:    "test@test.com",
 			password: "123",
 			errorMsg: "password",
@@ -139,6 +159,7 @@ func (suite *AuthIntegrationTestSuite) TestUserRegistrationValidationErrors() {
 
 			variables := map[string]interface{}{
 				"input": map[string]interface{}{
+					"username": tc.username,
 					"email":    tc.email,
 					"password": tc.password,
 				},
@@ -146,8 +167,8 @@ func (suite *AuthIntegrationTestSuite) TestUserRegistrationValidationErrors() {
 
 			var response map[string]interface{}
 			err := suite.Server.MakeRequest(ctx, query, variables, &response)
-			suite.Error(err, "Request should fail with validation error")
-			suite.Contains(err.Error(), tc.errorMsg, "Error should contain expected validation message")
+			suite.NoError(err, "GraphQL request should succeed")
+			suite.AssertGraphQLError(response, tc.errorMsg)
 		})
 	}
 }
@@ -157,8 +178,9 @@ func (suite *AuthIntegrationTestSuite) TestUserRegistrationDuplicateEmail() {
 	ctx := context.Background()
 
 	// Use existing admin user email
+	username := "duplicateuser"
 	email := suite.TestData.AdminUser.Email
-	password := "newpassword123"
+	password := "TestPass123!"
 
 	query := `
 		mutation Register($input: RegisterInput!) {
@@ -174,6 +196,7 @@ func (suite *AuthIntegrationTestSuite) TestUserRegistrationDuplicateEmail() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
+			"username": username,
 			"email":    email,
 			"password": password,
 		},
@@ -181,8 +204,8 @@ func (suite *AuthIntegrationTestSuite) TestUserRegistrationDuplicateEmail() {
 
 	var response map[string]interface{}
 	err := suite.Server.MakeRequest(ctx, query, variables, &response)
-	suite.Error(err, "Request should fail with duplicate email error")
-	suite.Contains(err.Error(), "user with this email already exists", "Error should indicate duplicate email")
+	suite.NoError(err, "GraphQL request should succeed")
+	suite.AssertGraphQLError(response, "user with this email already exists")
 }
 
 // TestUserLoginSuccess tests successful user login
@@ -207,20 +230,22 @@ func (suite *AuthIntegrationTestSuite) TestUserLoginSuccess() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
 
 	var response struct {
-		Login struct {
-			Token string `json:"token"`
-			User  struct {
-				ID      string `json:"id"`
-				Email   string `json:"email"`
-				IsAdmin bool   `json:"is_admin"`
-			} `json:"user"`
-		} `json:"login"`
+		Data struct {
+			Login struct {
+				Token string `json:"token"`
+				User  struct {
+					ID      string `json:"id"`
+					Email   string `json:"email"`
+					IsAdmin bool   `json:"is_admin"`
+				} `json:"user"`
+			} `json:"login"`
+		} `json:"data"`
 	}
 
 	err := suite.Server.MakeRequest(ctx, query, variables, &response)
@@ -228,9 +253,9 @@ func (suite *AuthIntegrationTestSuite) TestUserLoginSuccess() {
 
 	// Validate response
 	suite.AssertGraphQLSuccess(response)
-	suite.NotEmpty(response.Login.Token, "JWT token should be returned")
-	suite.Equal(email, response.Login.User.Email, "Email should match")
-	suite.False(response.Login.User.IsAdmin, "Regular user should not be admin")
+	suite.NotEmpty(response.Data.Login.Token, "JWT token should be returned")
+	suite.Equal(email, response.Data.Login.User.Email, "Email should match")
+	suite.False(response.Data.Login.User.IsAdmin, "Regular user should not be admin")
 }
 
 // TestUserLoginWrongPassword tests login with incorrect password
@@ -254,15 +279,15 @@ func (suite *AuthIntegrationTestSuite) TestUserLoginWrongPassword() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
 
 	var response map[string]interface{}
 	err := suite.Server.MakeRequest(ctx, query, variables, &response)
-	suite.Error(err, "Request should fail with invalid credentials")
-	suite.Contains(err.Error(), "invalid credentials", "Error should indicate invalid credentials")
+	suite.NoError(err, "GraphQL request should succeed")
+	suite.AssertGraphQLError(response, "invalid credentials")
 }
 
 // TestUserLoginNonExistentUser tests login with non-existent user
@@ -286,15 +311,15 @@ func (suite *AuthIntegrationTestSuite) TestUserLoginNonExistentUser() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
 
 	var response map[string]interface{}
 	err := suite.Server.MakeRequest(ctx, query, variables, &response)
-	suite.Error(err, "Request should fail with invalid credentials")
-	suite.Contains(err.Error(), "invalid credentials", "Error should indicate invalid credentials")
+	suite.NoError(err, "GraphQL request should succeed")
+	suite.AssertGraphQLError(response, "invalid credentials")
 }
 
 // TestJWTTokenValidation tests JWT token validation and expiration
@@ -319,7 +344,7 @@ func (suite *AuthIntegrationTestSuite) TestJWTTokenValidation() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -384,19 +409,23 @@ func (suite *AuthIntegrationTestSuite) TestConcurrentUserRegistration() {
 
 	// This test simulates concurrent registration attempts
 	// In a real scenario, you'd use goroutines, but for simplicity we'll test sequential
-	emails := []string{
-		"concurrent1@test.com",
-		"concurrent2@test.com",
-		"concurrent3@test.com",
+	testData := []struct {
+		username string
+		email    string
+	}{
+		{"concurrent1", "concurrent1@test.com"},
+		{"concurrent2", "concurrent2@test.com"},
+		{"concurrent3", "concurrent3@test.com"},
 	}
 
-	for _, email := range emails {
+	for _, data := range testData {
 		query := `
 			mutation Register($input: RegisterInput!) {
 				register(input: $input) {
 					token
 					user {
 						id
+						username
 						email
 					}
 				}
@@ -405,28 +434,33 @@ func (suite *AuthIntegrationTestSuite) TestConcurrentUserRegistration() {
 
 		variables := map[string]interface{}{
 			"input": map[string]interface{}{
-				"email":    email,
-				"password": "password123",
+				"username": data.username,
+				"email":    data.email,
+				"password": "TestPass123!",
 			},
 		}
 
 		var response struct {
-			Register struct {
-				Token string `json:"token"`
-				User  struct {
-					ID    string `json:"id"`
-					Email string `json:"email"`
-				} `json:"user"`
-			} `json:"register"`
+			Data struct {
+				Register struct {
+					Token string `json:"token"`
+					User  struct {
+						ID       string `json:"id"`
+						Username string `json:"username"`
+						Email    string `json:"email"`
+					} `json:"user"`
+				} `json:"register"`
+			} `json:"data"`
 		}
 
 		err := suite.Server.MakeRequest(ctx, query, variables, &response)
 		suite.NoError(err, "Registration should succeed")
 		suite.AssertGraphQLSuccess(response)
-		suite.Equal(email, response.Register.User.Email, "Email should match")
+		suite.Equal(data.username, response.Register.User.Username, "Username should match")
+		suite.Equal(data.email, response.Register.User.Email, "Email should match")
 
 		// Verify user was created in database
-		suite.AssertUserExistsInDB(email)
+		suite.AssertUserExistsInDB(data.email)
 	}
 }
 
@@ -452,7 +486,7 @@ func (suite *AuthIntegrationTestSuite) TestUserSessionManagement() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -498,8 +532,8 @@ func (suite *AuthIntegrationTestSuite) TestUserSessionManagement() {
 	invalidToken := "invalid.jwt.token"
 	var invalidResponse map[string]interface{}
 	err = suite.Server.MakeAuthenticatedRequest(ctx, invalidToken, "query Me { me { id } }", nil, &invalidResponse)
-	suite.Error(err, "Request should fail with invalid token")
-	suite.Contains(err.Error(), "token has invalid claims", "Error should indicate invalid token")
+	suite.NoError(err, "GraphQL request should succeed")
+	suite.AssertGraphQLError(invalidResponse, "token has invalid claims")
 }
 
 // TestUserDataIsolation tests that user data is properly isolated between users
@@ -524,7 +558,7 @@ func (suite *AuthIntegrationTestSuite) TestUserDataIsolation() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    regularEmail,
+			"identifier":    regularEmail,
 			"password": password,
 		},
 	}

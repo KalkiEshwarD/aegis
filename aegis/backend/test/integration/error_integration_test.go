@@ -80,7 +80,7 @@ func (suite *ErrorIntegrationTestSuite) TestInvalidGraphQLQueries() {
 				}
 			`,
 			variables: map[string]interface{}{
-				"email":    "test@test.com",
+				"identifier":    "test@test.com",
 				"password": 123, // Should be string
 			},
 			errorMsg: "type",
@@ -204,7 +204,7 @@ func (suite *ErrorIntegrationTestSuite) TestDatabaseConnectionFailures() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -273,7 +273,7 @@ func (suite *ErrorIntegrationTestSuite) TestStorageQuotaExceeded() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -355,7 +355,7 @@ func (suite *ErrorIntegrationTestSuite) TestConcurrentAccessScenarios() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -430,7 +430,7 @@ func (suite *ErrorIntegrationTestSuite) TestInvalidFileOperations() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -528,7 +528,7 @@ func (suite *ErrorIntegrationTestSuite) TestInvalidRoomOperations() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -637,7 +637,7 @@ func (suite *ErrorIntegrationTestSuite) TestNetworkTimeoutScenarios() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -714,7 +714,7 @@ func (suite *ErrorIntegrationTestSuite) TestDataIntegrityViolations() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}

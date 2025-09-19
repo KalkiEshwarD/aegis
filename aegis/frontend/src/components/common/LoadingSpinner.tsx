@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Box, CircularProgress, Typography } from '@mui/material';
 
 interface LoadingSpinnerProps {
@@ -24,4 +24,4 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ message = 'Loading...' 
   );
 };
 
-export default LoadingSpinner;
+export default memo(LoadingSpinner);

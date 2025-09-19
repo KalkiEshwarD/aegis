@@ -42,26 +42,29 @@ func (suite *AdminIntegrationTestSuite) TestAdminDashboardStatistics() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
 	var loginResponse struct {
-		Login struct {
-			Token string `json:"token"`
-			User  struct {
-				ID      string `json:"id"`
-				Email   string `json:"email"`
-				IsAdmin bool   `json:"is_admin"`
-			} `json:"user"`
-		} `json:"login"`
+		Data struct {
+			Login struct {
+				Token string `json:"token"`
+				User  struct {
+					ID      string `json:"id"`
+					Email   string `json:"email"`
+					IsAdmin bool   `json:"is_admin"`
+				} `json:"user"`
+			} `json:"login"`
+		} `json:"data"`
 	}
 
 	err := suite.Server.MakeRequest(ctx, loginQuery, variables, &loginResponse)
 	suite.NoError(err, "Admin login should succeed")
-	suite.True(loginResponse.Login.User.IsAdmin, "User should be admin")
-	token := loginResponse.Login.Token
+	fmt.Printf("DEBUG: IsAdmin value: %v\n", loginResponse.Data.Login.User.IsAdmin)
+	suite.True(loginResponse.Data.Login.User.IsAdmin, "User should be admin")
+	token := loginResponse.Data.Login.Token
 
 	// Query admin dashboard
 	dashboardQuery := `
@@ -80,16 +83,18 @@ func (suite *AdminIntegrationTestSuite) TestAdminDashboardStatistics() {
 	`
 
 	var dashboardResponse struct {
-		AdminDashboard struct {
-			TotalUsers       int `json:"total_users"`
-			TotalFiles       int `json:"total_files"`
-			TotalStorageUsed int `json:"total_storage_used"`
-			RecentUploads    []struct {
-				ID       string `json:"id"`
-				Filename string `json:"filename"`
-				UserID   string `json:"user_id"`
-			} `json:"recent_uploads"`
-		} `json:"adminDashboard"`
+		Data struct {
+			AdminDashboard struct {
+				TotalUsers       int `json:"total_users"`
+				TotalFiles       int `json:"total_files"`
+				TotalStorageUsed int `json:"total_storage_used"`
+				RecentUploads    []struct {
+					ID       string `json:"id"`
+					Filename string `json:"filename"`
+					UserID   string `json:"user_id"`
+				} `json:"recent_uploads"`
+			} `json:"adminDashboard"`
+		} `json:"data"`
 	}
 
 	err = suite.Server.MakeAuthenticatedRequest(ctx, token, dashboardQuery, nil, &dashboardResponse)
@@ -97,13 +102,13 @@ func (suite *AdminIntegrationTestSuite) TestAdminDashboardStatistics() {
 
 	// Validate response
 	suite.AssertGraphQLSuccess(dashboardResponse)
-	suite.True(dashboardResponse.AdminDashboard.TotalUsers >= 3, "Should have at least 3 users (from test data)")
-	suite.True(dashboardResponse.AdminDashboard.TotalFiles >= 2, "Should have at least 2 files (from test data)")
-	suite.True(dashboardResponse.AdminDashboard.TotalStorageUsed >= 0, "Storage used should be non-negative")
+	suite.True(dashboardResponse.Data.AdminDashboard.TotalUsers >= 3, "Should have at least 3 users (from test data)")
+	suite.True(dashboardResponse.Data.AdminDashboard.TotalFiles >= 2, "Should have at least 2 files (from test data)")
+	suite.True(dashboardResponse.Data.AdminDashboard.TotalStorageUsed >= 0, "Storage used should be non-negative")
 
 	// Recent uploads should include test files
 	found := false
-	for _, upload := range dashboardResponse.AdminDashboard.RecentUploads {
+	for _, upload := range dashboardResponse.Data.AdminDashboard.RecentUploads {
 		if upload.Filename == suite.TestData.UserFile1.Filename {
 			found = true
 			break
@@ -134,24 +139,26 @@ func (suite *AdminIntegrationTestSuite) TestUserPromotionToAdmin() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
 	var loginResponse struct {
-		Login struct {
-			Token string `json:"token"`
-			User  struct {
-				ID    string `json:"id"`
-				Email string `json:"email"`
-			} `json:"user"`
-		} `json:"login"`
+		Data struct {
+			Login struct {
+				Token string `json:"token"`
+				User  struct {
+					ID    string `json:"id"`
+					Email string `json:"email"`
+				} `json:"user"`
+			} `json:"login"`
+		} `json:"data"`
 	}
 
 	err := suite.Server.MakeRequest(ctx, loginQuery, variables, &loginResponse)
 	suite.NoError(err, "Admin login should succeed")
-	token := loginResponse.Login.Token
+	token := loginResponse.Data.Login.Token
 
 	// Promote regular user to admin
 	userID := fmt.Sprintf("%d", suite.TestData.RegularUser.ID)
@@ -199,7 +206,7 @@ func (suite *AdminIntegrationTestSuite) TestUserPromotionToAdmin() {
 	// Login as the newly promoted admin
 	regularLoginVars := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    suite.TestData.RegularUser.Email,
+			"identifier":    suite.TestData.RegularUser.Email,
 			"password": password,
 		},
 	}
@@ -244,7 +251,7 @@ func (suite *AdminIntegrationTestSuite) TestUserDeletionByAdmin() {
 
 	createVariables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    "delete_me@test.com",
+			"identifier":    "delete_me@test.com",
 			"password": "password123",
 		},
 	}
@@ -280,24 +287,26 @@ func (suite *AdminIntegrationTestSuite) TestUserDeletionByAdmin() {
 
 	loginVariables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    adminEmail,
+			"identifier":    adminEmail,
 			"password": password,
 		},
 	}
 
 	var loginResponse struct {
-		Login struct {
-			Token string `json:"token"`
-			User  struct {
-				ID    string `json:"id"`
-				Email string `json:"email"`
-			} `json:"user"`
-		} `json:"login"`
+		Data struct {
+			Login struct {
+				Token string `json:"token"`
+				User  struct {
+					ID    string `json:"id"`
+					Email string `json:"email"`
+				} `json:"user"`
+			} `json:"login"`
+		} `json:"data"`
 	}
 
 	err = suite.Server.MakeRequest(ctx, loginQuery, loginVariables, &loginResponse)
 	suite.NoError(err, "Admin login should succeed")
-	token := loginResponse.Login.Token
+	token := loginResponse.Data.Login.Token
 
 	// Delete the user
 	deleteQuery := `
@@ -347,24 +356,26 @@ func (suite *AdminIntegrationTestSuite) TestAdminAccessControl() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
 	var loginResponse struct {
-		Login struct {
-			Token string `json:"token"`
-			User  struct {
-				ID    string `json:"id"`
-				Email string `json:"email"`
-			} `json:"user"`
-		} `json:"login"`
+		Data struct {
+			Login struct {
+				Token string `json:"token"`
+				User  struct {
+					ID    string `json:"id"`
+					Email string `json:"email"`
+				} `json:"user"`
+			} `json:"login"`
+		} `json:"data"`
 	}
 
 	err := suite.Server.MakeRequest(ctx, loginQuery, variables, &loginResponse)
 	suite.NoError(err, "Regular user login should succeed")
-	token := loginResponse.Login.Token
+	token := loginResponse.Data.Login.Token
 
 	// Try to access admin dashboard (should fail)
 	dashboardQuery := `
@@ -440,24 +451,26 @@ func (suite *AdminIntegrationTestSuite) TestAllUsersQuery() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
 	var loginResponse struct {
-		Login struct {
-			Token string `json:"token"`
-			User  struct {
-				ID    string `json:"id"`
-				Email string `json:"email"`
-			} `json:"user"`
-		} `json:"login"`
+		Data struct {
+			Login struct {
+				Token string `json:"token"`
+				User  struct {
+					ID    string `json:"id"`
+					Email string `json:"email"`
+				} `json:"user"`
+			} `json:"login"`
+		} `json:"data"`
 	}
 
 	err := suite.Server.MakeRequest(ctx, loginQuery, variables, &loginResponse)
 	suite.NoError(err, "Admin login should succeed")
-	token := loginResponse.Login.Token
+	token := loginResponse.Data.Login.Token
 
 	// Query all users
 	allUsersQuery := `
@@ -523,24 +536,26 @@ func (suite *AdminIntegrationTestSuite) TestAllFilesQuery() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
 	var loginResponse struct {
-		Login struct {
-			Token string `json:"token"`
-			User  struct {
-				ID    string `json:"id"`
-				Email string `json:"email"`
-			} `json:"user"`
-		} `json:"login"`
+		Data struct {
+			Login struct {
+				Token string `json:"token"`
+				User  struct {
+					ID    string `json:"id"`
+					Email string `json:"email"`
+				} `json:"user"`
+			} `json:"login"`
+		} `json:"data"`
 	}
 
 	err := suite.Server.MakeRequest(ctx, loginQuery, variables, &loginResponse)
 	suite.NoError(err, "Admin login should succeed")
-	token := loginResponse.Login.Token
+	token := loginResponse.Data.Login.Token
 
 	// Query all files
 	allFilesQuery := `
@@ -605,8 +620,8 @@ func (suite *AdminIntegrationTestSuite) TestAdminUserStats() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -678,27 +693,29 @@ func (suite *AdminIntegrationTestSuite) TestAdminSelfDeletionPrevention() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
 	var loginResponse struct {
-		Login struct {
-			Token string `json:"token"`
-			User  struct {
-				ID    string `json:"id"`
-				Email string `json:"email"`
-			} `json:"user"`
-		} `json:"login"`
+		Data struct {
+			Login struct {
+				Token string `json:"token"`
+				User  struct {
+					ID    string `json:"id"`
+					Email string `json:"email"`
+				} `json:"user"`
+			} `json:"login"`
+		} `json:"data"`
 	}
 
 	err := suite.Server.MakeRequest(ctx, loginQuery, variables, &loginResponse)
 	suite.NoError(err, "Admin login should succeed")
-	token := loginResponse.Login.Token
+	token := loginResponse.Data.Login.Token
 
 	// Try to delete own account (should fail)
-	userID := loginResponse.Login.User.ID
+	userID := loginResponse.Data.Login.User.ID
 
 	deleteQuery := `
 		mutation DeleteUserAccount($user_id: ID!) {

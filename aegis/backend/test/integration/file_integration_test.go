@@ -45,7 +45,7 @@ func (suite *FileIntegrationTestSuite) TestFileUploadSuccess() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -149,7 +149,7 @@ func (suite *FileIntegrationTestSuite) TestFileDownload() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -223,7 +223,7 @@ func (suite *FileIntegrationTestSuite) TestFileDeletion() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -304,7 +304,7 @@ func (suite *FileIntegrationTestSuite) TestFileDeletionUnauthorized() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -376,7 +376,7 @@ func (suite *FileIntegrationTestSuite) TestStorageQuotaEnforcement() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -463,7 +463,7 @@ func (suite *FileIntegrationTestSuite) TestFileFilteringAndSearch() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -569,7 +569,7 @@ func (suite *FileIntegrationTestSuite) TestFileUploadValidation() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -697,7 +697,7 @@ func (suite *FileIntegrationTestSuite) TestConcurrentFileOperations() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -791,7 +791,7 @@ func (suite *FileIntegrationTestSuite) TestTrashOperationsGraphQL() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -903,7 +903,7 @@ func (suite *FileIntegrationTestSuite) TestRestoreFileGraphQL() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -1029,7 +1029,7 @@ func (suite *FileIntegrationTestSuite) TestPermanentlyDeleteFileGraphQL() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -1155,7 +1155,7 @@ func (suite *FileIntegrationTestSuite) TestMyTrashedFilesGraphQL() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}
@@ -1253,7 +1253,7 @@ func (suite *FileIntegrationTestSuite) TestTrashOperationsUnauthorized() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"email":    email,
+			"identifier":    email,
 			"password": password,
 		},
 	}

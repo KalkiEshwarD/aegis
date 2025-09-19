@@ -51,7 +51,7 @@ func (r *folderResolver) ParentID(ctx context.Context, obj *models.Folder) (*str
 func (r *mutationResolver) Register(ctx context.Context, input model.RegisterInput) (*model.AuthPayload, error) {
 	userService := r.Resolver.UserService
 
-	user, token, err := userService.Register(input.Email, input.Password)
+	user, token, err := userService.Register(input.Username, input.Email, input.Password)
 	if err != nil {
 		return nil, err
 	}
@@ -69,14 +69,14 @@ func (r *mutationResolver) Register(ctx context.Context, input model.RegisterInp
 // Login is the resolver for the login field.
 func (r *mutationResolver) Login(ctx context.Context, input model.LoginInput) (*model.AuthPayload, error) {
 	// For debugging: let's add some debug logging
-	fmt.Printf("DEBUG: Login resolver called with email: %s\n", input.Email)
+	fmt.Printf("DEBUG: Login resolver called with identifier: %s\n", input.Identifier)
 
 	userService := r.Resolver.UserService
 	if userService == nil {
 		return nil, fmt.Errorf("user service is nil")
 	}
 
-	user, token, err := userService.Login(input.Email, input.Password)
+	user, token, err := userService.Login(input.Identifier, input.Password)
 	if err != nil {
 		fmt.Printf("DEBUG: User service login failed: %v\n", err)
 		return nil, err
@@ -92,7 +92,14 @@ func (r *mutationResolver) Login(ctx context.Context, input model.LoginInput) (*
 		Token: token,
 		User:  user,
 	}, nil
-} // Logout is the resolver for the logout field.
+}
+
+// RefreshToken is the resolver for the refreshToken field.
+func (r *mutationResolver) RefreshToken(ctx context.Context) (*model.AuthPayload, error) {
+	panic(fmt.Errorf("not implemented: RefreshToken - refreshToken"))
+}
+
+// Logout is the resolver for the logout field.
 func (r *mutationResolver) Logout(ctx context.Context) (bool, error) {
 	// Clear the HttpOnly cookie
 	ginCtx := ctx.Value("gin").(*gin.Context)

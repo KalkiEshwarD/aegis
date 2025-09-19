@@ -12,6 +12,7 @@ import Register from './components/auth/Register';
 import Dashboard from './components/dashboard/Dashboard';
 import AdminDashboard from './components/admin/AdminDashboard';
 import LoadingSpinner from './components/common/LoadingSpinner';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 // Create Material-UI theme
 const theme = createTheme({
@@ -159,14 +160,16 @@ const AppRoutes: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <ApolloProvider client={apolloClient}>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <AuthProvider>
-          <AppRoutes />
-        </AuthProvider>
-      </ThemeProvider>
-    </ApolloProvider>
+    <ErrorBoundary>
+      <ApolloProvider client={apolloClient}>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <AuthProvider>
+            <AppRoutes />
+          </AuthProvider>
+        </ThemeProvider>
+      </ApolloProvider>
+    </ErrorBoundary>
   );
 };
 

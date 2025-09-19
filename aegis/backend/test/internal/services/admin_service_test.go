@@ -84,6 +84,7 @@ func (suite *AdminServiceTestSuite) TestGetDashboardStats_WithData() {
 	// Create test users
 	user1 := models.User{
 		Email:        "user1@example.com",
+		Username:     "user1",
 		PasswordHash: "hash1",
 		StorageQuota: 10485760,
 		UsedStorage:  1024,
@@ -91,6 +92,7 @@ func (suite *AdminServiceTestSuite) TestGetDashboardStats_WithData() {
 	}
 	user2 := models.User{
 		Email:        "user2@example.com",
+		Username:     "user2",
 		PasswordHash: "hash2",
 		StorageQuota: 10485760,
 		UsedStorage:  2048,
@@ -160,6 +162,7 @@ func (suite *AdminServiceTestSuite) TestGetDashboardStats_RecentUploadsLimit() {
 	// Create test user
 	user := models.User{
 		Email:        "user@example.com",
+		Username:     "testuser",
 		PasswordHash: "hash",
 		StorageQuota: 10485760,
 		UsedStorage:  0,
@@ -213,6 +216,7 @@ func (suite *AdminServiceTestSuite) TestGetDashboardStats_WithPreloadedData() {
 	// Create test user
 	user := models.User{
 		Email:        "user@example.com",
+		Username:     "testuser2",
 		PasswordHash: "hash",
 		StorageQuota: 10485760,
 		UsedStorage:  1024,
@@ -258,6 +262,7 @@ func (suite *AdminServiceTestSuite) TestGetDashboardStats_NullStorageHandling() 
 	// Create user with zero used storage to test COALESCE function
 	user := models.User{
 		Email:        "user@example.com",
+		Username:     "testuser3",
 		PasswordHash: "hash",
 		StorageQuota: 10485760,
 		UsedStorage:  0, // This should be handled by COALESCE

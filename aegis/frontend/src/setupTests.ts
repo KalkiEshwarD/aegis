@@ -105,6 +105,8 @@ jest.mock('@apollo/client', () => {
     setContext: jest.fn(() => ({ type: 'context' })),
     onError: jest.fn(() => ({ type: 'error' })),
     createHttpLink: jest.fn(() => ({ type: 'http' })),
+    useMutation: jest.fn(),
+    gql: jest.fn((template: TemplateStringsArray) => template.join('')),
   };
 });
 

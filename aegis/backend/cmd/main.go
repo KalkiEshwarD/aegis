@@ -83,13 +83,13 @@ func main() {
 
 	// GraphQL endpoint with authentication middleware
 	r.POST("/graphql", middleware.AuthMiddleware(cfg), func(c *gin.Context) {
-		// Add gin context to GraphQL context
+		// Add gin context to GraphQL context (preserve existing context values)
 		ctx := context.WithValue(c.Request.Context(), "gin", c)
 		c.Request = c.Request.WithContext(ctx)
 		srv.ServeHTTP(c.Writer, c.Request)
 	})
 	r.GET("/graphql", middleware.AuthMiddleware(cfg), func(c *gin.Context) {
-		// Add gin context to GraphQL context
+		// Add gin context to GraphQL context (preserve existing context values)
 		ctx := context.WithValue(c.Request.Context(), "gin", c)
 		c.Request = c.Request.WithContext(ctx)
 		srv.ServeHTTP(c.Writer, c.Request)

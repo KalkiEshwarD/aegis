@@ -71,6 +71,7 @@ func (suite *RoomServiceTestSuite) SetupTest() {
 	// Create test users
 	suite.testUser = models.User{
 		Email:        "creator@example.com",
+		Username:     "creator",
 		PasswordHash: "hash",
 		StorageQuota: 10485760,
 		UsedStorage:  0,
@@ -81,6 +82,7 @@ func (suite *RoomServiceTestSuite) SetupTest() {
 
 	suite.testUser2 = models.User{
 		Email:        "member@example.com",
+		Username:     "member",
 		PasswordHash: "hash",
 		StorageQuota: 10485760,
 		UsedStorage:  0,
@@ -160,6 +162,7 @@ func (suite *RoomServiceTestSuite) TestGetUserRooms_NoRooms() {
 	// Create a user with no rooms
 	newUser := models.User{
 		Email:        "noroom@example.com",
+		Username:     "noroom",
 		PasswordHash: "hash",
 		StorageQuota: 10485760,
 		UsedStorage:  0,
@@ -237,7 +240,7 @@ func (suite *RoomServiceTestSuite) TestGetRoom_RoomNotFound() {
 
 	assert.Error(suite.T(), err)
 	assert.Nil(suite.T(), room)
-	assert.Contains(suite.T(), err.Error(), "room not found")
+	assert.Contains(suite.T(), err.Error(), "access denied")
 }
 
 func (suite *RoomServiceTestSuite) TestAddRoomMember_Success() {

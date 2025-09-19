@@ -100,6 +100,7 @@ type ComplexityRoot struct {
 		MoveFolder            func(childComplexity int, input model.MoveFolderInput) int
 		PermanentlyDeleteFile func(childComplexity int, fileID string) int
 		PromoteUserToAdmin    func(childComplexity int, userID string) int
+		RefreshToken          func(childComplexity int) int
 		Register              func(childComplexity int, input model.RegisterInput) int
 		RemoveFileFromRoom    func(childComplexity int, userFileID string, roomID string) int
 		RemoveFolderFromRoom  func(childComplexity int, folderID string, roomID string) int
@@ -155,6 +156,7 @@ type ComplexityRoot struct {
 		IsAdmin      func(childComplexity int) int
 		StorageQuota func(childComplexity int) int
 		UsedStorage  func(childComplexity int) int
+		Username     func(childComplexity int) int
 	}
 
 	UserFile struct {
@@ -192,6 +194,7 @@ type FolderResolver interface {
 type MutationResolver interface {
 	Register(ctx context.Context, input model.RegisterInput) (*model.AuthPayload, error)
 	Login(ctx context.Context, input model.LoginInput) (*model.AuthPayload, error)
+	RefreshToken(ctx context.Context) (*model.AuthPayload, error)
 	Logout(ctx context.Context) (bool, error)
 	UploadFile(ctx context.Context, input model.UploadFileInput) (*models.UserFile, error)
 	UploadFileFromMap(ctx context.Context, input model.UploadFileFromMapInput) (*models.UserFile, error)
@@ -533,6 +536,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.PromoteUserToAdmin(childComplexity, args["user_id"].(string)), true
+	case "Mutation.refreshToken":
+		if e.complexity.Mutation.RefreshToken == nil {
+			break
+		}
+
+		return e.complexity.Mutation.RefreshToken(childComplexity), true
 	case "Mutation.register":
 		if e.complexity.Mutation.Register == nil {
 			break
@@ -860,6 +869,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.User.UsedStorage(childComplexity), true
+	case "User.username":
+		if e.complexity.User.Username == nil {
+			break
+		}
+
+		return e.complexity.User.Username(childComplexity), true
 
 	case "UserFile.created_at":
 		if e.complexity.UserFile.CreatedAt == nil {
@@ -1084,6 +1099,7 @@ scalar Upload
 # User authentication types
 type User {
   id: ID!
+  username: String!
   email: String!
   storage_quota: Int!
   used_storage: Int!
@@ -1164,12 +1180,13 @@ type RoomMember {
 
 # Input types
 input RegisterInput {
+  username: String!
   email: String!
   password: String!
 }
 
 input LoginInput {
-  email: String!
+  identifier: String!
   password: String!
 }
 
@@ -1278,6 +1295,7 @@ type Mutation {
   # Authentication
   register(input: RegisterInput!): AuthPayload!
   login(input: LoginInput!): AuthPayload!
+  refreshToken: AuthPayload!
   logout: Boolean!
 
   # File operations
@@ -1859,6 +1877,8 @@ func (ec *executionContext) fieldContext_AuthPayload_user(_ context.Context, fie
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_User_id(ctx, field)
+			case "username":
+				return ec.fieldContext_User_username(ctx, field)
 			case "email":
 				return ec.fieldContext_User_email(ctx, field)
 			case "storage_quota":
@@ -2178,6 +2198,8 @@ func (ec *executionContext) fieldContext_Folder_user(_ context.Context, field gr
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_User_id(ctx, field)
+			case "username":
+				return ec.fieldContext_User_username(ctx, field)
 			case "email":
 				return ec.fieldContext_User_email(ctx, field)
 			case "storage_quota":
@@ -2436,6 +2458,41 @@ func (ec *executionContext) fieldContext_Mutation_login(ctx context.Context, fie
 	if fc.Args, err = ec.field_Mutation_login_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_refreshToken(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_refreshToken,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Mutation().RefreshToken(ctx)
+		},
+		nil,
+		ec.marshalNAuthPayload2ᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐAuthPayload,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_refreshToken(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "token":
+				return ec.fieldContext_AuthPayload_token(ctx, field)
+			case "user":
+				return ec.fieldContext_AuthPayload_user(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AuthPayload", field.Name)
+		},
 	}
 	return fc, nil
 }
@@ -3407,6 +3464,8 @@ func (ec *executionContext) fieldContext_Query_me(_ context.Context, field graph
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_User_id(ctx, field)
+			case "username":
+				return ec.fieldContext_User_username(ctx, field)
 			case "email":
 				return ec.fieldContext_User_email(ctx, field)
 			case "storage_quota":
@@ -3870,6 +3929,8 @@ func (ec *executionContext) fieldContext_Query_allUsers(_ context.Context, field
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_User_id(ctx, field)
+			case "username":
+				return ec.fieldContext_User_username(ctx, field)
 			case "email":
 				return ec.fieldContext_User_email(ctx, field)
 			case "storage_quota":
@@ -4215,6 +4276,8 @@ func (ec *executionContext) fieldContext_Room_creator(_ context.Context, field g
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_User_id(ctx, field)
+			case "username":
+				return ec.fieldContext_User_username(ctx, field)
 			case "email":
 				return ec.fieldContext_User_email(ctx, field)
 			case "storage_quota":
@@ -4589,6 +4652,8 @@ func (ec *executionContext) fieldContext_RoomMember_user(_ context.Context, fiel
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_User_id(ctx, field)
+			case "username":
+				return ec.fieldContext_User_username(ctx, field)
 			case "email":
 				return ec.fieldContext_User_email(ctx, field)
 			case "storage_quota":
@@ -4630,6 +4695,33 @@ func (ec *executionContext) fieldContext_User_id(_ context.Context, field graphq
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _User_username(ctx context.Context, field graphql.CollectedField, obj *models.User) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_User_username,
+		func(ctx context.Context) (any, error) { return obj.Username, nil },
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_User_username(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "User",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -5047,6 +5139,8 @@ func (ec *executionContext) fieldContext_UserFile_user(_ context.Context, field 
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_User_id(ctx, field)
+			case "username":
+				return ec.fieldContext_User_username(ctx, field)
 			case "email":
 				return ec.fieldContext_User_email(ctx, field)
 			case "storage_quota":
@@ -6860,20 +6954,20 @@ func (ec *executionContext) unmarshalInputLoginInput(ctx context.Context, obj an
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"email", "password"}
+	fieldsInOrder := [...]string{"identifier", "password"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
-		case "email":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("email"))
+		case "identifier":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("identifier"))
 			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.Email = data
+			it.Identifier = data
 		case "password":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("password"))
 			data, err := ec.unmarshalNString2string(ctx, v)
@@ -6962,13 +7056,20 @@ func (ec *executionContext) unmarshalInputRegisterInput(ctx context.Context, obj
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"email", "password"}
+	fieldsInOrder := [...]string{"username", "email", "password"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
+		case "username":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("username"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Username = data
 		case "email":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("email"))
 			data, err := ec.unmarshalNString2string(ctx, v)
@@ -7541,6 +7642,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "login":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_login(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "refreshToken":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_refreshToken(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -8390,6 +8498,11 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "username":
+			out.Values[i] = ec._User_username(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "email":
 			out.Values[i] = ec._User_email(ctx, field, obj)
 			if out.Values[i] == graphql.Null {

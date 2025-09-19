@@ -135,7 +135,7 @@ func (suite *BaseIntegrationTestSuite) SetupSuite() {
 	// Create test configuration
 	suite.Config = &config.Config{
 		GinMode:        "test",
-		JWTSecret:      "test_jwt_secret_key_for_integration_tests",
+		JWTSecret:      "test_jwt_secret_key_for_integration_tests_minimum_32_chars",
 		Port:           "8081", // Use a different port for tests
 		DatabaseURL:    "",     // Will be set by test database
 		MinIOEndpoint:  "",     // Disable MinIO for tests

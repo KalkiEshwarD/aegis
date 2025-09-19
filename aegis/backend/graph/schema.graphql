@@ -6,6 +6,7 @@ scalar Upload
 # User authentication types
 type User {
   id: ID!
+  username: String!
   email: String!
   storage_quota: Int!
   used_storage: Int!
@@ -86,12 +87,13 @@ type RoomMember {
 
 # Input types
 input RegisterInput {
+  username: String!
   email: String!
   password: String!
 }
 
 input LoginInput {
-  email: String!
+  identifier: String!
   password: String!
 }
 
@@ -200,6 +202,7 @@ type Mutation {
   # Authentication
   register(input: RegisterInput!): AuthPayload!
   login(input: LoginInput!): AuthPayload!
+  refreshToken: AuthPayload!
   logout: Boolean!
 
   # File operations

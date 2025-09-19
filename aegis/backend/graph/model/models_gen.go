@@ -47,8 +47,8 @@ type FileFilterInput struct {
 }
 
 type LoginInput struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Identifier string `json:"identifier"`
+	Password   string `json:"password"`
 }
 
 type MoveFileInput struct {
@@ -68,6 +68,7 @@ type Query struct {
 }
 
 type RegisterInput struct {
+	Username string `json:"username"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
