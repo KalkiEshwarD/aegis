@@ -66,28 +66,22 @@ func main() {
 	fileStorageService := services.NewFileStorageService(minioClient, bucketName)
 
 	authService := services.NewAuthService(cfg)
-	storageService := services.NewStorageService(cfg, db, fileStorageService, authService)
+	fileService := services.NewFileService(cfg, db, fileStorageService, authService)
 	userService := services.NewUserService(authService, db)
 	roomService := services.NewRoomService(db)
 	adminService := services.NewAdminService(db)
-	folderService := services.NewFolderService(db)
-	passwordShareService := services.NewPasswordShareService(db)
-	shareLinkService := services.NewShareLinkService(db, cfg.BaseURL)
-	shareAccessService := services.NewShareAccessService(db)
+	shareService := services.NewShareService(db, cfg.BaseURL)
 
 	// Initialize handlers
-	fileHandler := handlers.NewFileHandler(storageService, authService)
+	fileHandler := handlers.NewFileHandler(fileService, authService)
 
 	// Initialize GraphQL resolver
 	resolver := &graph.Resolver{
-		StorageService:       storageService,
-		UserService:          userService,
-		RoomService:          roomService,
-		AdminService:         adminService,
-		FolderService:        folderService,
-		PasswordShareService: passwordShareService,
-		ShareLinkService:     shareLinkService,
-		ShareAccessService:   shareAccessService,
+		FileService:  fileService,
+		UserService:  userService,
+		RoomService:  roomService,
+		AdminService: adminService,
+		ShareService: shareService,
 	}
 
 	// Create GraphQL server with custom error handling

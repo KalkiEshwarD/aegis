@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"strings"
 
 	apperrors "github.com/balkanid/aegis-backend/internal/errors"
 	"golang.org/x/crypto/pbkdf2"
@@ -171,9 +170,9 @@ func ValidatePasswordStrength(password string) error {
 		SpecialChars:  "!@#$%^&*()_+-=[]{}|;:,.<>?",
 	}
 
-	result := ValidatePassword(password, reqs)
-	if result.HasErrors() {
-		return apperrors.New(apperrors.ErrCodeValidation, "password does not meet security requirements: "+strings.Join(result.Errors, "; "))
+	err := ValidatePassword(password, reqs)
+	if err != nil {
+		return apperrors.New(apperrors.ErrCodeValidation, "password does not meet security requirements: "+err.Error())
 	}
 
 	return nil

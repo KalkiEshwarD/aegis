@@ -10,7 +10,7 @@ import (
 
 	"github.com/balkanid/aegis-backend/internal/database"
 	"github.com/balkanid/aegis-backend/internal/models"
-	"github.com/balkanid/aegis-backend/internal/shared/validation"
+	"github.com/balkanid/aegis-backend/internal/utils"
 )
 
 type UserService struct {
@@ -25,17 +25,17 @@ func NewUserService(authService *AuthService, db *database.DB) *UserService {
 // Register creates a new user account
 func (s *UserService) Register(username, email, password string) (*models.User, string, error) {
 	// Validate username
-	if err := validation.ValidateUsername(username); err != nil {
+	if err := utils.ValidateUsername(username); err != nil {
 		return nil, "", apperrors.Wrap(err, apperrors.ErrCodeInvalidArgument, "username validation failed")
 	}
 
 	// Validate email
-	if err := validation.ValidateEmail(email); err != nil {
+	if err := utils.ValidateEmail(email); err != nil {
 		return nil, "", apperrors.Wrap(err, apperrors.ErrCodeInvalidArgument, "email validation failed")
 	}
 
 	// Validate password
-	if err := validation.ValidatePassword(password, validation.DefaultPasswordRequirements()); err != nil {
+	if err := utils.ValidatePassword(password, utils.DefaultPasswordRequirements()); err != nil {
 		return nil, "", apperrors.Wrap(err, apperrors.ErrCodeInvalidArgument, "password validation failed")
 	}
 

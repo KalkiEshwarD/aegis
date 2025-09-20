@@ -13,13 +13,13 @@ import (
 )
 
 type FileHandler struct {
-	storageService *services.StorageService
-	authService    *services.AuthService
+	fileService *services.FileService
+	authService *services.AuthService
 }
 
-func NewFileHandler(storageService *services.StorageService, authService *services.AuthService) *FileHandler {
+func NewFileHandler(fileService *services.FileService, authService *services.AuthService) *FileHandler {
 	return &FileHandler{
-		storageService: storageService,
+		fileService: fileService,
 		authService:    authService,
 	}
 }
@@ -41,7 +41,7 @@ func (h *FileHandler) DownloadFile(c *gin.Context) {
 
 		// Verify user still exists
 		var dbUser models.User
-		if err := h.storageService.GetDB().GetDB().First(&dbUser, claims.UserID).Error; err != nil {
+		if err := h.fileService.GetDB().GetDB().First(&dbUser, claims.UserID).Error; err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
 			return
 		}
@@ -64,13 +64,13 @@ func (h *FileHandler) DownloadFile(c *gin.Context) {
 
 	// Get user file info for filename
 	var userFile models.UserFile
-	if err := h.storageService.GetDB().GetDB().Preload("File").Where("id = ? AND user_id = ?", fileID, user.ID).First(&userFile).Error; err != nil {
+	if err := h.fileService.GetDB().GetDB().Preload("File").Where("id = ? AND user_id = ?", fileID, user.ID).First(&userFile).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
 		return
 	}
 
 	// Get the file reader
-	reader, mimeType, err := h.storageService.StreamFile(user.ID, uint(fileID))
+	reader, mimeType, err := h.fileService.StreamFile(user.ID, uint(fileID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get file"})
 		return

@@ -168,7 +168,7 @@ func (r *mutationResolver) UploadFile(ctx context.Context, input model.UploadFil
 	}
 
 	// Upload file
-	userFile, err := r.Resolver.StorageService.UploadFile(
+	userFile, err := r.Resolver.FileService.UploadFile(
 		user.ID,
 		input.Filename,
 		input.MimeType,
@@ -212,7 +212,7 @@ func (r *mutationResolver) UploadFileFromMap(ctx context.Context, input model.Up
 	}
 
 	// Upload file using the new method that handles map conversion
-	userFile, err := r.Resolver.StorageService.UploadFileFromMap(user.ID, uploadData)
+	userFile, err := r.Resolver.FileService.UploadFileFromMap(user.ID, uploadData)
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +232,7 @@ func (r *mutationResolver) DeleteFile(ctx context.Context, id string) (bool, err
 		return false, fmt.Errorf("invalid file ID: %w", err)
 	}
 
-	err = r.Resolver.StorageService.DeleteFile(user.ID, uint(userFileID))
+	err = r.Resolver.FileService.DeleteFile(user.ID, uint(userFileID))
 	if err != nil {
 		return false, err
 	}
@@ -252,7 +252,7 @@ func (r *mutationResolver) RestoreFile(ctx context.Context, fileID string) (bool
 		return false, fmt.Errorf("invalid file ID: %w", err)
 	}
 
-	err = r.Resolver.StorageService.RestoreFile(user.ID, uint(userFileID))
+	err = r.Resolver.FileService.RestoreFile(user.ID, uint(userFileID))
 	if err != nil {
 		return false, err
 	}
@@ -272,7 +272,7 @@ func (r *mutationResolver) PermanentlyDeleteFile(ctx context.Context, fileID str
 		return false, fmt.Errorf("invalid file ID: %w", err)
 	}
 
-	err = r.Resolver.StorageService.PermanentlyDeleteFile(user.ID, uint(userFileID))
+	err = r.Resolver.FileService.PermanentlyDeleteFile(user.ID, uint(userFileID))
 	if err != nil {
 		return false, err
 	}
@@ -292,7 +292,7 @@ func (r *mutationResolver) DownloadFile(ctx context.Context, id string) (string,
 		return "", fmt.Errorf("invalid file ID: %w", err)
 	}
 
-	return r.Resolver.StorageService.GetFileDownloadURL(ctx, user, uint(userFileID))
+	return r.Resolver.FileService.GetFileDownloadURL(ctx, user, uint(userFileID))
 }
 
 // CreateRoom is the resolver for the createRoom field.
@@ -436,7 +436,7 @@ func (r *mutationResolver) CreateFolder(ctx context.Context, input model.CreateF
 		parentID = &pidUint
 	}
 
-	return r.Resolver.FolderService.CreateFolder(user.ID, input.Name, parentID)
+	return r.Resolver.FileService.CreateFolder(user.ID, input.Name, parentID)
 }
 
 // RenameFolder is the resolver for the renameFolder field.
@@ -451,7 +451,7 @@ func (r *mutationResolver) RenameFolder(ctx context.Context, input model.RenameF
 		return false, fmt.Errorf("invalid folder ID: %w", err)
 	}
 
-	err = r.Resolver.FolderService.RenameFolder(user.ID, uint(folderID), input.Name)
+	err = r.Resolver.FileService.RenameFolder(user.ID, uint(folderID), input.Name)
 	if err != nil {
 		return false, err
 	}
@@ -471,7 +471,7 @@ func (r *mutationResolver) DeleteFolder(ctx context.Context, id string) (bool, e
 		return false, fmt.Errorf("invalid folder ID: %w", err)
 	}
 
-	err = r.Resolver.FolderService.DeleteFolder(user.ID, uint(folderID))
+	err = r.Resolver.FileService.DeleteFolder(user.ID, uint(folderID))
 	if err != nil {
 		return false, err
 	}
@@ -501,7 +501,7 @@ func (r *mutationResolver) MoveFolder(ctx context.Context, input model.MoveFolde
 		parentID = &pidUint
 	}
 
-	err = r.Resolver.FolderService.MoveFolder(user.ID, uint(folderID), parentID)
+	err = r.Resolver.FileService.MoveFolder(user.ID, uint(folderID), parentID)
 	if err != nil {
 		return false, err
 	}
@@ -531,7 +531,7 @@ func (r *mutationResolver) MoveFile(ctx context.Context, input model.MoveFileInp
 		folderID = &fidUint
 	}
 
-	err = r.Resolver.FolderService.MoveFile(user.ID, uint(fileID), folderID)
+	err = r.Resolver.FileService.MoveFile(user.ID, uint(fileID), folderID)
 	if err != nil {
 		return false, err
 	}
@@ -556,7 +556,7 @@ func (r *mutationResolver) ShareFolderToRoom(ctx context.Context, input model.Sh
 		return false, fmt.Errorf("invalid room ID: %w", err)
 	}
 
-	err = r.Resolver.FolderService.ShareFolderToRoom(user.ID, uint(folderID), uint(roomID))
+	err = r.Resolver.RoomService.ShareFolderToRoom(user.ID, uint(folderID), uint(roomID))
 	if err != nil {
 		return false, err
 	}
@@ -581,7 +581,7 @@ func (r *mutationResolver) RemoveFolderFromRoom(ctx context.Context, folderID st
 		return false, fmt.Errorf("invalid room ID: %w", err)
 	}
 
-	err = r.Resolver.FolderService.RemoveFolderFromRoom(user.ID, uint(fID), uint(rID))
+	err = r.Resolver.RoomService.RemoveFolderFromRoom(user.ID, uint(fID), uint(rID))
 	if err != nil {
 		return false, err
 	}
@@ -617,7 +617,7 @@ func (r *mutationResolver) CreateFileShare(ctx context.Context, input model.Crea
 		maxDownloads = -1 // Unlimited
 	}
 
-	fileShare, err := r.Resolver.PasswordShareService.CreateShare(uint(userFileID), input.MasterPassword, maxDownloads, input.ExpiresAt)
+	fileShare, err := r.Resolver.ShareService.CreateShare(uint(userFileID), input.MasterPassword, maxDownloads, input.ExpiresAt)
 	if err != nil {
 		fmt.Printf("DEBUG: CreateShare service failed: %v\n", err)
 		return nil, err
@@ -644,7 +644,7 @@ func (r *mutationResolver) DeleteFileShare(ctx context.Context, shareID string) 
 		return false, fmt.Errorf("invalid share ID: %w", err)
 	}
 
-	err = r.Resolver.PasswordShareService.DeleteShare(user.ID, uint(sID))
+	err = r.Resolver.ShareService.DeleteShare(user.ID, uint(sID))
 	if err != nil {
 		return false, err
 	}
@@ -669,30 +669,30 @@ func (r *mutationResolver) AccessSharedFile(ctx context.Context, input model.Acc
 	}
 
 	// Validate access (includes rate limiting)
-	fileShare, err := r.Resolver.ShareAccessService.ValidateAccess(attempt)
+	fileShare, err := r.Resolver.ShareService.ValidateAccess(attempt)
 	if err != nil {
-		r.Resolver.ShareAccessService.LogFailedDownload(fileShare.ID, attempt, err.Error())
+		r.Resolver.ShareService.LogFailedDownload(fileShare.ID, attempt, err.Error())
 		return "", err
 	}
 
 	// Validate password
-	decryptedKey, err := r.Resolver.PasswordShareService.DecryptFileKey(fileShare, input.MasterPassword)
+	decryptedKey, err := r.Resolver.ShareService.DecryptFileKey(fileShare, input.MasterPassword)
 	if err != nil {
-		r.Resolver.ShareAccessService.LogFailedDownload(fileShare.ID, attempt, "invalid password")
+		r.Resolver.ShareService.LogFailedDownload(fileShare.ID, attempt, "invalid password")
 		return "", fmt.Errorf("invalid password")
 	}
 
 	// Log successful access
-	r.Resolver.ShareAccessService.LogSuccessfulDownload(fileShare.ID, attempt)
+	r.Resolver.ShareService.LogSuccessfulDownload(fileShare.ID, attempt)
 
 	// Increment download count
-	err = r.Resolver.PasswordShareService.IncrementDownloadCount(fileShare.ID)
+	err = r.Resolver.ShareService.IncrementDownloadCount(fileShare.ID)
 	if err != nil {
 		return "", fmt.Errorf("failed to increment download count: %w", err)
 	}
 
 	// Generate download URL
-	downloadURL, err := r.Resolver.ShareLinkService.GenerateShareLink(fileShare)
+	downloadURL, err := r.Resolver.ShareService.GenerateShareLink(fileShare)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate download URL: %w", err)
 	}
@@ -794,7 +794,7 @@ func (r *queryResolver) MyFiles(ctx context.Context, filter *model.FileFilterInp
 	}
 
 	log.Printf("DEBUG: MyFiles resolver calling StorageService.GetUserFiles with fileFilter: %+v", fileFilter)
-	return r.Resolver.StorageService.GetUserFiles(user.ID, fileFilter)
+	return r.Resolver.FileService.GetUserFiles(user.ID, fileFilter)
 }
 
 // MyTrashedFiles is the resolver for the myTrashedFiles field.
@@ -813,7 +813,7 @@ func (r *queryResolver) MyTrashedFiles(ctx context.Context) ([]*models.UserFile,
 	log.Printf("DEBUG: Calling StorageService.GetUserFiles with IncludeTrashed: %v", *filter.IncludeTrashed)
 
 	// Get all files (including trashed ones)
-	allFiles, err := r.Resolver.StorageService.GetUserFiles(user.ID, filter)
+	allFiles, err := r.Resolver.FileService.GetUserFiles(user.ID, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -882,7 +882,7 @@ func (r *queryResolver) MyFolders(ctx context.Context) ([]*models.Folder, error)
 		return nil, fmt.Errorf("unauthenticated: %w", err)
 	}
 
-	return r.Resolver.FolderService.GetUserFolders(user.ID)
+	return r.Resolver.FileService.GetUserFolders(user.ID)
 }
 
 // Folder is the resolver for the folder field.
@@ -897,7 +897,7 @@ func (r *queryResolver) Folder(ctx context.Context, id string) (*models.Folder, 
 		return nil, fmt.Errorf("invalid folder ID: %w", err)
 	}
 
-	return r.Resolver.FolderService.GetFolder(user.ID, uint(folderID))
+	return r.Resolver.FileService.GetFolder(user.ID, uint(folderID))
 }
 
 // MyShares is the resolver for the myShares field.
@@ -975,7 +975,7 @@ func (r *queryResolver) AllFiles(ctx context.Context) ([]*models.UserFile, error
 		return nil, fmt.Errorf("admin access required: %w", err)
 	}
 
-	return r.Resolver.StorageService.GetAllFiles()
+	return r.Resolver.FileService.GetAllFiles()
 }
 
 // Health is the resolver for the health field.

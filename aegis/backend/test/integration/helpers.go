@@ -16,11 +16,12 @@ func SetupTestDatabase(db *gorm.DB) error {
 
 	// Read and execute migration files
 	migrationFiles := []string{
-		"backend/migrations/001_initial_schema.sql",
-		"backend/migrations/002_add_user_file_unique_constraint.sql",
-		"backend/migrations/003_remove_content_hash_unique_constraint.sql",
-		"backend/migrations/004_add_folders.sql",
-		"backend/migrations/005_add_username_to_users.sql",
+		"../../migrations/001_initial_schema.sql",
+		"../../migrations/002_add_user_file_unique_constraint.sql",
+		"../../migrations/003_remove_content_hash_unique_constraint.sql",
+		"../../migrations/004_add_folders.sql",
+		"../../migrations/005_add_username_to_users.sql",
+		"../../migrations/006_add_file_shares.sql",
 	}
 
 	for _, file := range migrationFiles {
