@@ -21,11 +21,13 @@ import {
   Delete as DeleteIcon,
   Search as SearchIcon,
   InsertDriveFile as FileIcon,
+  Share as ShareIcon,
+  Link as LinkIcon,
 } from '@mui/icons-material';
 import { GET_MY_FILES } from '../../apollo/files';
 import { formatFileSize } from '../../shared/utils';
-import { DeleteConfirmationDialog } from '../../shared/components';
-import { UserFile, FileFilterInput } from '../../types';
+import { DeleteConfirmationDialog, SharePasswordDialog } from '../../shared/components';
+import { UserFile, FileFilterInput, CreateFileShareInput } from '../../types';
 import { useFileOperations } from '../../hooks/useFileOperations';
 import withErrorBoundary from '../hocs/withErrorBoundary';
 import withLoading from '../hocs/withLoading';
@@ -53,9 +55,11 @@ const FileTableBase: React.FC<FileTableWithDataProps> = ({
 }) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<UserFile | null>(null);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [fileToShare, setFileToShare] = useState<UserFile | null>(null);
   const [filter, setFilter] = useState<FileFilterInput>({});
 
-  const { downloadingFile, downloadFile, deleteFile } = useFileOperations();
+  const { downloadingFile, downloadFile, deleteFile, createShare } = useFileOperations();
 
   const handleDeleteClick = (file: UserFile) => {
     setFileToDelete(file);
@@ -81,6 +85,30 @@ const FileTableBase: React.FC<FileTableWithDataProps> = ({
 
   const handleDownload = async (file: UserFile) => {
     await downloadFile(file);
+  };
+
+  const handleShareClick = (file: UserFile) => {
+    setFileToShare(file);
+    setShareDialogOpen(true);
+  };
+
+  const handleShareConfirm = async (password: string) => {
+    if (!fileToShare) return;
+
+    const shareInput: CreateFileShareInput = {
+      user_file_id: fileToShare.id,
+      master_password: password,
+    };
+
+    const result = await createShare(shareInput);
+    if (result) {
+      // Share created successfully
+      console.log('Share created:', result);
+      // TODO: Show success message or copy link to clipboard
+    }
+
+    setShareDialogOpen(false);
+    setFileToShare(null);
   };
 
   const handleFilterChange = (field: keyof FileFilterInput, value: string) => {
@@ -193,6 +221,13 @@ const FileTableBase: React.FC<FileTableWithDataProps> = ({
                     </IconButton>
                     <IconButton
                       size="small"
+                      onClick={() => handleShareClick(file)}
+                      title="Share file"
+                    >
+                      <ShareIcon />
+                    </IconButton>
+                    <IconButton
+                      size="small"
                       onClick={() => handleDeleteClick(file)}
                       title="Delete file"
                     >
@@ -220,6 +255,15 @@ const FileTableBase: React.FC<FileTableWithDataProps> = ({
         onConfirm={handleDeleteConfirm}
         itemName={fileToDelete?.filename || ''}
         itemType="file"
+      />
+
+      {/* Share Password Dialog */}
+      <SharePasswordDialog
+        open={shareDialogOpen}
+        onClose={() => setShareDialogOpen(false)}
+        onConfirm={handleShareConfirm}
+        title="Create Share Link"
+        message={`Create a password-protected share link for "${fileToShare?.filename || 'this file'}"`}
       />
     </Box>
   );

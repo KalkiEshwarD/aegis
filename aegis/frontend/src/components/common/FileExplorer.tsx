@@ -21,6 +21,7 @@ import {
   Folder as FolderIcon,
   Edit as EditIcon,
   ContentCut as CutIcon,
+  Share as ShareIcon,
 } from '@mui/icons-material';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_MY_FILES, MOVE_FILE_MUTATION } from '../../apollo/files';
@@ -32,6 +33,7 @@ import { useFileSorting } from '../../hooks/useFileSorting';
 import FileGrid from './FileGrid';
 import FileToolbar from './FileToolbar';
 import UploadProgress from './UploadProgress';
+import { ShareLinkManager } from './ShareLinkManager';
 
 interface FileExplorerProps {
   folderId?: string | null;
@@ -81,13 +83,16 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   });
   const [snackbarMessage, setSnackbarMessage] = useState<string>('');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [fileToShare, setFileToShare] = useState<UserFile | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const { data, error: queryError, refetch } = useQuery(GET_MY_FILES, {
     variables: {
       filter: {
         // Temporarily disable folder_id filtering due to GraphQL schema issues
-        // folder_id: folderId || undefined
+        // folder_id: folderId || undefined,
+        includeTrashed: false // Explicitly exclude trashed files
       }
     },
     fetchPolicy: 'cache-and-network',
@@ -583,16 +588,11 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const handleEnterKey = useCallback(() => {
     if (focusedIndex >= 0 && focusedIndex < allItems.length) {
       const item = allItems[focusedIndex];
-      console.log('DEBUG: FileExplorer handleEnterKey called for item:', item.id, 'isFolder:', isFolder(item));
       if (isFolder(item) && onFolderClick) {
-        console.log('DEBUG: FileExplorer calling onFolderClick for folder:', item.name);
         onFolderClick(item.id, item.name);
       } else if (isFile(item)) {
-        console.log('DEBUG: FileExplorer handling file selection for:', item.filename);
         // For files, just select it (could be extended to open/download)
         setSelectedFiles(new Set([item.id]));
-      } else {
-        console.log('DEBUG: FileExplorer no action taken - item is not folder or onFolderClick not available');
       }
     }
   }, [allItems, focusedIndex, onFolderClick]);
@@ -1003,6 +1003,14 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
                     Download
                   </MenuItem>
                   <MenuItem onClick={() => {
+                    setFileToShare(item);
+                    setShareDialogOpen(true);
+                    handleContextMenuClose();
+                  }}>
+                    <ShareIcon sx={{ mr: 1 }} />
+                    Share
+                  </MenuItem>
+                  <MenuItem onClick={() => {
                     setSelectedFiles(new Set([item.id]));
                     setCutItems(new Set([item.id]));
                     handleContextMenuClose();
@@ -1017,13 +1025,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
               {isItemFolder && (
                 <>
                   <MenuItem onClick={() => {
-                    console.log('DEBUG: FileExplorer context menu Open Folder clicked for:', item.name);
-                    if (onFolderClick) {
-                      console.log('DEBUG: FileExplorer calling onFolderClick from context menu');
-                      onFolderClick(item.id, item.name);
-                    } else {
-                      console.log('DEBUG: FileExplorer onFolderClick not available in context menu');
-                    }
+                    if (onFolderClick) onFolderClick(item.id, item.name);
                     handleContextMenuClose();
                   }}>
                     <FolderIcon sx={{ mr: 1 }} />
@@ -1163,6 +1165,31 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
             disabled={!newItemName.trim()}
           >
             Rename
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Share Dialog */}
+      <Dialog 
+        open={shareDialogOpen} 
+        onClose={() => setShareDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Share File</DialogTitle>
+        <DialogContent>
+          {fileToShare && (
+            <ShareLinkManager 
+              userFileId={fileToShare.id}
+              onShareDeleted={() => {
+                // Optionally refresh data or update UI
+              }}
+            />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShareDialogOpen(false)}>
+            Close
           </Button>
         </DialogActions>
       </Dialog>

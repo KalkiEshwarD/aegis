@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/balkanid/aegis-backend/internal/models"
 	"github.com/minio/minio-go/v7"
@@ -60,4 +61,36 @@ type FileServiceInterface interface {
 	UploadFile(ctx context.Context, objectName string, reader io.Reader, objectSize int64, contentType string) error
 	DownloadFile(ctx context.Context, objectName string) (*minio.Object, error)
 	DeleteFile(ctx context.Context, objectName string) error
+}
+
+// PasswordShareServiceInterface defines the contract for password-based file sharing services
+type PasswordShareServiceInterface interface {
+	CreateShare(userFileID uint, masterPassword string, maxDownloads int, expiresAt *time.Time) (*models.FileShare, error)
+	GetShareByToken(token string) (*models.FileShare, error)
+	DecryptFileKey(fileShare *models.FileShare, masterPassword string) ([]byte, error)
+	IncrementDownloadCount(shareID uint) error
+	DeleteShare(userID, shareID uint) error
+	GetUserShares(userID uint) ([]*models.FileShare, error)
+}
+
+// ShareLinkServiceInterface defines the contract for share link generation and validation services
+type ShareLinkServiceInterface interface {
+	GenerateShareLink(fileShare *models.FileShare) (string, error)
+	ValidateShareToken(token string) (*models.FileShare, error)
+	GetShareMetadata(token string) (*ShareMetadata, error)
+	IsExpired(fileShare *models.FileShare) bool
+	IsDownloadLimitReached(fileShare *models.FileShare) bool
+	GetRemainingDownloads(fileShare *models.FileShare) int
+	GetShareExpiryInfo(fileShare *models.FileShare) *ShareExpiryInfo
+}
+
+// ShareAccessServiceInterface defines the contract for access control and rate limiting services
+type ShareAccessServiceInterface interface {
+	ValidateAccess(attempt *AccessAttempt) (*models.FileShare, error)
+	LogSuccessfulDownload(fileShareID uint, attempt *AccessAttempt) error
+	LogFailedDownload(fileShareID uint, attempt *AccessAttempt, reason string)
+	IsRateLimited(ipAddress, token string) bool
+	GetAccessStats(shareID uint) (*AccessStats, error)
+	CleanOldLogs(maxAge time.Duration) error
+	IsIPBlocked(ipAddress string) bool
 }

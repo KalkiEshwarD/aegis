@@ -193,6 +193,9 @@ func (s *StorageService) GetUserFiles(userID uint, filter *FileFilter) ([]*model
 	log.Printf("DEBUG: StorageService.GetUserFiles called for user %d with filter: %+v", userID, filter)
 	filters := make(map[string]interface{})
 
+	// Log the filters map before adding anything
+	log.Printf("DEBUG: Initial filters map: %+v", filters)
+
 	if filter != nil {
 		if filter.IncludeTrashed != nil {
 			log.Printf("DEBUG: Adding include_trashed filter: %v", *filter.IncludeTrashed)
@@ -221,6 +224,7 @@ func (s *StorageService) GetUserFiles(userID uint, filter *FileFilter) ([]*model
 		}
 	}
 
+	log.Printf("DEBUG: Final filters map being passed to repository: %+v", filters)
 	return s.userResourceRepo.FindUserFilesWithFilters(userID, filters, "File", "Folder")
 }
 
@@ -427,7 +431,22 @@ func (s *StorageService) GetTrashedFiles(userID uint) ([]*models.UserFile, error
 	filter := &FileFilter{
 		IncludeTrashed: &includeTrashed,
 	}
-	return s.GetUserFiles(userID, filter)
+
+	// Get all files (including trashed ones)
+	allFiles, err := s.GetUserFiles(userID, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter to only include trashed files (files with deleted_at set)
+	var trashedFiles []*models.UserFile
+	for _, file := range allFiles {
+		if file.DeletedAt.Valid {
+			trashedFiles = append(trashedFiles, file)
+		}
+	}
+
+	return trashedFiles, nil
 }
 
 // FileFilter represents filters for file queries

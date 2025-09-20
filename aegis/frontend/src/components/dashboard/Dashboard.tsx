@@ -18,6 +18,7 @@ import { useQuery } from '@apollo/client';
 import { GET_MY_STATS } from '../../apollo/files';
 import FileExplorer from '../common/FileExplorer';
 import TrashView from './TrashView';
+import SharedView from './SharedView';
 import DashboardAppBar from './DashboardAppBar';
 import DashboardSidebar from './DashboardSidebar';
 import StatsCards from './StatsCards';
@@ -142,11 +143,15 @@ const Dashboard: React.FC = () => {
           )}
           
           <Typography variant="h4" sx={{ fontWeight: 600, color: '#1f2937', mb: 1 }}>
-            {selectedNav === 'trash' ? 'Trash' : selectedFolderId ? 'Folder Files' : 'My Files'}
+            {selectedNav === 'trash' ? 'Trash' : 
+             selectedNav === 'shared' ? 'Shared Files' :
+             selectedFolderId ? 'Folder Files' : 'My Files'}
           </Typography>
           <Typography variant="body1" sx={{ color: '#6b7280' }}>
             {selectedNav === 'trash'
               ? 'Manage your deleted files - restore or permanently delete'
+              : selectedNav === 'shared'
+                ? 'View and manage your shared files'
               : selectedFolderId
                 ? 'Files in selected folder'
                 : 'Manage your secure encrypted files'
@@ -174,6 +179,17 @@ const Dashboard: React.FC = () => {
             <TrashView
               onFileRestored={handleFileRestored}
               onFileDeleted={handleTrashFileDeleted}
+            />
+          </Paper>
+        ) : selectedNav === 'shared' ? (
+          <Paper sx={{
+            p: 4,
+            border: '1px solid #e5e7eb',
+            boxShadow: 'none',
+            borderRadius: 3
+          }}>
+            <SharedView
+              onShareDeleted={triggerRefresh}
             />
           </Paper>
         ) : (

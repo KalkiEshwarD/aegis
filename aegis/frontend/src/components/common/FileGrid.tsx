@@ -67,17 +67,13 @@ const FileGrid: React.FC<FileGridProps> = ({
 
   // Helper functions for click state management
   const getClickState = (itemId: string) => {
-    const state = clickStates.get(itemId) || { count: 0, lastTime: 0, timeout: null };
-    console.log('DEBUG: getClickState for item', itemId, 'returning:', state);
-    return state;
+    return clickStates.get(itemId) || { count: 0, lastTime: 0, timeout: null };
   };
 
   const updateClickState = (itemId: string, state: { count: number; lastTime: number; timeout: NodeJS.Timeout | null }) => {
-    console.log('DEBUG: updateClickState for item', itemId, 'setting:', state);
     setClickStates(prev => {
       const newMap = new Map(prev);
       newMap.set(itemId, state);
-      console.log('DEBUG: clickStates after update:', newMap);
       return newMap;
     });
   };
@@ -130,8 +126,6 @@ const FileGrid: React.FC<FileGridProps> = ({
     const isItemFolder = isFolder(item);
     
     const handleClick = (e: React.MouseEvent) => {
-      console.log('DEBUG: FileGrid handleClick called for item:', item.id, 'isFolder:', isItemFolder);
-
       // Capture modifier keys at click time
       const modifiers = {
         ctrlKey: e.ctrlKey,
@@ -141,7 +135,6 @@ const FileGrid: React.FC<FileGridProps> = ({
 
       // For files, just handle single-click selection immediately
       if (isFile(item)) {
-        console.log('DEBUG: Handling file click for:', item.filename);
         if (onItemSelect) {
           onItemSelect(item.id, e, modifiers);
         } else {
@@ -155,44 +148,32 @@ const FileGrid: React.FC<FileGridProps> = ({
       const timeSinceLastClick = clickState.lastTime > 0 ? currentTime - clickState.lastTime : Infinity;
       const DOUBLE_CLICK_THRESHOLD = 300; // ms
 
-      console.log('DEBUG: Folder click - currentTime:', currentTime, 'lastTime:', clickState.lastTime, 'timeSinceLastClick:', timeSinceLastClick, 'count:', clickState.count);
-
       // Clear any existing timeout
       if (clickState.timeout) {
-        console.log('DEBUG: Clearing existing timeout');
         clearTimeout(clickState.timeout);
         onClickStateUpdate(item.id, { ...clickState, timeout: null });
       }
 
       // Check if this is a double-click
       if (timeSinceLastClick < DOUBLE_CLICK_THRESHOLD && clickState.count === 1) {
-        console.log('DEBUG: Double-click detected for folder:', item.name, 'timeSinceLastClick:', timeSinceLastClick, 'threshold:', DOUBLE_CLICK_THRESHOLD);
         e.preventDefault();
         e.stopPropagation();
 
         // Handle double-click for folders
         if (isItemFolder && onFolderClick) {
-          console.log('DEBUG: Calling onFolderClick with:', item.id, item.name);
           onFolderClick(item.id, getItemName());
-        } else {
-          console.log('DEBUG: onFolderClick not available or item is not a folder');
         }
 
         // Reset click count
         onClickStateUpdate(item.id, { count: 0, lastTime: 0, timeout: null });
         return;
-      } else {
-        console.log('DEBUG: Not a double-click - timeSinceLastClick:', timeSinceLastClick, 'count:', clickState.count, 'threshold:', DOUBLE_CLICK_THRESHOLD);
       }
-
-      console.log('DEBUG: Single click detected, setting timeout');
 
       // This is a single click - increment count and set timeout
       const newState = { count: 1, lastTime: currentTime, timeout: null as NodeJS.Timeout | null };
 
       // Set timeout for single-click action
       newState.timeout = setTimeout(() => {
-        console.log('DEBUG: Single click timeout triggered for folder:', item.name);
         if (onItemSelect) {
           onItemSelect(item.id, e, modifiers);
         }

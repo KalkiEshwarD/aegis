@@ -40,6 +40,8 @@ type UserFile struct {
 	Filename      string         `gorm:"not null" json:"filename"`
 	MimeType      string         `gorm:"not null" json:"mime_type"`
 	EncryptionKey string         `gorm:"not null" json:"-"` // Encrypted symmetric key for E2EE
+	IsShared      bool           `gorm:"default:false" json:"is_shared"`
+	ShareCount    int            `gorm:"default:0" json:"share_count"`
 	CreatedAt     time.Time      `json:"created_at"`
 	UpdatedAt     time.Time      `json:"updated_at"`
 	DeletedAt     gorm.DeletedAt `gorm:"index" json:"-"`
@@ -132,6 +134,38 @@ type RoomFolder struct {
 	Folder Folder `gorm:"foreignKey:FolderID" json:"folder,omitempty"`
 }
 
+// FileShare represents a password-protected file share
+type FileShare struct {
+	ID            uint      `gorm:"primaryKey" json:"id"`
+	UserFileID    uint      `gorm:"not null;index" json:"user_file_id"`
+	ShareToken    string    `gorm:"uniqueIndex;not null" json:"share_token"`
+	EncryptedKey  string    `gorm:"not null" json:"encrypted_key"` // Encrypted file encryption key
+	Salt          string    `gorm:"not null" json:"salt"`           // Salt used for PBKDF2
+	IV            string    `gorm:"not null" json:"iv"`             // Initialization vector for AES-GCM
+	MaxDownloads  int       `gorm:"default:-1" json:"max_downloads"` // -1 means unlimited
+	DownloadCount int       `gorm:"default:0" json:"download_count"`
+	ExpiresAt     *time.Time `gorm:"index" json:"expires_at"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+
+	// Associations
+	UserFile UserFile `gorm:"foreignKey:UserFileID" json:"user_file,omitempty"`
+}
+
+// ShareAccessLog tracks access attempts to shared files
+type ShareAccessLog struct {
+	ID           uint      `gorm:"primaryKey" json:"id"`
+	FileShareID  uint      `gorm:"not null;index" json:"file_share_id"`
+	IPAddress    string    `json:"ip_address"`
+	UserAgent    string    `json:"user_agent"`
+	AttemptedAt  time.Time `json:"attempted_at"`
+	Success      bool      `gorm:"default:false" json:"success"`
+	FailureReason string   `json:"failure_reason"`
+
+	// Associations
+	FileShare FileShare `gorm:"foreignKey:FileShareID" json:"file_share,omitempty"`
+}
+
 // RoomRole defines the possible roles in a room
 type RoomRole string
 
@@ -181,4 +215,12 @@ func (Folder) TableName() string {
 
 func (RoomFolder) TableName() string {
 	return "room_folders"
+}
+
+func (FileShare) TableName() string {
+	return "file_shares"
+}
+
+func (ShareAccessLog) TableName() string {
+	return "share_access_logs"
 }

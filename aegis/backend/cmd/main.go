@@ -71,17 +71,23 @@ func main() {
 	roomService := services.NewRoomService(db)
 	adminService := services.NewAdminService(db)
 	folderService := services.NewFolderService(db)
+	passwordShareService := services.NewPasswordShareService(db)
+	shareLinkService := services.NewShareLinkService(db, cfg.BaseURL)
+	shareAccessService := services.NewShareAccessService(db)
 
 	// Initialize handlers
 	fileHandler := handlers.NewFileHandler(storageService, authService)
 
 	// Initialize GraphQL resolver
 	resolver := &graph.Resolver{
-		StorageService: storageService,
-		UserService:    userService,
-		RoomService:    roomService,
-		AdminService:   adminService,
-		FolderService:  folderService,
+		StorageService:       storageService,
+		UserService:          userService,
+		RoomService:          roomService,
+		AdminService:         adminService,
+		FolderService:        folderService,
+		PasswordShareService: passwordShareService,
+		ShareLinkService:     shareLinkService,
+		ShareAccessService:   shareAccessService,
 	}
 
 	// Create GraphQL server with custom error handling
@@ -110,6 +116,9 @@ func main() {
 
 	// Initialize Gin router
 	r := gin.Default()
+
+	// Add security headers middleware
+	r.Use(middleware.SecurityHeaders())
 
 	// Add CORS middleware
 	r.Use(middleware.CORS(cfg.CORSAllowedOrigins))
@@ -145,7 +154,7 @@ func main() {
 	})
 
 	// File download endpoint (authentication handled in handler)
-	r.GET("/api/files/:id/download", fileHandler.DownloadFile)
+	r.GET("/api/files/:id/download", middleware.ShareSecurityHeaders(), fileHandler.DownloadFile)
 
 	// Serve shared static files (like error-codes.json and validation-rules.json)
 	r.Static("/shared", "/app/shared")

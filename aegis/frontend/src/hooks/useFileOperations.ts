@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useMutation } from '@apollo/client';
-import { DELETE_FILE_MUTATION, DOWNLOAD_FILE_MUTATION, GET_MY_STATS } from '../apollo/queries';
+import { DELETE_FILE_MUTATION, DOWNLOAD_FILE_MUTATION, GET_MY_STATS, CREATE_FILE_SHARE_MUTATION, ACCESS_SHARED_FILE_MUTATION } from '../apollo/queries';
 import {
   decryptFile,
   base64ToEncryptionKey,
@@ -8,7 +8,7 @@ import {
   downloadFile,
   extractNonceAndData,
 } from '../utils/crypto';
-import { UserFile } from '../types';
+import { UserFile, CreateFileShareInput } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { getErrorMessage, getErrorCode } from '../utils/errorHandling';
 
@@ -19,6 +19,7 @@ export const useFileOperations = () => {
 
   const [deleteFileMutation] = useMutation(DELETE_FILE_MUTATION);
   const [downloadFileMutation] = useMutation(DOWNLOAD_FILE_MUTATION);
+  const [createFileShareMutation] = useMutation(CREATE_FILE_SHARE_MUTATION);
 
   const downloadFileHandler = useCallback(async (file: UserFile) => {
     setDownloadingFile(file.id);
@@ -122,11 +123,26 @@ export const useFileOperations = () => {
     }
   }, [deleteFileMutation]);
 
+  const createShareHandler = useCallback(async (input: CreateFileShareInput) => {
+    try {
+      const result = await createFileShareMutation({
+        variables: { input },
+      });
+      return result.data?.createFileShare;
+    } catch (err: any) {
+      console.error('Create share error:', err);
+      const errorMessage = getErrorMessage(err) || 'Create share failed';
+      setError(errorMessage);
+      return null;
+    }
+  }, [createFileShareMutation]);
+
   return {
     downloadingFile,
     error,
     downloadFile: downloadFileHandler,
     deleteFile: deleteFileHandler,
+    createShare: createShareHandler,
     clearError: () => setError(null),
   };
 };

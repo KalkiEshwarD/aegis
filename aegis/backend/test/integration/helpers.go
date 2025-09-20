@@ -14,12 +14,6 @@ func SetupTestDatabase(db *gorm.DB) error {
 	// Set the test database globally for services to use
 	database.SetDB(db)
 
-	// For SQLite tests, execute the migration SQL files converted to SQLite format
-	sqlDB, err := db.DB()
-	if err != nil {
-		return fmt.Errorf("failed to get SQL DB: %w", err)
-	}
-
 	// Read and execute migration files
 	migrationFiles := []string{
 		"backend/migrations/001_initial_schema.sql",

@@ -159,6 +159,19 @@ input ShareFolderToRoomInput {
   room_id: ID!
 }
 
+# File sharing input types
+input CreateFileShareInput {
+  user_file_id: ID!
+  master_password: String!
+  max_downloads: Int
+  expires_at: Time
+}
+
+input AccessSharedFileInput {
+  token: String!
+  master_password: String!
+}
+
 # Statistics and admin types
 type UserStats {
   total_files: Int!
@@ -172,6 +185,48 @@ type AdminDashboard {
   total_files: Int!
   total_storage_used: Int!
   recent_uploads: [UserFile!]!
+}
+
+# File sharing types
+type FileShare {
+  id: ID!
+  user_file_id: ID!
+  share_token: String!
+  encrypted_key: String!
+  salt: String!
+  iv: String!
+  max_downloads: Int!
+  download_count: Int!
+  expires_at: Time
+  created_at: Time!
+  updated_at: Time!
+  user_file: UserFile
+}
+
+type ShareMetadata {
+  token: String!
+  filename: String!
+  mime_type: String!
+  size_bytes: Int!
+  max_downloads: Int!
+  download_count: Int!
+  expires_at: Time
+  created_at: Time!
+}
+
+type ShareExpiryInfo {
+  expires: Boolean!
+  expired: Boolean!
+  expires_at: Time
+  time_until_expiry: String
+}
+
+type AccessStats {
+  total_attempts: Int!
+  successful_attempts: Int!
+  failed_attempts: Int!
+  recent_attempts: Int!
+  unique_ips: Int!
 }
 
 # Root types
@@ -189,6 +244,12 @@ type Query {
   # Folder queries
   myFolders: [Folder!]!
   folder(id: ID!): Folder
+
+  # File sharing queries
+  myShares: [FileShare!]!
+  shareMetadata(token: String!): ShareMetadata!
+  shareExpiryInfo(token: String!): ShareExpiryInfo!
+  shareAccessStats(share_id: ID!): AccessStats!
 
   # Admin queries
   adminDashboard: AdminDashboard!
@@ -229,6 +290,11 @@ type Mutation {
   moveFile(input: MoveFileInput!): Boolean!
   shareFolderToRoom(input: ShareFolderToRoomInput!): Boolean!
   removeFolderFromRoom(folder_id: ID!, room_id: ID!): Boolean!
+
+  # File sharing operations
+  createFileShare(input: CreateFileShareInput!): FileShare!
+  deleteFileShare(share_id: ID!): Boolean!
+  accessSharedFile(input: AccessSharedFileInput!): String! # Returns download URL
 
   # Admin operations
   promoteUserToAdmin(user_id: ID!): Boolean!

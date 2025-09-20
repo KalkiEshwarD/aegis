@@ -9,9 +9,12 @@ import (
 // It serves as dependency injection for your app, add any dependencies you require here.
 
 type Resolver struct {
-	StorageService   *services.StorageService
-	UserService   *services.UserService
-	RoomService   *services.RoomService
-	AdminService  *services.AdminService
-	FolderService *services.FolderService
+	StorageService      *services.StorageService
+	UserService         *services.UserService
+	RoomService         *services.RoomService
+	AdminService        *services.AdminService
+	FolderService       *services.FolderService
+	PasswordShareService *services.PasswordShareService
+	ShareLinkService    *services.ShareLinkService
+	ShareAccessService  *services.ShareAccessService
 }

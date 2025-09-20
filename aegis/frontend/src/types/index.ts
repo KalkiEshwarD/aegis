@@ -183,6 +183,11 @@ export interface AuthContextType {
   logout: () => void;
   refreshToken: () => Promise<boolean>;
   loading: boolean;
+  // Shared file access methods
+  authenticateSharedFile: (shareToken: string, password: string) => Promise<{ token: string; user: User } | null>;
+  isSharedFileAuthenticated: (shareToken: string) => boolean;
+  getSharedFileToken: (shareToken: string) => string | null;
+  clearSharedFileAuth: (shareToken: string) => void;
 }
 
 // File upload types
@@ -191,6 +196,40 @@ export interface FileUploadProgress {
   progress: number;
   status: 'pending' | 'uploading' | 'completed' | 'error';
   error?: string;
+}
+
+// File Share types
+export interface FileShare {
+  id: string;
+  user_file_id: string;
+  share_token: string;
+  encrypted_key: string;
+  salt: string;
+  iv: string;
+  expires_at?: string;
+  max_downloads?: number;
+  download_count: number;
+  created_at: string;
+  updated_at: string;
+  user_file?: UserFile;
+}
+
+export interface CreateFileShareInput {
+  user_file_id: string;
+  master_password: string;
+  expires_at?: string;
+  max_downloads?: number;
+}
+
+export interface AccessSharedFileInput {
+  share_token: string;
+  password?: string;
+}
+
+export interface SharedFileAccess {
+  file: UserFile;
+  share: FileShare;
+  download_url: string;
 }
 
 // Crypto types for E2EE

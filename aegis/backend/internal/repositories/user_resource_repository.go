@@ -2,7 +2,6 @@ package repositories
 
 import (
 	"errors"
-	"log"
 
 	apperrors "github.com/balkanid/aegis-backend/internal/errors"
 	"gorm.io/gorm"
@@ -160,11 +159,9 @@ func (urr *UserResourceRepository) FindUserFilesWithFilters(userID uint, filters
 
 	if includeTrashed, ok := filters["include_trashed"].(*bool); ok && includeTrashed != nil && *includeTrashed {
 		// Include trashed files - use Unscoped() to include soft-deleted records
-		log.Printf("DEBUG: Including trashed files for user %d", userID)
 		query = query.Unscoped()
 	} else {
 		// Exclude trashed files (default behavior)
-		log.Printf("DEBUG: Excluding trashed files for user %d, includeTrashed: %v", userID, includeTrashed)
 		query = query.Where("user_files.deleted_at IS NULL")
 	}
 

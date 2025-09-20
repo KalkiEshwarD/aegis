@@ -12,6 +12,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sharedFileTokens, setSharedFileTokens] = useState<Record<string, { token: string; user: User; expiresAt?: number }>>({});
 
   const [loginMutation] = useMutation(LOGIN_MUTATION);
   const [registerMutation] = useMutation(REGISTER_MUTATION);
@@ -139,8 +140,85 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Logout error:', error);
     } finally {
       setUser(null);
+      // Clear all shared file tokens on logout
+      setSharedFileTokens({});
       // Cookies will be cleared by the backend during logout
     }
+  };
+
+  // Shared file authentication methods
+  const authenticateSharedFile = async (shareToken: string, password: string): Promise<{ token: string; user: User } | null> => {
+    try {
+      // This would typically make an API call to authenticate with the share token and password
+      // For now, we'll simulate this by storing the authentication locally
+      // In a real implementation, this would call a backend endpoint
+
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // For demo purposes, create a temporary user and token
+      const tempUser: User = {
+        id: 'shared-user',
+        username: 'shared-user',
+        email: 'shared@example.com',
+        storage_quota: 0,
+        used_storage: 0,
+        is_admin: false,
+        created_at: new Date().toISOString(),
+      };
+
+      const tempToken = `shared_${shareToken}_${Date.now()}`;
+
+      const authData = {
+        token: tempToken,
+        user: tempUser,
+        expiresAt: Date.now() + (24 * 60 * 60 * 1000), // 24 hours
+      };
+
+      setSharedFileTokens(prev => ({
+        ...prev,
+        [shareToken]: authData,
+      }));
+
+      return { token: tempToken, user: tempUser };
+    } catch (error) {
+      console.error('Shared file authentication error:', error);
+      return null;
+    }
+  };
+
+  const isSharedFileAuthenticated = (shareToken: string): boolean => {
+    const authData = sharedFileTokens[shareToken];
+    if (!authData) return false;
+
+    // Check if token has expired
+    if (authData.expiresAt && Date.now() > authData.expiresAt) {
+      clearSharedFileAuth(shareToken);
+      return false;
+    }
+
+    return true;
+  };
+
+  const getSharedFileToken = (shareToken: string): string | null => {
+    const authData = sharedFileTokens[shareToken];
+    if (!authData) return null;
+
+    // Check if token has expired
+    if (authData.expiresAt && Date.now() > authData.expiresAt) {
+      clearSharedFileAuth(shareToken);
+      return null;
+    }
+
+    return authData.token;
+  };
+
+  const clearSharedFileAuth = (shareToken: string): void => {
+    setSharedFileTokens(prev => {
+      const updated = { ...prev };
+      delete updated[shareToken];
+      return updated;
+    });
   };
 
   const value: AuthContextType = {
@@ -150,7 +228,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     register,
     logout,
     refreshToken,
-    loading
+    loading,
+    authenticateSharedFile,
+    isSharedFileAuthenticated,
+    getSharedFileToken,
+    clearSharedFileAuth,
   };
 
   return (

@@ -30,6 +30,24 @@ func (r *fileResolver) ID(ctx context.Context, obj *models.File) (string, error)
 }
 
 // ID is the resolver for the id field.
+func (r *fileShareResolver) ID(ctx context.Context, obj *models.FileShare) (string, error) {
+	if obj == nil {
+		fmt.Printf("DEBUG: FileShare.ID called with nil obj\n")
+		return "", fmt.Errorf("FileShare object is nil")
+	}
+	return fmt.Sprintf("%d", obj.ID), nil
+}
+
+// UserFileID is the resolver for the user_file_id field.
+func (r *fileShareResolver) UserFileID(ctx context.Context, obj *models.FileShare) (string, error) {
+	if obj == nil {
+		fmt.Printf("DEBUG: FileShare.UserFileID called with nil obj\n")
+		return "", fmt.Errorf("FileShare object is nil")
+	}
+	return fmt.Sprintf("%d", obj.UserFileID), nil
+}
+
+// ID is the resolver for the id field.
 func (r *folderResolver) ID(ctx context.Context, obj *models.Folder) (string, error) {
 	return fmt.Sprintf("%d", obj.ID), nil
 }
@@ -571,6 +589,120 @@ func (r *mutationResolver) RemoveFolderFromRoom(ctx context.Context, folderID st
 	return true, nil
 }
 
+// CreateFileShare is the resolver for the createFileShare field.
+func (r *mutationResolver) CreateFileShare(ctx context.Context, input model.CreateFileShareInput) (*models.FileShare, error) {
+	fmt.Printf("====== DEBUG: CreateFileShare mutation called! ======\n")
+	fmt.Printf("DEBUG: Raw input: %+v\n", input)
+
+	_, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		fmt.Printf("DEBUG: Authentication failed: %v\n", err)
+		return nil, fmt.Errorf("unauthenticated: %w", err)
+	}
+
+	// Debug logging
+	fmt.Printf("DEBUG: CreateFileShare input.UserFileID = '%s' (length=%d)\n", input.UserFileID, len(input.UserFileID))
+	fmt.Printf("DEBUG: CreateFileShare input.MasterPassword = '%s'\n", input.MasterPassword)
+
+	userFileID, err := strconv.ParseUint(input.UserFileID, 10, 32)
+	if err != nil {
+		fmt.Printf("DEBUG: strconv.ParseUint failed for input '%s': %v\n", input.UserFileID, err)
+		return nil, fmt.Errorf("invalid user file ID: %w", err)
+	}
+
+	var maxDownloads int
+	if input.MaxDownloads != nil {
+		maxDownloads = *input.MaxDownloads
+	} else {
+		maxDownloads = -1 // Unlimited
+	}
+
+	fileShare, err := r.Resolver.PasswordShareService.CreateShare(uint(userFileID), input.MasterPassword, maxDownloads, input.ExpiresAt)
+	if err != nil {
+		fmt.Printf("DEBUG: CreateShare service failed: %v\n", err)
+		return nil, err
+	}
+
+	fmt.Printf("DEBUG: CreateShare service returned fileShare: %+v\n", fileShare)
+	if fileShare == nil {
+		fmt.Printf("DEBUG: CreateShare returned nil fileShare!\n")
+		return nil, fmt.Errorf("CreateShare returned nil")
+	}
+
+	return fileShare, nil
+}
+
+// DeleteFileShare is the resolver for the deleteFileShare field.
+func (r *mutationResolver) DeleteFileShare(ctx context.Context, shareID string) (bool, error) {
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return false, fmt.Errorf("unauthenticated: %w", err)
+	}
+
+	sID, err := strconv.ParseUint(shareID, 10, 32)
+	if err != nil {
+		return false, fmt.Errorf("invalid share ID: %w", err)
+	}
+
+	err = r.Resolver.PasswordShareService.DeleteShare(user.ID, uint(sID))
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// AccessSharedFile is the resolver for the accessSharedFile field.
+func (r *mutationResolver) AccessSharedFile(ctx context.Context, input model.AccessSharedFileInput) (string, error) {
+	// Get client IP and user agent for logging
+	ginCtx := ctx.Value("gin").(*gin.Context)
+	ipAddress := ginCtx.ClientIP()
+	userAgent := ginCtx.GetHeader("User-Agent")
+
+	// Create access attempt
+	attempt := &services.AccessAttempt{
+		IPAddress:     ipAddress,
+		UserAgent:     userAgent,
+		Token:         input.Token,
+		Success:       false,
+		FailureReason: "",
+	}
+
+	// Validate access (includes rate limiting)
+	fileShare, err := r.Resolver.ShareAccessService.ValidateAccess(attempt)
+	if err != nil {
+		r.Resolver.ShareAccessService.LogFailedDownload(fileShare.ID, attempt, err.Error())
+		return "", err
+	}
+
+	// Validate password
+	decryptedKey, err := r.Resolver.PasswordShareService.DecryptFileKey(fileShare, input.MasterPassword)
+	if err != nil {
+		r.Resolver.ShareAccessService.LogFailedDownload(fileShare.ID, attempt, "invalid password")
+		return "", fmt.Errorf("invalid password")
+	}
+
+	// Log successful access
+	r.Resolver.ShareAccessService.LogSuccessfulDownload(fileShare.ID, attempt)
+
+	// Increment download count
+	err = r.Resolver.PasswordShareService.IncrementDownloadCount(fileShare.ID)
+	if err != nil {
+		return "", fmt.Errorf("failed to increment download count: %w", err)
+	}
+
+	// Generate download URL
+	downloadURL, err := r.Resolver.ShareLinkService.GenerateShareLink(fileShare)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate download URL: %w", err)
+	}
+
+	// Add decrypted key as query parameter for frontend decryption
+	downloadURL += "?key=" + string(decryptedKey)
+
+	return downloadURL, nil
+}
+
 // PromoteUserToAdmin is the resolver for the promoteUserToAdmin field.
 func (r *mutationResolver) PromoteUserToAdmin(ctx context.Context, userID string) (bool, error) {
 	_, err := middleware.RequireAdmin(ctx)
@@ -627,6 +759,8 @@ func (r *queryResolver) MyFiles(ctx context.Context, filter *model.FileFilterInp
 		return nil, fmt.Errorf("unauthenticated: %w", err)
 	}
 
+	log.Printf("DEBUG: MyFiles resolver called with filter: %+v", filter)
+
 	var fileFilter *services.FileFilter
 	if filter != nil {
 		fileFilter = &services.FileFilter{
@@ -652,13 +786,14 @@ func (r *queryResolver) MyFiles(ctx context.Context, filter *model.FileFilterInp
 		if filter.FolderID != nil {
 			fileFilter.FolderID = filter.FolderID
 		}
-		// TODO: Add IncludeTrashed handling after gqlgen regeneration
-		// if filter.IncludeTrashed != nil {
-		// 	includeTrashed := *filter.IncludeTrashed
-		// 	fileFilter.IncludeTrashed = &includeTrashed
-		// }
+		// Handle IncludeTrashed field
+		if filter.IncludeTrashed != nil {
+			includeTrashed := *filter.IncludeTrashed
+			fileFilter.IncludeTrashed = &includeTrashed
+		}
 	}
 
+	log.Printf("DEBUG: MyFiles resolver calling StorageService.GetUserFiles with fileFilter: %+v", fileFilter)
 	return r.Resolver.StorageService.GetUserFiles(user.ID, fileFilter)
 }
 
@@ -676,7 +811,23 @@ func (r *queryResolver) MyTrashedFiles(ctx context.Context) ([]*models.UserFile,
 		IncludeTrashed: &includeTrashed,
 	}
 	log.Printf("DEBUG: Calling StorageService.GetUserFiles with IncludeTrashed: %v", *filter.IncludeTrashed)
-	return r.Resolver.StorageService.GetUserFiles(user.ID, filter)
+
+	// Get all files (including trashed ones)
+	allFiles, err := r.Resolver.StorageService.GetUserFiles(user.ID, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter to only include trashed files (files with deleted_at set)
+	var trashedFiles []*models.UserFile
+	for _, file := range allFiles {
+		if file.DeletedAt.Valid {
+			trashedFiles = append(trashedFiles, file)
+		}
+	}
+
+	log.Printf("DEBUG: Found %d trashed files out of %d total files", len(trashedFiles), len(allFiles))
+	return trashedFiles, nil
 }
 
 // MyStats is the resolver for the myStats field.
@@ -747,6 +898,44 @@ func (r *queryResolver) Folder(ctx context.Context, id string) (*models.Folder, 
 	}
 
 	return r.Resolver.FolderService.GetFolder(user.ID, uint(folderID))
+}
+
+// MyShares is the resolver for the myShares field.
+func (r *queryResolver) MyShares(ctx context.Context) ([]*models.FileShare, error) {
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+
+	var shares []*models.FileShare
+
+	// Get all file shares for files owned by the user
+	db := database.GetDB()
+	err = db.Joins("JOIN user_files ON file_shares.user_file_id = user_files.id").
+		Where("user_files.user_id = ?", user.ID).
+		Preload("UserFile").
+		Find(&shares).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user shares: %w", err)
+	}
+
+	return shares, nil
+}
+
+// ShareMetadata is the resolver for the shareMetadata field.
+func (r *queryResolver) ShareMetadata(ctx context.Context, token string) (*model.ShareMetadata, error) {
+	panic(fmt.Errorf("not implemented: ShareMetadata - shareMetadata"))
+}
+
+// ShareExpiryInfo is the resolver for the shareExpiryInfo field.
+func (r *queryResolver) ShareExpiryInfo(ctx context.Context, token string) (*model.ShareExpiryInfo, error) {
+	panic(fmt.Errorf("not implemented: ShareExpiryInfo - shareExpiryInfo"))
+}
+
+// ShareAccessStats is the resolver for the shareAccessStats field.
+func (r *queryResolver) ShareAccessStats(ctx context.Context, shareID string) (*model.AccessStats, error) {
+	panic(fmt.Errorf("not implemented: ShareAccessStats - shareAccessStats"))
 }
 
 // AdminDashboard is the resolver for the adminDashboard field.
@@ -899,6 +1088,9 @@ func (r *userFileResolver) FolderID(ctx context.Context, obj *models.UserFile) (
 // File returns generated.FileResolver implementation.
 func (r *Resolver) File() generated.FileResolver { return &fileResolver{r} }
 
+// FileShare returns generated.FileShareResolver implementation.
+func (r *Resolver) FileShare() generated.FileShareResolver { return &fileShareResolver{r} }
+
 // Folder returns generated.FolderResolver implementation.
 func (r *Resolver) Folder() generated.FolderResolver { return &folderResolver{r} }
 
@@ -921,6 +1113,7 @@ func (r *Resolver) User() generated.UserResolver { return &userResolver{r} }
 func (r *Resolver) UserFile() generated.UserFileResolver { return &userFileResolver{r} }
 
 type fileResolver struct{ *Resolver }
+type fileShareResolver struct{ *Resolver }
 type folderResolver struct{ *Resolver }
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }

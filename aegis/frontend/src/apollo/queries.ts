@@ -516,6 +516,90 @@ export const DELETE_USER_ACCOUNT_MUTATION = gql`
   }
 `;
 
+// File Share Queries
+export const GET_FILE_SHARES = gql`
+  query GetFileShares {
+    myShares {
+      id
+      user_file_id
+      share_token
+      encrypted_key
+      salt
+      iv
+      expires_at
+      max_downloads
+      download_count
+      created_at
+      updated_at
+      user_file {
+        id
+        filename
+        mime_type
+        file {
+          size_bytes
+        }
+      }
+    }
+  }
+`;
+
+// File Share Mutations
+export const CREATE_FILE_SHARE_MUTATION = gql`
+  mutation CreateFileShare($input: CreateFileShareInput!) {
+    createFileShare(input: $input) {
+      id
+      user_file_id
+      share_token
+      encrypted_key
+      salt
+      iv
+      expires_at
+      max_downloads
+      download_count
+      created_at
+      updated_at
+    }
+  }
+`;
+
+export const DELETE_FILE_SHARE_MUTATION = gql`
+  mutation DeleteFileShare($id: ID!) {
+    deleteFileShare(id: $id)
+  }
+`;
+
+export const ACCESS_SHARED_FILE_MUTATION = gql`
+  mutation AccessSharedFile($input: AccessSharedFileInput!) {
+    accessSharedFile(input: $input) {
+      file {
+        id
+        filename
+        mime_type
+        encryption_key
+        created_at
+        file {
+          id
+          size_bytes
+          content_hash
+        }
+        user {
+          id
+          email
+        }
+      }
+      share {
+        id
+        share_token
+        expires_at
+        max_downloads
+        download_count
+        created_at
+      }
+      download_url
+    }
+  }
+`;
+
 // Health Check
 export const HEALTH_QUERY = gql`
   query Health {

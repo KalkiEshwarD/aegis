@@ -9,6 +9,19 @@ import (
 	"github.com/balkanid/aegis-backend/internal/models"
 )
 
+type AccessSharedFileInput struct {
+	Token          string `json:"token"`
+	MasterPassword string `json:"master_password"`
+}
+
+type AccessStats struct {
+	TotalAttempts      int `json:"total_attempts"`
+	SuccessfulAttempts int `json:"successful_attempts"`
+	FailedAttempts     int `json:"failed_attempts"`
+	RecentAttempts     int `json:"recent_attempts"`
+	UniqueIps          int `json:"unique_ips"`
+}
+
 type AddRoomMemberInput struct {
 	RoomID string          `json:"room_id"`
 	UserID string          `json:"user_id"`
@@ -25,6 +38,13 @@ type AdminDashboard struct {
 type AuthPayload struct {
 	Token string       `json:"token"`
 	User  *models.User `json:"user"`
+}
+
+type CreateFileShareInput struct {
+	UserFileID     string     `json:"user_file_id"`
+	MasterPassword string     `json:"master_password"`
+	MaxDownloads   *int       `json:"max_downloads,omitempty"`
+	ExpiresAt      *time.Time `json:"expires_at,omitempty"`
 }
 
 type CreateFolderInput struct {
@@ -79,9 +99,27 @@ type RenameFolderInput struct {
 	Name string `json:"name"`
 }
 
+type ShareExpiryInfo struct {
+	Expires         bool       `json:"expires"`
+	Expired         bool       `json:"expired"`
+	ExpiresAt       *time.Time `json:"expires_at,omitempty"`
+	TimeUntilExpiry *string    `json:"time_until_expiry,omitempty"`
+}
+
 type ShareFolderToRoomInput struct {
 	FolderID string `json:"folder_id"`
 	RoomID   string `json:"room_id"`
+}
+
+type ShareMetadata struct {
+	Token         string     `json:"token"`
+	Filename      string     `json:"filename"`
+	MimeType      string     `json:"mime_type"`
+	SizeBytes     int        `json:"size_bytes"`
+	MaxDownloads  int        `json:"max_downloads"`
+	DownloadCount int        `json:"download_count"`
+	ExpiresAt     *time.Time `json:"expires_at,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
 }
 
 type UploadFileFromMapInput struct {
