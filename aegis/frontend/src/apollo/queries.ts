@@ -564,7 +564,7 @@ export const CREATE_FILE_SHARE_MUTATION = gql`
 
 export const DELETE_FILE_SHARE_MUTATION = gql`
   mutation DeleteFileShare($id: ID!) {
-    deleteFileShare(share_id: $id)
+    deleteFileShare(id: $id)
   }
 `;
 

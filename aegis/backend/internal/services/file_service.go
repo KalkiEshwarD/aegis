@@ -1,4 +1,3 @@
-
 package services
 
 import (
@@ -357,7 +356,7 @@ func (s *FileService) CheckDuplicateName(tableName, fieldName, parentFieldName s
 	if parentID != nil {
 		query = query.Where(parentFieldName+" = ?", *parentID)
 	} else {
-		query = query.Where(parentFieldName+" IS NULL")
+		query = query.Where(parentFieldName + " IS NULL")
 	}
 
 	// Exclude specific ID if provided (for rename operations)
@@ -499,25 +498,31 @@ func (s *FileService) DeleteFolder(userID, folderID uint) error {
 	folderIDsToDelete = append(folderIDsToDelete, folderID)
 
 	if len(folderIDsToDelete) > 0 {
-		if err := tx.Model(&models.UserFile{}).
-			Where("folder_id IN (?) AND user_id = ?", folderIDsToDelete, userID).
-			Update("folder_id", nil).Error; err != nil {
+		// Get all user files in the folders to be deleted
+		var userFiles []models.UserFile
+		if err := tx.Where("folder_id IN (?) AND user_id = ?", folderIDsToDelete, userID).Find(&userFiles).Error; err != nil {
 			tx.Rollback()
-			return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to move files to root")
+			return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to get files in folders")
 		}
 
-		var fileIDs []uint
-		if err := tx.Model(&models.UserFile{}).
-			Where("folder_id IN (?) AND user_id = ?", folderIDsToDelete, userID).
-			Pluck("id", &fileIDs).Error; err != nil {
-			tx.Rollback()
-			return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to get file IDs")
-		}
-
-		if len(fileIDs) > 0 {
-			if err := tx.Where("user_file_id IN (?)", fileIDs).Delete(&models.RoomFile{}).Error; err != nil {
+		// Delete all user files in the folders (this will move them to trash)
+		for _, userFile := range userFiles {
+			// Validate ownership
+			if userFile.UserID != userID {
 				tx.Rollback()
-				return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to remove files from rooms")
+				return apperrors.Wrap(nil, apperrors.ErrCodeUnauthorized, "unauthorized access to file")
+			}
+
+			// Remove file from rooms
+			if err := tx.Where("user_file_id = ?", userFile.ID).Delete(&models.RoomFile{}).Error; err != nil {
+				tx.Rollback()
+				return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to remove file from rooms")
+			}
+
+			// Soft delete user file record
+			if err := tx.Delete(&userFile).Error; err != nil {
+				tx.Rollback()
+				return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to soft delete user file record")
 			}
 		}
 
@@ -606,8 +611,6 @@ func (s *FileService) MoveFile(userID, fileID uint, newFolderID *uint) error {
 
 	return nil
 }
-
-
 
 //================================================================================
 // Filter Struct

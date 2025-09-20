@@ -701,7 +701,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({
         <DialogContent>
           <Typography>
             Are you sure you want to delete "{folderToDelete?.name}" and all its contents?
-            This action cannot be undone.
+            Files can be restored from trash.
           </Typography>
         </DialogContent>
         <DialogActions>

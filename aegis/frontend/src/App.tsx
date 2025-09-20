@@ -12,6 +12,7 @@ import Register from './components/auth/Register';
 import Dashboard from './components/dashboard/Dashboard';
 import AdminDashboard from './components/admin/AdminDashboard';
 import ShareAccess from './components/share/ShareAccess';
+import SharedView from './components/dashboard/SharedView';
 import LoadingSpinner from './components/common/LoadingSpinner';
 import ErrorBoundary from './components/common/ErrorBoundary';
 
@@ -141,6 +142,13 @@ const AppRoutes: React.FC = () => {
         <Route path="/dashboard" element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        } />
+
+        {/* Shared files route */}
+        <Route path="/shared" element={
+          <ProtectedRoute>
+            <SharedView />
           </ProtectedRoute>
         } />
 

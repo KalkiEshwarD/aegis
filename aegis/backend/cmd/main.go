@@ -150,6 +150,20 @@ func main() {
 	// File download endpoint (authentication handled in handler)
 	r.GET("/api/files/:id/download", middleware.ShareSecurityHeaders(), fileHandler.DownloadFile)
 
+	// Share file access endpoint - serve a simple HTML page that loads React app
+	r.GET("/share/:token", func(c *gin.Context) {
+		// For now, redirect to frontend with share token
+		token := c.Param("token")
+		key := c.Query("key")
+
+		frontendURL := "http://localhost:3000/share/" + token
+		if key != "" {
+			frontendURL += "?key=" + key
+		}
+
+		c.Redirect(302, frontendURL)
+	})
+
 	// Serve shared static files (like error-codes.json and validation-rules.json)
 	r.Static("/shared", "/app/shared")
 

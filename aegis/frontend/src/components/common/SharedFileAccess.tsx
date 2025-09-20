@@ -230,16 +230,12 @@ export const SharedFileAccess: React.FC<SharedFileAccessProps> = ({
             </Typography>
           )}
 
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            Downloads: {share.download_count}
-            {share.max_downloads && share.max_downloads !== -1 
-              ? ` / ${share.max_downloads}` 
-              : share.max_downloads === -1 
-                ? " / Unlimited" 
-                : ""
-            }
-            {isDownloadLimitReached && ' (Limit reached)'}
-          </Typography>
+          {share.max_downloads && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              Downloads: {share.download_count} / {share.max_downloads}
+              {isDownloadLimitReached && ' (Limit reached)'}
+            </Typography>
+          )}
         </Box>
 
         {downloadError && (

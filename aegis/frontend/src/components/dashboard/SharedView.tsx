@@ -20,6 +20,11 @@ import {
   Grid,
   Card,
   CardContent,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
 } from '@mui/material';
 import {
   Share as ShareIcon,
@@ -27,11 +32,12 @@ import {
   Download as DownloadIcon,
   Link as LinkIcon,
   Person as PersonIcon,
+  Edit as EditIcon,
 } from '@mui/icons-material';
 import { useQuery, useMutation } from '@apollo/client';
-import { GET_FILE_SHARES, DELETE_FILE_SHARE_MUTATION, GET_SHARED_WITH_ME_QUERY } from '../../apollo/queries';
+import { GET_FILE_SHARES, DELETE_FILE_SHARE_MUTATION, GET_SHARED_WITH_ME_QUERY, UPDATE_FILE_SHARE_MUTATION } from '../../apollo/queries';
 import { formatFileSize, formatDateTime } from '../../shared/utils';
-import { FileShare, SharedWithMeFile } from '../../types';
+import { FileShare, SharedWithMeFile, UpdateFileShareInput } from '../../types';
 
 interface SharedViewProps {
   onShareDeleted?: () => void;
@@ -80,6 +86,12 @@ function a11yProps(index: number) {
 
 const SharedView: React.FC<SharedViewProps> = ({ onShareDeleted }) => {
   const [tabValue, setTabValue] = useState(0);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingShare, setEditingShare] = useState<FileShare | null>(null);
+  const [editForm, setEditForm] = useState({
+    max_downloads: '',
+    expires_at: '',
+  });
 
   const { data: mySharesData, loading: mySharesLoading, error: mySharesError, refetch: refetchMyShares } = useQuery<FileSharesData>(GET_FILE_SHARES, {
     fetchPolicy: 'cache-and-network',
@@ -93,6 +105,14 @@ const SharedView: React.FC<SharedViewProps> = ({ onShareDeleted }) => {
     onCompleted: () => {
       refetchMyShares();
       onShareDeleted?.();
+    },
+  });
+
+  const [updateFileShare] = useMutation(UPDATE_FILE_SHARE_MUTATION, {
+    onCompleted: () => {
+      refetchMyShares();
+      setEditDialogOpen(false);
+      setEditingShare(null);
     },
   });
 
@@ -116,6 +136,42 @@ const SharedView: React.FC<SharedViewProps> = ({ onShareDeleted }) => {
     const shareUrl = `${window.location.origin}/share/${shareToken}`;
     navigator.clipboard.writeText(shareUrl).then(() => {
       console.log('Share link copied to clipboard');
+    });
+  };
+
+  const handleEditShare = (share: FileShare) => {
+    setEditingShare(share);
+    setEditForm({
+      max_downloads: share.max_downloads ? share.max_downloads.toString() : '',
+      expires_at: share.expires_at ? share.expires_at.split('T')[0] : '', // Format for date input
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleUpdateShare = async () => {
+    if (!editingShare) return;
+
+    try {
+      const input: UpdateFileShareInput = {
+        share_id: editingShare.id,
+        max_downloads: editForm.max_downloads ? parseInt(editForm.max_downloads, 10) : undefined,
+        expires_at: editForm.expires_at ? `${editForm.expires_at}T23:59:59Z` : undefined,
+      };
+
+      await updateFileShare({
+        variables: { input },
+      });
+    } catch (err) {
+      console.error('Failed to update share:', err);
+    }
+  };
+
+  const handleCloseEditDialog = () => {
+    setEditDialogOpen(false);
+    setEditingShare(null);
+    setEditForm({
+      max_downloads: '',
+      expires_at: '',
     });
   };
 
@@ -168,6 +224,7 @@ const SharedView: React.FC<SharedViewProps> = ({ onShareDeleted }) => {
               <TableCell>File Name</TableCell>
               <TableCell>Size</TableCell>
               <TableCell>Downloads</TableCell>
+              <TableCell>Download Limit</TableCell>
               <TableCell>Expires</TableCell>
               <TableCell>Created</TableCell>
               <TableCell align="center">Actions</TableCell>
@@ -201,12 +258,16 @@ const SharedView: React.FC<SharedViewProps> = ({ onShareDeleted }) => {
                     <Box display="flex" alignItems="center" gap={1}>
                       <Typography variant="body2">
                         {share.download_count}
-                        {share.max_downloads && share.max_downloads > 0 && ` / ${share.max_downloads}`}
                       </Typography>
                       {isLimitReached && (
                         <Chip label="Limit Reached" size="small" color="warning" />
                       )}
                     </Box>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {share.max_downloads && share.max_downloads > 0 ? share.max_downloads : 'Unlimited'}
+                    </Typography>
                   </TableCell>
                   <TableCell>
                     {share.expires_at ? (
@@ -238,6 +299,15 @@ const SharedView: React.FC<SharedViewProps> = ({ onShareDeleted }) => {
                           disabled={isExpired || isLimitReached}
                         >
                           <LinkIcon />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Edit Share Settings">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleEditShare(share)}
+                          color="primary"
+                        >
+                          <EditIcon />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Delete Share">
@@ -374,6 +444,47 @@ const SharedView: React.FC<SharedViewProps> = ({ onShareDeleted }) => {
           {renderSharedWithMe()}
         </TabPanel>
       </Box>
+
+      {/* Edit Share Dialog */}
+      <Dialog open={editDialogOpen} onClose={handleCloseEditDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>Edit Share Settings</DialogTitle>
+        <DialogContent>
+          <Box display="flex" flexDirection="column" gap={2} mt={1}>
+            {editingShare && (
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Editing settings for: {editingShare.user_file?.filename || 'Unknown file'}
+              </Typography>
+            )}
+            
+            <TextField
+              label="Download Limit"
+              type="number"
+              value={editForm.max_downloads}
+              onChange={(e) => setEditForm(prev => ({ ...prev, max_downloads: e.target.value }))}
+              placeholder="Leave empty for unlimited"
+              helperText="Maximum number of downloads allowed"
+              inputProps={{ min: 0 }}
+              fullWidth
+            />
+            
+            <TextField
+              label="Expiry Date"
+              type="date"
+              value={editForm.expires_at}
+              onChange={(e) => setEditForm(prev => ({ ...prev, expires_at: e.target.value }))}
+              helperText="Leave empty for no expiry"
+              InputLabelProps={{
+                shrink: true,
+              }}
+              fullWidth
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseEditDialog}>Cancel</Button>
+          <Button onClick={handleUpdateShare} variant="contained">Save Changes</Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

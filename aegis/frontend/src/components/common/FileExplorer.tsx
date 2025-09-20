@@ -1075,7 +1075,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         <DialogContent>
           <Typography>
             Are you sure you want to delete "{fileToDelete?.filename}"?
-            This action cannot be undone.
+            Files can be restored from trash.
           </Typography>
         </DialogContent>
         <DialogActions>
@@ -1092,7 +1092,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         <DialogContent>
           <Typography>
             Are you sure you want to delete the folder "{folderToDelete?.name}" and all its contents?
-            This action cannot be undone.
+            Files can be restored from trash.
           </Typography>
         </DialogContent>
         <DialogActions>

@@ -25,12 +25,47 @@ const (
 // CORS middleware to handle cross-origin requests
 func CORS(allowedOrigins string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Allow download endpoints
+		origin := c.GetHeader("Origin")
+		fmt.Printf("DEBUG UPDATED: CORS check for %s, Origin: %s, allowed: %s\n", c.Request.URL.Path, origin, allowedOrigins)
+
+		// Skip CORS for endpoints that don't need it (like health check)
+		if c.Request.URL.Path == "/health" {
+			fmt.Printf("DEBUG: Skipping CORS for health check\n")
+			c.Next()
+			return
+		}
+
+		// Handle download endpoints with flexible CORS
 		if strings.HasSuffix(c.Request.URL.Path, "/download") {
-			c.Header("Access-Control-Allow-Origin", "http://localhost:3000")
-			c.Header("Access-Control-Allow-Credentials", "true")
-			c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
-			c.Header("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+			// Allow same-origin requests (no Origin header or same as host)
+			if origin == "" {
+				origin = "http://localhost:3000" // Default for no origin
+			}
+
+			allowed := false
+			if allowedOrigins == "*" {
+				allowed = true
+			} else {
+				// Check allowed origins including same-origin
+				for _, allowedOrigin := range strings.Split(allowedOrigins, ",") {
+					if strings.TrimSpace(allowedOrigin) == origin {
+						allowed = true
+						break
+					}
+				}
+				// Also allow same-origin requests for share links
+				if origin == "" || strings.Contains(c.Request.URL.Path, "/share") {
+					allowed = true
+					origin = fmt.Sprintf("http://%s", c.Request.Host)
+				}
+			}
+
+			if allowed {
+				c.Header("Access-Control-Allow-Origin", origin)
+				c.Header("Access-Control-Allow-Credentials", "true")
+				c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+				c.Header("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+			}
 
 			if c.Request.Method == "OPTIONS" {
 				c.AbortWithStatus(204)
@@ -40,8 +75,13 @@ func CORS(allowedOrigins string) gin.HandlerFunc {
 			return
 		}
 
-		origin := c.GetHeader("Origin")
-		fmt.Printf("DEBUG: CORS check for %s, Origin: %s, allowed: %s\n", c.Request.URL.Path, origin, allowedOrigins)
+		// Handle share endpoints - allow them without CORS restrictions
+		if strings.HasPrefix(c.Request.URL.Path, "/share/") {
+			c.Next()
+			return
+		}
+
+		// Handle other endpoints
 		if allowedOrigins != "*" {
 			// Check if origin is allowed
 			allowed := false
@@ -49,6 +89,13 @@ func CORS(allowedOrigins string) gin.HandlerFunc {
 				if strings.TrimSpace(allowedOrigin) == origin {
 					allowed = true
 					break
+				}
+			}
+			// Also allow requests from the same host (for share links)
+			if !allowed && (origin == "" || origin == fmt.Sprintf("http://%s", c.Request.Host)) {
+				allowed = true
+				if origin == "" {
+					origin = fmt.Sprintf("http://%s", c.Request.Host)
 				}
 			}
 			if !allowed {
