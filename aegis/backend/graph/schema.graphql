@@ -167,6 +167,13 @@ input CreateFileShareInput {
   expires_at: Time
 }
 
+input UpdateFileShareInput {
+  share_id: ID!
+  master_password: String
+  max_downloads: Int
+  expires_at: Time
+}
+
 input AccessSharedFileInput {
   token: String!
   master_password: String!
@@ -201,6 +208,36 @@ type FileShare {
   created_at: Time!
   updated_at: Time!
   user_file: UserFile
+}
+
+type SharedFileAccess {
+  id: ID!
+  user_id: ID
+  file_share_id: ID!
+  share_token: String!
+  first_access_at: Time!
+  last_access_at: Time!
+  access_count: Int!
+  ip_address: String
+  user_agent: String
+  user: User
+  file_share: FileShare
+}
+
+type SharedWithMeFile {
+  id: ID!
+  filename: String!
+  mime_type: String!
+  size_bytes: Int!
+  share_token: String!
+  shared_by: User!
+  first_access_at: Time!
+  last_access_at: Time!
+  access_count: Int!
+  max_downloads: Int!
+  download_count: Int!
+  expires_at: Time
+  created_at: Time!
 }
 
 type ShareMetadata {
@@ -247,6 +284,7 @@ type Query {
 
   # File sharing queries
   myShares: [FileShare!]!
+  sharedWithMe: [SharedWithMeFile!]!
   shareMetadata(token: String!): ShareMetadata!
   shareExpiryInfo(token: String!): ShareExpiryInfo!
   shareAccessStats(share_id: ID!): AccessStats!
@@ -293,6 +331,7 @@ type Mutation {
 
   # File sharing operations
   createFileShare(input: CreateFileShareInput!): FileShare!
+  updateFileShare(input: UpdateFileShareInput!): FileShare!
   deleteFileShare(share_id: ID!): Boolean!
   accessSharedFile(input: AccessSharedFileInput!): String! # Returns download URL
 

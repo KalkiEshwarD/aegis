@@ -1,8 +1,7 @@
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import {
   Box,
   Typography,
-  Paper,
   Table,
   TableBody,
   TableCell,
@@ -15,20 +14,24 @@ import {
   Tooltip,
   Alert,
   CircularProgress,
+  Tabs,
+  Tab,
+  Container,
+  Grid,
+  Card,
+  CardContent,
 } from '@mui/material';
 import {
   Share as ShareIcon,
   Delete as DeleteIcon,
   Download as DownloadIcon,
   Link as LinkIcon,
-  Visibility as VisibilityIcon,
-  AccessTime as AccessTimeIcon,
-  GetApp as GetAppIcon,
+  Person as PersonIcon,
 } from '@mui/icons-material';
 import { useQuery, useMutation } from '@apollo/client';
-import { GET_FILE_SHARES, DELETE_FILE_SHARE_MUTATION } from '../../apollo/queries';
+import { GET_FILE_SHARES, DELETE_FILE_SHARE_MUTATION, GET_SHARED_WITH_ME_QUERY } from '../../apollo/queries';
 import { formatFileSize, formatDateTime } from '../../shared/utils';
-import { FileShare } from '../../types';
+import { FileShare, SharedWithMeFile } from '../../types';
 
 interface SharedViewProps {
   onShareDeleted?: () => void;
@@ -38,17 +41,64 @@ interface FileSharesData {
   myShares: FileShare[];
 }
 
+interface SharedWithMeData {
+  sharedWithMe: SharedWithMeFile[];
+}
+
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+function TabPanel(props: TabPanelProps) {
+  const { children, value, index, ...other } = props;
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`shared-tabpanel-${index}`}
+      aria-labelledby={`shared-tab-${index}`}
+      {...other}
+    >
+      {value === index && (
+        <Box sx={{ p: 3 }}>
+          {children}
+        </Box>
+      )}
+    </div>
+  );
+}
+
+function a11yProps(index: number) {
+  return {
+    id: `shared-tab-${index}`,
+    'aria-controls': `shared-tabpanel-${index}`,
+  };
+}
+
 const SharedView: React.FC<SharedViewProps> = ({ onShareDeleted }) => {
-  const { data, loading, error, refetch } = useQuery<FileSharesData>(GET_FILE_SHARES, {
+  const [tabValue, setTabValue] = useState(0);
+
+  const { data: mySharesData, loading: mySharesLoading, error: mySharesError, refetch: refetchMyShares } = useQuery<FileSharesData>(GET_FILE_SHARES, {
+    fetchPolicy: 'cache-and-network',
+  });
+
+  const { data: sharedWithMeData, loading: sharedWithMeLoading, error: sharedWithMeError } = useQuery<SharedWithMeData>(GET_SHARED_WITH_ME_QUERY, {
     fetchPolicy: 'cache-and-network',
   });
 
   const [deleteFileShare] = useMutation(DELETE_FILE_SHARE_MUTATION, {
     onCompleted: () => {
-      refetch();
+      refetchMyShares();
       onShareDeleted?.();
     },
   });
+
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setTabValue(newValue);
+  };
 
   const handleDeleteShare = async (shareId: string) => {
     if (window.confirm('Are you sure you want to delete this shared link? This action cannot be undone.')) {
@@ -65,7 +115,6 @@ const SharedView: React.FC<SharedViewProps> = ({ onShareDeleted }) => {
   const handleCopyLink = (shareToken: string) => {
     const shareUrl = `${window.location.origin}/share/${shareToken}`;
     navigator.clipboard.writeText(shareUrl).then(() => {
-      // You could add a toast notification here
       console.log('Share link copied to clipboard');
     });
   };
@@ -78,146 +127,126 @@ const SharedView: React.FC<SharedViewProps> = ({ onShareDeleted }) => {
     }
   };
 
-  const getShareStatus = (share: FileShare) => {
-    const now = new Date();
-    const expiresAt = share.expires_at ? new Date(share.expires_at) : null;
-    
-    if (expiresAt && expiresAt < now) {
-      return { label: 'Expired', color: 'error' as const };
+  const renderMyShares = () => {
+    if (mySharesLoading) {
+      return (
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
+          <CircularProgress />
+        </Box>
+      );
     }
-    
-    if (share.max_downloads && share.download_count >= share.max_downloads) {
-      return { label: 'Limit Reached', color: 'warning' as const };
+
+    if (mySharesError) {
+      return (
+        <Alert severity="error">
+          Failed to load shared files: {mySharesError.message}
+        </Alert>
+      );
     }
-    
-    return { label: 'Active', color: 'success' as const };
-  };
 
-  if (loading) {
+    const shares = mySharesData?.myShares || [];
+
+    if (shares.length === 0) {
+      return (
+        <Box textAlign="center" py={8}>
+          <ShareIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+          <Typography variant="h6" gutterBottom>
+            No shared files yet
+          </Typography>
+          <Typography variant="body2" color="text.secondary" paragraph>
+            Files you share will appear here. Share files to collaborate with others securely.
+          </Typography>
+        </Box>
+      );
+    }
+
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
-        <CircularProgress />
-        <Typography sx={{ ml: 2 }}>Loading shared files...</Typography>
-      </Box>
-    );
-  }
-
-  if (error) {
-    return (
-      <Alert severity="error" sx={{ mt: 2 }}>
-        Failed to load shared files: {error.message}
-      </Alert>
-    );
-  }
-
-  const shares = data?.myShares || [];
-
-  if (shares.length === 0) {
-    return (
-      <Box sx={{ textAlign: 'center', py: 8 }}>
-        <ShareIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-        <Typography variant="h6" color="text.secondary" gutterBottom>
-          No Shared Files
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          You haven't shared any files yet. Share files to see them here.
-        </Typography>
-      </Box>
-    );
-  }
-
-  return (
-    <Box>
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h6" sx={{ fontWeight: 600, color: '#1f2937', mb: 1 }}>
-          Shared Files
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Manage your shared files and view sharing statistics.
-        </Typography>
-      </Box>
-
-      <TableContainer component={Paper} sx={{ boxShadow: 'none', border: '1px solid #e5e7eb' }}>
+      <TableContainer>
         <Table>
           <TableHead>
-            <TableRow sx={{ backgroundColor: '#f9fafb' }}>
-              <TableCell sx={{ fontWeight: 600 }}>File Name</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Size</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Downloads</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Created</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Expires</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
+            <TableRow>
+              <TableCell>File Name</TableCell>
+              <TableCell>Size</TableCell>
+              <TableCell>Downloads</TableCell>
+              <TableCell>Expires</TableCell>
+              <TableCell>Created</TableCell>
+              <TableCell align="center">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {shares.map((share) => {
-              const status = getShareStatus(share);
+            {shares.map((share: FileShare) => {
+              const isExpired = !!(share.expires_at && new Date(share.expires_at) < new Date());
+              const isLimitReached = !!(share.max_downloads && share.max_downloads > 0 && share.download_count >= share.max_downloads);
+              
               return (
-                <TableRow key={share.id} hover>
+                <TableRow key={share.id}>
                   <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <GetAppIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                        {share.user_file?.filename || 'Unknown file'}
-                      </Typography>
+                    <Box display="flex" alignItems="center">
+                      <Box>
+                        <Typography variant="body2" fontWeight={500}>
+                          {share.user_file?.filename || 'Unknown'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {share.user_file?.mime_type}
+                        </Typography>
+                      </Box>
                     </Box>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" color="text.secondary">
-                      {formatFileSize(share.user_file?.file?.size_bytes || 0)}
+                    <Typography variant="body2">
+                      {share.user_file?.file?.size_bytes ? formatFileSize(share.user_file.file.size_bytes) : 'Unknown'}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Chip
-                      label={status.label}
-                      color={status.color}
-                      size="small"
-                      variant="outlined"
-                    />
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Typography variant="body2">
+                        {share.download_count}
+                        {share.max_downloads && share.max_downloads > 0 && ` / ${share.max_downloads}`}
+                      </Typography>
+                      {isLimitReached && (
+                        <Chip label="Limit Reached" size="small" color="warning" />
+                      )}
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    {share.expires_at ? (
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <Typography variant="body2" color={isExpired ? 'error' : 'text.primary'}>
+                          {formatDate(share.expires_at)}
+                        </Typography>
+                        {isExpired && (
+                          <Chip label="Expired" size="small" color="error" />
+                        )}
+                      </Box>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        Never
+                      </Typography>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">
-                      {share.download_count}
-                      {share.max_downloads && ` / ${share.max_downloads}`}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary">
                       {formatDate(share.created_at)}
                     </Typography>
                   </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary">
-                      {share.expires_at ? formatDate(share.expires_at) : 'Never'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <Tooltip title="Copy share link">
+                  <TableCell align="center">
+                    <Box display="flex" gap={1}>
+                      <Tooltip title="Copy Share Link">
                         <IconButton
                           size="small"
                           onClick={() => handleCopyLink(share.share_token)}
-                          disabled={status.label === 'Expired' || status.label === 'Limit Reached'}
+                          disabled={isExpired || isLimitReached}
                         >
-                          <LinkIcon fontSize="small" />
+                          <LinkIcon />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="View details">
-                        <IconButton
-                          size="small"
-                          disabled={status.label === 'Expired' || status.label === 'Limit Reached'}
-                        >
-                          <VisibilityIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Delete share">
+                      <Tooltip title="Delete Share">
                         <IconButton
                           size="small"
                           onClick={() => handleDeleteShare(share.id)}
                           color="error"
                         >
-                          <DeleteIcon fontSize="small" />
+                          <DeleteIcon />
                         </IconButton>
                       </Tooltip>
                     </Box>
@@ -228,16 +257,124 @@ const SharedView: React.FC<SharedViewProps> = ({ onShareDeleted }) => {
           </TableBody>
         </Table>
       </TableContainer>
+    );
+  };
 
-      <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="body2" color="text.secondary">
-          {shares.length} shared file{shares.length !== 1 ? 's' : ''}
+  const renderSharedWithMe = () => {
+    if (sharedWithMeLoading) {
+      return (
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
+          <CircularProgress />
+        </Box>
+      );
+    }
+
+    if (sharedWithMeError) {
+      return (
+        <Alert severity="error">
+          Failed to load shared files: {sharedWithMeError.message}
+        </Alert>
+      );
+    }
+
+    const sharedFiles = sharedWithMeData?.sharedWithMe || [];
+
+    if (sharedFiles.length === 0) {
+      return (
+        <Box textAlign="center" py={8}>
+          <PersonIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+          <Typography variant="h6" gutterBottom>
+            No files shared with you
+          </Typography>
+          <Typography variant="body2" color="text.secondary" paragraph>
+            Files that others share with you will appear here.
+          </Typography>
+        </Box>
+      );
+    }
+
+    return (
+      <Grid container spacing={2} sx={{ mt: 1 }}>
+        {sharedFiles.map((sharedFile) => (
+          <Grid item xs={12} key={sharedFile.id}>
+            <Card>
+              <CardContent>
+                <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                  <Box flex={1}>
+                    <Typography variant="h6" gutterBottom>
+                      {sharedFile.filename}
+                    </Typography>
+                    <Box display="flex" gap={2} alignItems="center" mb={1}>
+                      <Chip label={`${(sharedFile.size_bytes / 1024 / 1024).toFixed(2)} MB`} size="small" />
+                      <Typography variant="body2" color="text.secondary">
+                        Shared by: {sharedFile.shared_by.username}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" gap={2} alignItems="center" mb={1}>
+                      <Typography variant="body2" color="text.secondary">
+                        Access count: {sharedFile.access_count}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Last accessed: {sharedFile.last_access_at ? new Date(sharedFile.last_access_at).toLocaleString() : 'Never'}
+                      </Typography>
+                    </Box>
+                    {sharedFile.max_downloads && (
+                      <Typography variant="body2" color="text.secondary">
+                        Download limit: {sharedFile.download_count} / {sharedFile.max_downloads}
+                      </Typography>
+                    )}
+                    {sharedFile.expires_at && (
+                      <Typography variant="body2" color="text.secondary">
+                        Expires: {new Date(sharedFile.expires_at).toLocaleString()}
+                      </Typography>
+                    )}
+                  </Box>
+                  <Box display="flex" gap={1}>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      onClick={() => handleDownloadSharedFile(sharedFile)}
+                      startIcon={<DownloadIcon />}
+                    >
+                      Download
+                    </Button>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+    );
+  };
+
+  const handleDownloadSharedFile = (sharedFile: SharedWithMeFile) => {
+    window.open(`/share/${sharedFile.share_token}`, '_blank');
+  };
+
+  return (
+    <Container maxWidth="lg">
+      <Box mt={3}>
+        <Typography variant="h4" gutterBottom>
+          Shared Files
         </Typography>
-        <Button variant="outlined" onClick={() => refetch()} size="small">
-          Refresh
-        </Button>
+        
+        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+          <Tabs value={tabValue} onChange={handleTabChange} aria-label="shared files tabs">
+            <Tab label="My Shares" {...a11yProps(0)} />
+            <Tab label="Shared with Me" {...a11yProps(1)} />
+          </Tabs>
+        </Box>
+        
+        <TabPanel value={tabValue} index={0}>
+          {renderMyShares()}
+        </TabPanel>
+        
+        <TabPanel value={tabValue} index={1}>
+          {renderSharedWithMe()}
+        </TabPanel>
       </Box>
-    </Box>
+    </Container>
   );
 };
 

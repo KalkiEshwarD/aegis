@@ -1,4 +1,3 @@
-
 package services
 
 import (
@@ -94,6 +93,82 @@ func (s *ShareService) CreateShare(userFileID uint, masterPassword string, maxDo
 	}
 
 	return fileShare, nil
+}
+
+func (s *ShareService) UpdateShare(userID uint, shareID uint, masterPassword *string, maxDownloads *int, expiresAt *time.Time) (*models.FileShare, error) {
+	// Get the existing share
+	var fileShare models.FileShare
+	err := s.GetDB().GetDB().
+		Preload("UserFile").
+		Where("id = ?", shareID).
+		First(&fileShare).Error
+
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, apperrors.New(apperrors.ErrCodeNotFound, "share not found")
+		}
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to retrieve share")
+	}
+
+	// Verify ownership
+	if fileShare.UserFile.UserID != userID {
+		return nil, apperrors.New(apperrors.ErrCodeForbidden, "you don't have permission to update this share")
+	}
+
+	updates := make(map[string]interface{})
+
+	// Update password if provided
+	if masterPassword != nil {
+		if err := utils.ValidatePasswordStrength(*masterPassword); err != nil {
+			return nil, err
+		}
+
+		fileKey, err := base64.StdEncoding.DecodeString(fileShare.UserFile.EncryptionKey)
+		if err != nil {
+			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "invalid file encryption key")
+		}
+
+		encryptedKeyData, err := utils.EncryptFileKeyWithPassword(fileKey, *masterPassword, s.cryptoConfig)
+		if err != nil {
+			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to encrypt file key")
+		}
+
+		updates["encrypted_key"] = encryptedKeyData.EncryptedKey
+		updates["salt"] = encryptedKeyData.Salt
+		updates["iv"] = encryptedKeyData.IV
+	}
+
+	// Update max downloads if provided
+	if maxDownloads != nil {
+		updates["max_downloads"] = *maxDownloads
+	}
+
+	// Update expiration if provided
+	if expiresAt != nil {
+		updates["expires_at"] = *expiresAt
+	}
+
+	// Update the share
+	if len(updates) > 0 {
+		updates["updated_at"] = time.Now()
+		err = s.GetDB().GetDB().Model(&fileShare).Updates(updates).Error
+		if err != nil {
+			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to update share")
+		}
+	}
+
+	// Reload the share with updated data
+	err = s.GetDB().GetDB().
+		Preload("UserFile").
+		Preload("UserFile.File").
+		Where("id = ?", shareID).
+		First(&fileShare).Error
+
+	if err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to reload updated share")
+	}
+
+	return &fileShare, nil
 }
 
 func (s *ShareService) GetShareByToken(token string) (*models.FileShare, error) {
@@ -602,4 +677,106 @@ func min(a, b float64) float64 {
 		return a
 	}
 	return b
+}
+
+//================================================================================
+// Shared With Me Functionality
+//================================================================================
+
+func (s *ShareService) GetSharedWithMeFiles(userID uint) ([]*SharedWithMeFile, error) {
+	var sharedAccess []models.SharedFileAccess
+
+	// Get all shared files accessed by this user
+	err := s.GetDB().GetDB().
+		Preload("FileShare").
+		Preload("FileShare.UserFile").
+		Preload("FileShare.UserFile.File").
+		Preload("FileShare.UserFile.User").
+		Where("user_id = ?", userID).
+		Find(&sharedAccess).Error
+
+	if err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to get shared files")
+	}
+
+	var result []*SharedWithMeFile
+	for _, access := range sharedAccess {
+		if access.FileShare.UserFile.DeletedAt.Valid {
+			continue // Skip deleted files
+		}
+
+		// Check if share is still valid
+		if s.IsExpired(&access.FileShare) {
+			continue // Skip expired shares
+		}
+
+		sharedFile := &SharedWithMeFile{
+			ID:            fmt.Sprintf("%d", access.ID),
+			Filename:      access.FileShare.UserFile.Filename,
+			MimeType:      access.FileShare.UserFile.MimeType,
+			SizeBytes:     int(access.FileShare.UserFile.File.SizeBytes),
+			ShareToken:    access.ShareToken,
+			SharedBy:      &access.FileShare.UserFile.User,
+			FirstAccessAt: access.FirstAccessAt,
+			LastAccessAt:  access.LastAccessAt,
+			AccessCount:   access.AccessCount,
+			MaxDownloads:  access.FileShare.MaxDownloads,
+			DownloadCount: access.FileShare.DownloadCount,
+			ExpiresAt:     access.FileShare.ExpiresAt,
+			CreatedAt:     access.FileShare.CreatedAt,
+		}
+
+		result = append(result, sharedFile)
+	}
+
+	return result, nil
+}
+
+func (s *ShareService) RecordUserAccess(userID *uint, fileShareID uint, shareToken, ipAddress, userAgent string) error {
+	// Check if user access record already exists
+	var existingAccess models.SharedFileAccess
+	err := s.GetDB().GetDB().Where("user_id = ? AND file_share_id = ?", userID, fileShareID).First(&existingAccess).Error
+
+	if err == gorm.ErrRecordNotFound {
+		// Create new access record
+		newAccess := models.SharedFileAccess{
+			UserID:        userID,
+			FileShareID:   fileShareID,
+			ShareToken:    shareToken,
+			FirstAccessAt: time.Now(),
+			LastAccessAt:  time.Now(),
+			AccessCount:   1,
+			IPAddress:     ipAddress,
+			UserAgent:     userAgent,
+		}
+
+		return s.GetDB().GetDB().Create(&newAccess).Error
+	} else if err != nil {
+		return err
+	} else {
+		// Update existing access record
+		return s.GetDB().GetDB().Model(&existingAccess).Updates(map[string]interface{}{
+			"last_access_at": time.Now(),
+			"access_count":   gorm.Expr("access_count + 1"),
+			"ip_address":     ipAddress,
+			"user_agent":     userAgent,
+		}).Error
+	}
+}
+
+// SharedWithMeFile represents a file shared with a user
+type SharedWithMeFile struct {
+	ID            string       `json:"id"`
+	Filename      string       `json:"filename"`
+	MimeType      string       `json:"mime_type"`
+	SizeBytes     int          `json:"size_bytes"`
+	ShareToken    string       `json:"share_token"`
+	SharedBy      *models.User `json:"shared_by"`
+	FirstAccessAt time.Time    `json:"first_access_at"`
+	LastAccessAt  time.Time    `json:"last_access_at"`
+	AccessCount   int          `json:"access_count"`
+	MaxDownloads  int          `json:"max_downloads"`
+	DownloadCount int          `json:"download_count"`
+	ExpiresAt     *time.Time   `json:"expires_at"`
+	CreatedAt     time.Time    `json:"created_at"`
 }

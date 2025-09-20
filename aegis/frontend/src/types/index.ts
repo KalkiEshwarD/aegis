@@ -221,15 +221,38 @@ export interface CreateFileShareInput {
   max_downloads?: number;
 }
 
+export interface UpdateFileShareInput {
+  share_id: string;
+  master_password?: string;
+  expires_at?: string;
+  max_downloads?: number;
+}
+
 export interface AccessSharedFileInput {
-  share_token: string;
-  password?: string;
+  token: string;
+  master_password: string;
 }
 
 export interface SharedFileAccess {
   file: UserFile;
   share: FileShare;
   download_url: string;
+}
+
+export interface SharedWithMeFile {
+  id: string;
+  filename: string;
+  mime_type: string;
+  size_bytes: number;
+  share_token: string;
+  shared_by: User;
+  first_access_at: string;
+  last_access_at: string;
+  access_count: number;
+  max_downloads: number;
+  download_count: number;
+  expires_at?: string;
+  created_at: string;
 }
 
 // Crypto types for E2EE

@@ -11,6 +11,7 @@ import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import Dashboard from './components/dashboard/Dashboard';
 import AdminDashboard from './components/admin/AdminDashboard';
+import ShareAccess from './components/share/ShareAccess';
 import LoadingSpinner from './components/common/LoadingSpinner';
 import ErrorBoundary from './components/common/ErrorBoundary';
 
@@ -149,6 +150,9 @@ const AppRoutes: React.FC = () => {
             <AdminDashboard />
           </ProtectedRoute>
         } />
+
+        {/* Public share access route */}
+        <Route path="/share/:token" element={<ShareAccess />} />
 
         {/* Default redirect */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />

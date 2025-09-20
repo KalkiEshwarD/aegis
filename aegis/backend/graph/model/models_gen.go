@@ -122,6 +122,29 @@ type ShareMetadata struct {
 	CreatedAt     time.Time  `json:"created_at"`
 }
 
+type SharedWithMeFile struct {
+	ID            string       `json:"id"`
+	Filename      string       `json:"filename"`
+	MimeType      string       `json:"mime_type"`
+	SizeBytes     int          `json:"size_bytes"`
+	ShareToken    string       `json:"share_token"`
+	SharedBy      *models.User `json:"shared_by"`
+	FirstAccessAt time.Time    `json:"first_access_at"`
+	LastAccessAt  time.Time    `json:"last_access_at"`
+	AccessCount   int          `json:"access_count"`
+	MaxDownloads  int          `json:"max_downloads"`
+	DownloadCount int          `json:"download_count"`
+	ExpiresAt     *time.Time   `json:"expires_at,omitempty"`
+	CreatedAt     time.Time    `json:"created_at"`
+}
+
+type UpdateFileShareInput struct {
+	ShareID        string     `json:"share_id"`
+	MasterPassword *string    `json:"master_password,omitempty"`
+	MaxDownloads   *int       `json:"max_downloads,omitempty"`
+	ExpiresAt      *time.Time `json:"expires_at,omitempty"`
+}
+
 type UploadFileFromMapInput struct {
 	Data string `json:"data"`
 }

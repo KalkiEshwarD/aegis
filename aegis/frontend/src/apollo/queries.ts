@@ -564,7 +564,7 @@ export const CREATE_FILE_SHARE_MUTATION = gql`
 
 export const DELETE_FILE_SHARE_MUTATION = gql`
   mutation DeleteFileShare($id: ID!) {
-    deleteFileShare(id: $id)
+    deleteFileShare(share_id: $id)
   }
 `;
 
@@ -604,5 +604,86 @@ export const ACCESS_SHARED_FILE_MUTATION = gql`
 export const HEALTH_QUERY = gql`
   query Health {
     health
+  }
+`;
+
+// Shared with Me Query
+export const GET_SHARED_WITH_ME_QUERY = gql`
+  query GetSharedWithMe {
+    sharedWithMe {
+      id
+      filename
+      mime_type
+      size_bytes
+      share_token
+      shared_by {
+        id
+        username
+        email
+      }
+      first_access_at
+      last_access_at
+      access_count
+      max_downloads
+      download_count
+      expires_at
+      created_at
+    }
+  }
+`;
+
+// Update File Share Mutation
+export const UPDATE_FILE_SHARE_MUTATION = gql`
+  mutation UpdateFileShare($input: UpdateFileShareInput!) {
+    updateFileShare(input: $input) {
+      id
+      user_file_id
+      share_token
+      encrypted_key
+      salt
+      iv
+      expires_at
+      max_downloads
+      download_count
+      created_at
+      updated_at
+      user_file {
+        id
+        filename
+        mime_type
+        file {
+          size_bytes
+        }
+      }
+    }
+  }
+`;
+
+
+// Public Share Queries (for accessing shared files)
+export const GET_SHARED_FILE = gql`
+  query GetSharedFile($token: String!) {
+    shareMetadata(token: $token) {
+      token
+      filename
+      mime_type
+      size_bytes
+      max_downloads
+      download_count
+      expires_at
+      created_at
+    }
+  }
+`;
+
+export const ACCESS_SHARED_FILE = gql`
+  mutation AccessSharedFile($input: AccessSharedFileInput!) {
+    accessSharedFile(input: $input)
+  }
+`;
+
+export const DOWNLOAD_SHARED_FILE = gql`
+  mutation DownloadSharedFile($input: AccessSharedFileInput!) {
+    accessSharedFile(input: $input)
   }
 `;

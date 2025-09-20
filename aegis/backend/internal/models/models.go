@@ -47,8 +47,8 @@ type UserFile struct {
 	DeletedAt     gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Associations
-	User   User   `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	File   File   `gorm:"foreignKey:FileID" json:"file,omitempty"`
+	User   User    `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	File   File    `gorm:"foreignKey:FileID" json:"file,omitempty"`
 	Folder *Folder `gorm:"foreignKey:FolderID" json:"folder,omitempty"`
 }
 
@@ -62,7 +62,7 @@ type Room struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Associations
-	Creator User         `gorm:"foreignKey:CreatorID" json:"creator,omitempty"`
+	Creator User          `gorm:"foreignKey:CreatorID" json:"creator,omitempty"`
 	Members []*RoomMember `gorm:"foreignKey:RoomID" json:"members,omitempty"`
 	Files   []*UserFile   `gorm:"many2many:room_files;joinForeignKey:RoomID;joinReferences:UserFileID" json:"files,omitempty"`
 }
@@ -116,9 +116,9 @@ type Folder struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Associations
-	User     User      `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	Parent   *Folder   `gorm:"foreignKey:ParentID" json:"parent,omitempty"`
-	Children []*Folder `gorm:"foreignKey:ParentID" json:"children,omitempty"`
+	User     User        `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Parent   *Folder     `gorm:"foreignKey:ParentID" json:"parent,omitempty"`
+	Children []*Folder   `gorm:"foreignKey:ParentID" json:"children,omitempty"`
 	Files    []*UserFile `gorm:"foreignKey:FolderID" json:"files,omitempty"`
 }
 
@@ -136,17 +136,17 @@ type RoomFolder struct {
 
 // FileShare represents a password-protected file share
 type FileShare struct {
-	ID            uint      `gorm:"primaryKey" json:"id"`
-	UserFileID    uint      `gorm:"not null;index" json:"user_file_id"`
-	ShareToken    string    `gorm:"uniqueIndex;not null" json:"share_token"`
-	EncryptedKey  string    `gorm:"not null" json:"encrypted_key"` // Encrypted file encryption key
-	Salt          string    `gorm:"not null" json:"salt"`           // Salt used for PBKDF2
-	IV            string    `gorm:"not null" json:"iv"`             // Initialization vector for AES-GCM
-	MaxDownloads  int       `gorm:"default:-1" json:"max_downloads"` // -1 means unlimited
-	DownloadCount int       `gorm:"default:0" json:"download_count"`
+	ID            uint       `gorm:"primaryKey" json:"id"`
+	UserFileID    uint       `gorm:"not null;index" json:"user_file_id"`
+	ShareToken    string     `gorm:"uniqueIndex;not null" json:"share_token"`
+	EncryptedKey  string     `gorm:"not null" json:"encrypted_key"`   // Encrypted file encryption key
+	Salt          string     `gorm:"not null" json:"salt"`            // Salt used for PBKDF2
+	IV            string     `gorm:"not null" json:"iv"`              // Initialization vector for AES-GCM
+	MaxDownloads  int        `gorm:"default:-1" json:"max_downloads"` // -1 means unlimited
+	DownloadCount int        `gorm:"default:0" json:"download_count"`
 	ExpiresAt     *time.Time `gorm:"index" json:"expires_at"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 
 	// Associations
 	UserFile UserFile `gorm:"foreignKey:UserFileID" json:"user_file,omitempty"`
@@ -154,13 +154,13 @@ type FileShare struct {
 
 // ShareAccessLog tracks access attempts to shared files
 type ShareAccessLog struct {
-	ID           uint      `gorm:"primaryKey" json:"id"`
-	FileShareID  uint      `gorm:"not null;index" json:"file_share_id"`
-	IPAddress    string    `json:"ip_address"`
-	UserAgent    string    `json:"user_agent"`
-	AttemptedAt  time.Time `json:"attempted_at"`
-	Success      bool      `gorm:"default:false" json:"success"`
-	FailureReason string   `json:"failure_reason"`
+	ID            uint      `gorm:"primaryKey" json:"id"`
+	FileShareID   uint      `gorm:"not null;index" json:"file_share_id"`
+	IPAddress     string    `json:"ip_address"`
+	UserAgent     string    `json:"user_agent"`
+	AttemptedAt   time.Time `json:"attempted_at"`
+	Success       bool      `gorm:"default:false" json:"success"`
+	FailureReason string    `json:"failure_reason"`
 
 	// Associations
 	FileShare FileShare `gorm:"foreignKey:FileShareID" json:"file_share,omitempty"`
@@ -223,4 +223,39 @@ func (FileShare) TableName() string {
 
 func (ShareAccessLog) TableName() string {
 	return "share_access_logs"
+}
+
+// SharedFileAccess tracks which users have successfully accessed shared files
+type SharedFileAccess struct {
+	ID            uint      `gorm:"primaryKey" json:"id"`
+	UserID        *uint     `gorm:"index" json:"user_id"` // NULL for anonymous access
+	FileShareID   uint      `gorm:"not null;index" json:"file_share_id"`
+	ShareToken    string    `gorm:"not null" json:"share_token"`
+	FirstAccessAt time.Time `json:"first_access_at"`
+	LastAccessAt  time.Time `json:"last_access_at"`
+	AccessCount   int       `gorm:"default:1" json:"access_count"`
+	IPAddress     string    `json:"ip_address"`
+	UserAgent     string    `json:"user_agent"`
+
+	// Associations
+	User      *User     `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	FileShare FileShare `gorm:"foreignKey:FileShareID" json:"file_share,omitempty"`
+}
+
+// ShareRateLimit tracks rate limiting for password attempts
+type ShareRateLimit struct {
+	ID             uint       `gorm:"primaryKey" json:"id"`
+	Identifier     string     `gorm:"uniqueIndex;not null" json:"identifier"` // IP address or token+IP combo
+	AttemptCount   int        `gorm:"default:1" json:"attempt_count"`
+	FirstAttemptAt time.Time  `json:"first_attempt_at"`
+	LastAttemptAt  time.Time  `json:"last_attempt_at"`
+	BlockedUntil   *time.Time `gorm:"index" json:"blocked_until"`
+}
+
+func (SharedFileAccess) TableName() string {
+	return "shared_file_access"
+}
+
+func (ShareRateLimit) TableName() string {
+	return "share_rate_limits"
 }
