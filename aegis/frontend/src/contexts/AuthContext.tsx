@@ -70,6 +70,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (identifier: string, password: string): Promise<void> => {
     try {
+      console.log('DEBUG: AuthContext.login called with identifier:', identifier);
       setLoading(true);
       const { data, errors } = await loginMutation({
         variables: {
@@ -77,19 +78,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       });
 
+      console.log('DEBUG: Login mutation response - errors:', errors, 'data:', data);
+
       if (errors && errors.length > 0) {
+        console.error('DEBUG: Login failed with GraphQL errors:', errors);
         throw new Error(errors[0].message);
       }
 
       if (data?.login) {
         const authPayload: AuthPayload = data.login;
+        console.log('DEBUG: Login successful, user:', authPayload.user);
         setUser(authPayload.user);
         // Token is now stored in HttpOnly cookies by the backend
         // No longer storing in localStorage for security
       } else {
+        console.error('DEBUG: Login failed: No data returned from mutation');
         throw new Error('Login failed: No data returned');
       }
     } catch (error) {
+      console.error('DEBUG: Login error:', error);
       throw error;
     } finally {
       setLoading(false);

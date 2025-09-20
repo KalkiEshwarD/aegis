@@ -47,9 +47,8 @@ func NewTestGraphQLServer(cfg *config.Config) *TestGraphQLServer {
 		panic(fmt.Sprintf("Failed to setup test database: %v", err))
 	}
 
-	// Create database service
-	dbService := &database.DB{}
-	dbService.Connect(cfg)
+	// Create database service with the test database
+	dbService := database.NewDB(db)
 
 	// Initialize services
 	authService := services.NewAuthService(cfg)

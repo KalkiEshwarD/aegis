@@ -2,6 +2,7 @@ package integration
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/balkanid/aegis-backend/internal/database"
@@ -13,9 +14,35 @@ func SetupTestDatabase(db *gorm.DB) error {
 	// Set the test database globally for services to use
 	database.SetDB(db)
 
-	// Run auto-migration for models using the global database function
-	if err := database.AutoMigrate(); err != nil {
-		return fmt.Errorf("failed to migrate test database: %w", err)
+	// For SQLite tests, execute the migration SQL files converted to SQLite format
+	sqlDB, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("failed to get SQL DB: %w", err)
+	}
+
+	// Read and execute migration files
+	migrationFiles := []string{
+		"backend/migrations/001_initial_schema.sql",
+		"backend/migrations/002_add_user_file_unique_constraint.sql",
+		"backend/migrations/003_remove_content_hash_unique_constraint.sql",
+		"backend/migrations/004_add_folders.sql",
+		"backend/migrations/005_add_username_to_users.sql",
+	}
+
+	for _, file := range migrationFiles {
+		content, err := os.ReadFile(file)
+		if err != nil {
+			// Skip if file doesn't exist
+			continue
+		}
+
+		// Convert PostgreSQL SQL to SQLite
+		sqliteSQL := ConvertPostgresToSQLite(string(content))
+
+		// Execute the converted SQL
+		if err := ExecuteSQLFile(db, sqliteSQL); err != nil {
+			return fmt.Errorf("failed to execute migration %s: %w", file, err)
+		}
 	}
 
 	return nil

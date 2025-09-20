@@ -32,6 +32,7 @@ interface FileGridProps {
   onDelete: (file: UserFile) => void;
   onFolderClick?: (folderId: string, folderName: string) => void;
   onFileMove?: (fileIds: string[], targetFolderId: string | null) => Promise<void>;
+  onItemSelect?: (itemId: string, event: React.MouseEvent, modifiers?: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => void;
 }
 
 interface FileItemProps {
@@ -43,6 +44,9 @@ interface FileItemProps {
   onContextMenu: (event: React.MouseEvent, fileId: string) => void;
   onFolderClick?: (folderId: string, folderName: string) => void;
   onFileMove?: (fileIds: string[], targetFolderId: string | null) => Promise<void>;
+  onItemSelect?: (itemId: string, event: React.MouseEvent, modifiers?: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => void;
+  clickState: { count: number; lastTime: number; timeout: NodeJS.Timeout | null };
+  onClickStateUpdate: (itemId: string, state: { count: number; lastTime: number; timeout: NodeJS.Timeout | null }) => void;
 }
 
 const FileGrid: React.FC<FileGridProps> = ({
@@ -56,7 +60,28 @@ const FileGrid: React.FC<FileGridProps> = ({
   onDelete,
   onFolderClick,
   onFileMove,
+  onItemSelect,
 }) => {
+  // Store click state at grid level to persist across component re-mounts
+  const [clickStates, setClickStates] = useState(new Map<string, { count: number; lastTime: number; timeout: NodeJS.Timeout | null }>());
+
+  // Helper functions for click state management
+  const getClickState = (itemId: string) => {
+    const state = clickStates.get(itemId) || { count: 0, lastTime: 0, timeout: null };
+    console.log('DEBUG: getClickState for item', itemId, 'returning:', state);
+    return state;
+  };
+
+  const updateClickState = (itemId: string, state: { count: number; lastTime: number; timeout: NodeJS.Timeout | null }) => {
+    console.log('DEBUG: updateClickState for item', itemId, 'setting:', state);
+    setClickStates(prev => {
+      const newMap = new Map(prev);
+      newMap.set(itemId, state);
+      console.log('DEBUG: clickStates after update:', newMap);
+      return newMap;
+    });
+  };
+
   // File type icons
   const getItemIcon = (item: FileExplorerItem) => {
     if (isFolder(item)) {
@@ -94,6 +119,9 @@ const FileGrid: React.FC<FileGridProps> = ({
     onContextMenu,
     onFolderClick,
     onFileMove,
+    onItemSelect,
+    clickState,
+    onClickStateUpdate,
   }) => {
     const [isDragOver, setIsDragOver] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
@@ -102,11 +130,77 @@ const FileGrid: React.FC<FileGridProps> = ({
     const isItemFolder = isFolder(item);
     
     const handleClick = (e: React.MouseEvent) => {
-      if (isItemFolder && onFolderClick) {
-        onFolderClick(item.id, item.name);
-      } else if (isFile(item)) {
-        onFileClick(item.id, e);
+      console.log('DEBUG: FileGrid handleClick called for item:', item.id, 'isFolder:', isItemFolder);
+
+      // Capture modifier keys at click time
+      const modifiers = {
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey,
+        shiftKey: e.shiftKey
+      };
+
+      // For files, just handle single-click selection immediately
+      if (isFile(item)) {
+        console.log('DEBUG: Handling file click for:', item.filename);
+        if (onItemSelect) {
+          onItemSelect(item.id, e, modifiers);
+        } else {
+          onFileClick(item.id, e);
+        }
+        return;
       }
+
+      // For folders, implement double-click detection
+      const currentTime = Date.now();
+      const timeSinceLastClick = clickState.lastTime > 0 ? currentTime - clickState.lastTime : Infinity;
+      const DOUBLE_CLICK_THRESHOLD = 300; // ms
+
+      console.log('DEBUG: Folder click - currentTime:', currentTime, 'lastTime:', clickState.lastTime, 'timeSinceLastClick:', timeSinceLastClick, 'count:', clickState.count);
+
+      // Clear any existing timeout
+      if (clickState.timeout) {
+        console.log('DEBUG: Clearing existing timeout');
+        clearTimeout(clickState.timeout);
+        onClickStateUpdate(item.id, { ...clickState, timeout: null });
+      }
+
+      // Check if this is a double-click
+      if (timeSinceLastClick < DOUBLE_CLICK_THRESHOLD && clickState.count === 1) {
+        console.log('DEBUG: Double-click detected for folder:', item.name, 'timeSinceLastClick:', timeSinceLastClick, 'threshold:', DOUBLE_CLICK_THRESHOLD);
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Handle double-click for folders
+        if (isItemFolder && onFolderClick) {
+          console.log('DEBUG: Calling onFolderClick with:', item.id, item.name);
+          onFolderClick(item.id, getItemName());
+        } else {
+          console.log('DEBUG: onFolderClick not available or item is not a folder');
+        }
+
+        // Reset click count
+        onClickStateUpdate(item.id, { count: 0, lastTime: 0, timeout: null });
+        return;
+      } else {
+        console.log('DEBUG: Not a double-click - timeSinceLastClick:', timeSinceLastClick, 'count:', clickState.count, 'threshold:', DOUBLE_CLICK_THRESHOLD);
+      }
+
+      console.log('DEBUG: Single click detected, setting timeout');
+
+      // This is a single click - increment count and set timeout
+      const newState = { count: 1, lastTime: currentTime, timeout: null as NodeJS.Timeout | null };
+
+      // Set timeout for single-click action
+      newState.timeout = setTimeout(() => {
+        console.log('DEBUG: Single click timeout triggered for folder:', item.name);
+        if (onItemSelect) {
+          onItemSelect(item.id, e, modifiers);
+        }
+        // Reset click count after timeout
+        onClickStateUpdate(item.id, { count: 0, lastTime: 0, timeout: null });
+      }, DOUBLE_CLICK_THRESHOLD);
+
+      onClickStateUpdate(item.id, newState);
     };
 
     const handleContextMenu = (e: React.MouseEvent) => {
@@ -168,7 +262,10 @@ const FileGrid: React.FC<FileGridProps> = ({
 
     const getItemSize = () => {
       if (isItemFolder) {
-        return `${item.children.length} items`;
+        const childCount = item.children?.length || 0;
+        const fileCount = item.files?.length || 0;
+        const totalCount = childCount + fileCount;
+        return `${totalCount} items`;
       }
       return item.file ? formatFileSize(item.file.size_bytes) : 'Unknown';
     };
@@ -176,6 +273,7 @@ const FileGrid: React.FC<FileGridProps> = ({
     return (
       <div style={style}>
         <Paper
+          data-file-item={item.id}
           sx={{
             p: 2,
             display: 'flex',
@@ -183,7 +281,7 @@ const FileGrid: React.FC<FileGridProps> = ({
             alignItems: 'center',
             cursor: isFile(item) ? 'grab' : 'pointer',
             border: isFocused ? '2px solid #f59e0b' :
-                    isItemSelected ? '2px solid #3b82f6' :
+                    isItemSelected ? '2px solid #e5e7eb' :
                     isDragOver ? '2px solid #10b981' : '1px solid #e5e7eb',
             backgroundColor: isFocused ? '#fef3c7' :
                             isItemSelected ? '#eff6ff' :
@@ -231,8 +329,17 @@ const FileGrid: React.FC<FileGridProps> = ({
             size="small"
             sx={{ position: 'absolute', top: 4, right: 4 }}
             onClick={(e) => {
+              e.preventDefault();
               e.stopPropagation();
               handleContextMenu(e);
+            }}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onMouseUp={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
             }}
           >
             <MoreVertIcon fontSize="small" />
@@ -268,6 +375,7 @@ const FileGrid: React.FC<FileGridProps> = ({
             onContextMenu,
             onFolderClick,
             onFileMove,
+            onItemSelect,
           }}
         >
           {({ columnIndex, rowIndex, style, data }) => {
@@ -287,6 +395,9 @@ const FileGrid: React.FC<FileGridProps> = ({
                 onContextMenu={data.onContextMenu}
                 onFolderClick={data.onFolderClick}
                 onFileMove={data.onFileMove}
+                onItemSelect={data.onItemSelect}
+                clickState={getClickState(item.id)}
+                onClickStateUpdate={updateClickState}
               />
             );
           }}
@@ -314,6 +425,9 @@ const FileGrid: React.FC<FileGridProps> = ({
           onContextMenu={onContextMenu}
           onFolderClick={onFolderClick}
           onFileMove={onFileMove}
+          onItemSelect={onItemSelect}
+          clickState={getClickState(item.id)}
+          onClickStateUpdate={updateClickState}
         />
       ))}
     </Box>

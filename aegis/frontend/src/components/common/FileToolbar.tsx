@@ -9,11 +9,14 @@ import {
   IconButton,
   InputAdornment,
   Button,
+  Tooltip,
 } from '@mui/material';
 import {
   Search as SearchIcon,
   Sort as SortIcon,
   CreateNewFolder as CreateNewFolderIcon,
+  ContentCut as CutIcon,
+  ContentPaste as PasteIcon,
 } from '@mui/icons-material';
 import { FileFilterInput } from '../../types';
 
@@ -28,6 +31,11 @@ interface FileToolbarProps {
   onSortChange: (value: SortOption) => void;
   onToggleSortDirection: () => void;
   onCreateFolder?: () => void;
+  onCut?: () => void;
+  onPaste?: () => void;
+  canCut?: boolean;
+  canPaste?: boolean;
+  cutItemsCount?: number;
 }
 
 const FileToolbar: React.FC<FileToolbarProps> = ({
@@ -38,6 +46,11 @@ const FileToolbar: React.FC<FileToolbarProps> = ({
   onSortChange,
   onToggleSortDirection,
   onCreateFolder,
+  onCut,
+  onPaste,
+  canCut,
+  canPaste,
+  cutItemsCount,
 }) => {
   const handleSortChange = (event: SelectChangeEvent) => {
     onSortChange(event.target.value as SortOption);
@@ -77,6 +90,33 @@ const FileToolbar: React.FC<FileToolbarProps> = ({
           transition: 'transform 0.2s'
         }} />
       </IconButton>
+
+      {/* Cut and Paste Buttons */}
+      <Tooltip title={canCut ? `Cut selected items (${cutItemsCount || 0} selected)` : 'Select items to cut'}>
+        <span>
+          <IconButton 
+            onClick={onCut} 
+            size="small" 
+            disabled={!canCut}
+            color={canCut ? 'primary' : 'default'}
+          >
+            <CutIcon />
+          </IconButton>
+        </span>
+      </Tooltip>
+
+      <Tooltip title={canPaste ? 'Paste cut items here' : 'No items to paste'}>
+        <span>
+          <IconButton 
+            onClick={onPaste} 
+            size="small" 
+            disabled={!canPaste}
+            color={canPaste ? 'primary' : 'default'}
+          >
+            <PasteIcon />
+          </IconButton>
+        </span>
+      </Tooltip>
 
       {/* New Folder Button */}
       {onCreateFolder && (

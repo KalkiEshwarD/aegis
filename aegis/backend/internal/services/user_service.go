@@ -1,9 +1,8 @@
 package services
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
+	"log"
 
 	apperrors "github.com/balkanid/aegis-backend/internal/errors"
 	"golang.org/x/crypto/bcrypt"
@@ -11,7 +10,7 @@ import (
 
 	"github.com/balkanid/aegis-backend/internal/database"
 	"github.com/balkanid/aegis-backend/internal/models"
-	"github.com/balkanid/aegis-backend/internal/utils"
+	"github.com/balkanid/aegis-backend/internal/shared/validation"
 )
 
 type UserService struct {
@@ -26,21 +25,18 @@ func NewUserService(authService *AuthService, db *database.DB) *UserService {
 // Register creates a new user account
 func (s *UserService) Register(username, email, password string) (*models.User, string, error) {
 	// Validate username
-	usernameResult := utils.ValidateUsername(username)
-	if usernameResult.HasErrors() {
-		return nil, "", apperrors.New(apperrors.ErrCodeInvalidArgument, usernameResult.Errors[0])
+	if err := validation.ValidateUsername(username); err != nil {
+		return nil, "", apperrors.Wrap(err, apperrors.ErrCodeInvalidArgument, "username validation failed")
 	}
 
 	// Validate email
-	emailResult := utils.ValidateEmail(email)
-	if emailResult.HasErrors() {
-		return nil, "", apperrors.New(apperrors.ErrCodeInvalidArgument, emailResult.Errors[0])
+	if err := validation.ValidateEmail(email); err != nil {
+		return nil, "", apperrors.Wrap(err, apperrors.ErrCodeInvalidArgument, "email validation failed")
 	}
 
 	// Validate password
-	passwordResult := utils.ValidatePassword(password, utils.DefaultPasswordRequirements())
-	if passwordResult.HasErrors() {
-		return nil, "", apperrors.New(apperrors.ErrCodeInvalidArgument, passwordResult.Errors[0])
+	if err := validation.ValidatePassword(password, validation.DefaultPasswordRequirements()); err != nil {
+		return nil, "", apperrors.Wrap(err, apperrors.ErrCodeInvalidArgument, "password validation failed")
 	}
 
 	// Check if user already exists
@@ -83,26 +79,37 @@ func (s *UserService) Register(username, email, password string) (*models.User, 
 
 // Login authenticates a user and returns a JWT token
 func (s *UserService) Login(identifier, password string) (*models.User, string, error) {
+	log.Printf("DEBUG: UserService.Login called with identifier: %s", identifier)
+
 	// Find user by email or username
 	var user models.User
 	if err := s.db.GetDB().Where("email = ? OR username = ?", identifier, identifier).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Printf("DEBUG: User not found with identifier: %s", identifier)
 			return nil, "", apperrors.New(apperrors.ErrCodeUnauthorized, "invalid credentials")
 		}
+		log.Printf("DEBUG: Database error during user lookup: %v", err)
 		return nil, "", apperrors.Wrap(err, apperrors.ErrCodeInternal, "database error")
 	}
 
+	log.Printf("DEBUG: User found: ID=%d, Email=%s, Username=%s", user.ID, user.Email, user.Username)
+
 	// Verify password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		log.Printf("DEBUG: Password verification failed for user: %s", user.Email)
 		return nil, "", apperrors.New(apperrors.ErrCodeUnauthorized, "invalid credentials")
 	}
+
+	log.Printf("DEBUG: Password verified successfully for user: %s", user.Email)
 
 	// Generate JWT token
 	token, err := s.authService.GenerateToken(&user)
 	if err != nil {
+		log.Printf("DEBUG: Failed to generate JWT token: %v", err)
 		return nil, "", apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to generate token")
 	}
 
+	log.Printf("DEBUG: Login successful, JWT token generated for user: %s", user.Email)
 	return &user, token, nil
 }
 
@@ -184,11 +191,6 @@ func (s *UserService) GetAllUsers() ([]*models.User, error) {
 	return users, err
 }
 
-// HashSHA256 creates a SHA-256 hash of the input
-func HashSHA256(data []byte) string {
-	hash := sha256.Sum256(data)
-	return hex.EncodeToString(hash[:])
-}
 
 // UserStats represents user storage statistics
 type UserStats struct {

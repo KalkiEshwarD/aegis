@@ -8,12 +8,15 @@ import (
 	"github.com/balkanid/aegis-backend/internal/config"
 	"github.com/balkanid/aegis-backend/internal/models"
 	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
 // Connect initializes the database connection
 func (db *DB) Connect(cfg *config.Config) error {
+	log.Println("DEBUG: Initializing database connection...")
+
 	var err error
 
 	// Configure GORM logger
@@ -22,18 +25,30 @@ func (db *DB) Connect(cfg *config.Config) error {
 		logLevel = logger.Info
 	}
 
-	// Modify database URL to disable PostgreSQL plan caching
-	// Add parameters to prevent "cached plan must not change result type" errors
 	dbURL := cfg.DatabaseURL
-	if !strings.Contains(dbURL, "plan_cache_mode=") {
-		if strings.Contains(dbURL, "?") {
-			dbURL += "&plan_cache_mode=force_custom_plan"
-		} else {
-			dbURL += "?plan_cache_mode=force_custom_plan"
+	log.Printf("DEBUG: Database URL configured (length: %d characters)", len(dbURL))
+
+	// Determine database driver based on URL
+	var dialector gorm.Dialector
+	if strings.HasPrefix(dbURL, "postgres://") || strings.Contains(dbURL, "postgresql") {
+		// PostgreSQL connection
+		// Modify database URL to disable PostgreSQL plan caching
+		// Add parameters to prevent "cached plan must not change result type" errors
+		if !strings.Contains(dbURL, "plan_cache_mode=") {
+			if strings.Contains(dbURL, "?") {
+				dbURL += "&plan_cache_mode=force_custom_plan"
+			} else {
+				dbURL += "?plan_cache_mode=force_custom_plan"
+			}
 		}
+
+		dialector = postgres.Open(dbURL)
+	} else {
+		// SQLite connection (for tests)
+		dialector = sqlite.Open(dbURL)
 	}
 
-	db.db, err = gorm.Open(postgres.Open(dbURL), &gorm.Config{
+	db.db, err = gorm.Open(dialector, &gorm.Config{
 		Logger:      logger.Default.LogMode(logLevel),
 		PrepareStmt: false, // Disable prepared statements to avoid cached plan issues
 	})

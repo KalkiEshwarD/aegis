@@ -20,6 +20,7 @@ import {
   CloudUpload as CloudUploadIcon,
   Folder as FolderIcon,
   Edit as EditIcon,
+  ContentCut as CutIcon,
 } from '@mui/icons-material';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_MY_FILES, MOVE_FILE_MUTATION } from '../../apollo/files';
@@ -64,8 +65,20 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const [newItemName, setNewItemName] = useState('');
   const [renameError, setRenameError] = useState<string | null>(null);
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
-  const [cutItems, setCutItems] = useState<Set<string>>(new Set());
-  const [copiedItems, setCopiedItems] = useState<Set<string>>(new Set());
+  const [selectionAnchor, setSelectionAnchor] = useState<number>(-1);
+  const [isBoxSelecting, setIsBoxSelecting] = useState(false);
+  const [boxSelectionStart, setBoxSelectionStart] = useState<{ x: number; y: number } | null>(null);
+  const [boxSelectionEnd, setBoxSelectionEnd] = useState<{ x: number; y: number } | null>(null);
+  const [cutItems, setCutItems] = useState<Set<string>>(() => {
+    // Initialize from localStorage to persist across folder navigation
+    const stored = localStorage.getItem('fileExplorerCutItems');
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  });
+  const [copiedItems, setCopiedItems] = useState<Set<string>>(() => {
+    // Initialize from localStorage to persist across folder navigation
+    const stored = localStorage.getItem('fileExplorerCopiedItems');
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  });
   const [snackbarMessage, setSnackbarMessage] = useState<string>('');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -83,6 +96,13 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const { data: foldersData, refetch: refetchFolders } = useQuery(GET_MY_FOLDERS, {
     fetchPolicy: 'cache-and-network',
   });
+
+  // Get all available files and folders for paste operations
+  const allAvailableItems = useMemo(() => {
+    const allFiles = data?.myFiles || [];
+    const allFolders = foldersData?.myFolders || [];
+    return [...allFiles, ...allFolders];
+  }, [data?.myFiles, foldersData?.myFolders]);
 
   const [moveFileMutation] = useMutation(MOVE_FILE_MUTATION);
   const [createFolderMutation] = useMutation(CREATE_FOLDER_MUTATION);
@@ -140,6 +160,14 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   // Combine folders and files for display
   const allItems: FileExplorerItem[] = [...currentFolders, ...sortedFiles];
 
+  // Helper function to select a range of items
+  const selectRange = useCallback((startIndex: number, endIndex: number) => {
+    const start = Math.min(startIndex, endIndex);
+    const end = Math.max(startIndex, endIndex);
+    const rangeIds = allItems.slice(start, end + 1).map(item => item.id);
+    setSelectedFiles(new Set(rangeIds));
+  }, [allItems]);
+
   // File operations handlers
   const handleDownload = useCallback(async (file: UserFile) => {
     await downloadFile(file);
@@ -153,6 +181,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
   // Handle file selection
   const handleFileClick = (fileId: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent bubbling to container
+
     if (event.ctrlKey || event.metaKey) {
       setSelectedFiles(prev => {
         const newSet = new Set(prev);
@@ -164,7 +194,56 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         return newSet;
       });
     } else {
-      setSelectedFiles(new Set([fileId]));
+      // If clicking on an already selected file, deselect it
+      if (selectedFiles.has(fileId) && selectedFiles.size === 1) {
+        setSelectedFiles(new Set());
+      } else {
+        setSelectedFiles(new Set([fileId]));
+      }
+    }
+  };
+
+  // Handle item selection (for both files and folders)
+  const handleItemSelect = (itemId: string, event: React.MouseEvent, modifiers?: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => {
+    event.stopPropagation(); // Prevent bubbling to container
+
+    // Use captured modifiers if provided (for folders), otherwise use event properties (for files)
+    const ctrlKey = modifiers?.ctrlKey ?? event.ctrlKey;
+    const metaKey = modifiers?.metaKey ?? event.metaKey;
+    const shiftKey = modifiers?.shiftKey ?? event.shiftKey;
+
+    const itemIndex = allItems.findIndex(item => item.id === itemId);
+
+    if (shiftKey) {
+      if (selectionAnchor === -1 || selectedFiles.size === 0) {
+        // If no anchor or no selection, set current as anchor and select it
+        setSelectionAnchor(itemIndex);
+        setSelectedFiles(new Set([itemId]));
+      } else {
+        // Select range from anchor to current
+        selectRange(selectionAnchor, itemIndex);
+      }
+    } else if (ctrlKey || metaKey) {
+      // Cmd/Ctrl selection: toggle individual items
+      setSelectedFiles(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(itemId)) {
+          newSet.delete(itemId);
+          // If this was the only selected item, clear the anchor
+          if (newSet.size === 0) {
+            setSelectionAnchor(-1);
+          }
+        } else {
+          newSet.add(itemId);
+          // Set anchor to current item for future shift selections
+          setSelectionAnchor(itemIndex);
+        }
+        return newSet;
+      });
+    } else {
+      // Regular click - single selection
+      setSelectionAnchor(itemIndex);
+      setSelectedFiles(new Set([itemId]));
     }
   };
 
@@ -223,6 +302,80 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       await handleFiles(files);
     }
   }, [handleFiles]);
+
+  // Box selection handlers
+  const handleMouseDown = useCallback((event: React.MouseEvent) => {
+    // Only start box selection if clicking on the container itself (empty space)
+    // Check if we're clicking on the container or empty space
+    const isContainer = event.target === event.currentTarget;
+    const isEmptySpace = (event.target as HTMLElement).classList.contains('file-explorer-empty-space');
+    const hasFileItem = (event.target as HTMLElement).closest('[data-file-item]');
+    const hasButton = (event.target as HTMLElement).closest('button');
+    const hasIconButton = (event.target as HTMLElement).closest('.MuiIconButton-root');
+    
+    // Only start box selection if we're clicking on truly empty space
+    if ((isContainer || isEmptySpace) && !hasFileItem && !hasButton && !hasIconButton) {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect) {
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        setBoxSelectionStart({ x, y });
+        setBoxSelectionEnd({ x, y });
+        setIsBoxSelecting(true);
+      }
+    }
+  }, []);
+
+  const handleMouseMove = useCallback((event: React.MouseEvent) => {
+    if (isBoxSelecting && boxSelectionStart) {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect) {
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        setBoxSelectionEnd({ x, y });
+      }
+    }
+  }, [isBoxSelecting, boxSelectionStart]);
+
+  const handleMouseUp = useCallback(() => {
+    if (isBoxSelecting && boxSelectionStart && boxSelectionEnd) {
+      // Calculate which items are within the selection box
+      const selectedIds = new Set<string>();
+      const containerRect = containerRef.current?.getBoundingClientRect();
+
+      if (containerRect) {
+        allItems.forEach((item, index) => {
+          const itemElement = document.querySelector(`[data-file-item="${item.id}"]`) as HTMLElement;
+          if (itemElement) {
+            const itemRect = itemElement.getBoundingClientRect();
+            const relativeRect = {
+              left: itemRect.left - containerRect.left,
+              top: itemRect.top - containerRect.top,
+              right: itemRect.right - containerRect.left,
+              bottom: itemRect.bottom - containerRect.top,
+            };
+
+            const boxLeft = Math.min(boxSelectionStart.x, boxSelectionEnd.x);
+            const boxRight = Math.max(boxSelectionStart.x, boxSelectionEnd.x);
+            const boxTop = Math.min(boxSelectionStart.y, boxSelectionEnd.y);
+            const boxBottom = Math.max(boxSelectionStart.y, boxSelectionEnd.y);
+
+            // Check if item intersects with selection box
+            if (relativeRect.left < boxRight && relativeRect.right > boxLeft &&
+                relativeRect.top < boxBottom && relativeRect.bottom > boxTop) {
+              selectedIds.add(item.id);
+            }
+          }
+        });
+      }
+
+      setSelectedFiles(selectedIds);
+    }
+
+    setIsBoxSelecting(false);
+    setBoxSelectionStart(null);
+    setBoxSelectionEnd(null);
+  }, [isBoxSelecting, boxSelectionStart, boxSelectionEnd, allItems]);
 
   // Handle file move via drag and drop
   const handleFileMove = useCallback(async (fileIds: string[], targetFolderId: string | null) => {
@@ -411,20 +564,35 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     }
 
     setFocusedIndex(newIndex);
-    // Update selection if shift is not pressed
-    if (!shiftKey) {
+
+    if (shiftKey) {
+      if (selectionAnchor === -1) {
+        // If no anchor, set current focused index as anchor
+        setSelectionAnchor(focusedIndex >= 0 ? focusedIndex : newIndex);
+        setSelectedFiles(new Set([allItems[newIndex].id]));
+      } else {
+        // Select range from anchor to new index
+        selectRange(selectionAnchor, newIndex);
+      }
+    } else {
+      setSelectionAnchor(newIndex);
       setSelectedFiles(new Set([allItems[newIndex].id]));
     }
-  }, [allItems, focusedIndex]);
+  }, [allItems, focusedIndex, selectionAnchor, selectRange]);
 
   const handleEnterKey = useCallback(() => {
     if (focusedIndex >= 0 && focusedIndex < allItems.length) {
       const item = allItems[focusedIndex];
+      console.log('DEBUG: FileExplorer handleEnterKey called for item:', item.id, 'isFolder:', isFolder(item));
       if (isFolder(item) && onFolderClick) {
+        console.log('DEBUG: FileExplorer calling onFolderClick for folder:', item.name);
         onFolderClick(item.id, item.name);
       } else if (isFile(item)) {
+        console.log('DEBUG: FileExplorer handling file selection for:', item.filename);
         // For files, just select it (could be extended to open/download)
         setSelectedFiles(new Set([item.id]));
+      } else {
+        console.log('DEBUG: FileExplorer no action taken - item is not folder or onFolderClick not available');
       }
     }
   }, [allItems, focusedIndex, onFolderClick]);
@@ -459,34 +627,57 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
   const handleCutKey = useCallback(() => {
     const selectedItemIds = Array.from(selectedFiles);
+    console.log('DEBUG: handleCutKey called with selectedFiles:', selectedItemIds);
     if (selectedItemIds.length > 0) {
-      setCutItems(new Set(selectedItemIds));
+      console.log('DEBUG: Setting cutItems to:', selectedItemIds);
+      const newCutItems = new Set(selectedItemIds);
+      setCutItems(newCutItems);
+      localStorage.setItem('fileExplorerCutItems', JSON.stringify(Array.from(newCutItems)));
       setCopiedItems(new Set()); // Clear copied items when cutting
+      localStorage.setItem('fileExplorerCopiedItems', JSON.stringify([]));
       setSnackbarMessage(`${selectedItemIds.length} item(s) cut`);
       setSnackbarOpen(true);
+    } else {
+      console.log('DEBUG: No items selected for cutting');
     }
   }, [selectedFiles]);
 
   const handleCopyKey = useCallback(() => {
     const selectedItemIds = Array.from(selectedFiles);
     if (selectedItemIds.length > 0) {
-      setCopiedItems(new Set(selectedItemIds));
+      const newCopiedItems = new Set(selectedItemIds);
+      setCopiedItems(newCopiedItems);
+      localStorage.setItem('fileExplorerCopiedItems', JSON.stringify(Array.from(newCopiedItems)));
       setCutItems(new Set()); // Clear cut items when copying
+      localStorage.setItem('fileExplorerCutItems', JSON.stringify([]));
       setSnackbarMessage(`${selectedItemIds.length} item(s) copied`);
       setSnackbarOpen(true);
     }
   }, [selectedFiles]);
 
   const handlePasteKey = useCallback(async () => {
+    console.log('DEBUG: handlePasteKey called');
+    console.log('DEBUG: cutItems size:', cutItems.size, 'cutItems:', Array.from(cutItems));
+    console.log('DEBUG: copiedItems size:', copiedItems.size, 'copiedItems:', Array.from(copiedItems));
+    console.log('DEBUG: current folderId:', folderId);
+    console.log('DEBUG: allAvailableItems count:', allAvailableItems.length);
+
     // Handle cut items (move operation)
     if (cutItems.size > 0) {
       try {
         const cutItemIds = Array.from(cutItems);
+        console.log('DEBUG: Processing cut items:', cutItemIds);
+
         for (const itemId of cutItemIds) {
-          const item = allItems.find(i => i.id === itemId);
-          if (!item) continue;
+          const item = allAvailableItems.find(i => i.id === itemId);
+          console.log('DEBUG: Looking for itemId:', itemId, 'found:', !!item);
+          if (!item) {
+            console.log('DEBUG: Item not found in allAvailableItems, skipping:', itemId);
+            continue;
+          }
 
           if (isFile(item)) {
+            console.log('DEBUG: Moving file:', item.filename);
             await moveFileMutation({
               variables: {
                 input: {
@@ -496,6 +687,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
               },
             });
           } else if (isFolder(item)) {
+            console.log('DEBUG: Moving folder:', item.name);
             await moveFolderMutation({
               variables: {
                 input: {
@@ -508,6 +700,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         }
 
         setCutItems(new Set());
+        localStorage.setItem('fileExplorerCutItems', JSON.stringify([]));
         refetch();
         refetchFolders();
         setSnackbarMessage(`${cutItemIds.length} item(s) moved`);
@@ -527,18 +720,23 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
     // Handle copied items (copy operation)
     if (copiedItems.size > 0) {
+      console.log('DEBUG: Copy functionality not implemented, showing message');
       setSnackbarMessage('Copy functionality requires backend API implementation. Only cut/paste (move) is currently supported.');
       setSnackbarOpen(true);
+      // Clear copied items since paste was attempted
+      setCopiedItems(new Set());
+      localStorage.setItem('fileExplorerCopiedItems', JSON.stringify([]));
       return;
     }
 
     // No items to paste
+    console.log('DEBUG: No items to paste - cutItems.size:', cutItems.size, 'copiedItems.size:', copiedItems.size);
     setSnackbarMessage('No files or folders to paste');
     setSnackbarOpen(true);
   }, [
     cutItems,
     copiedItems,
-    allItems,
+    allAvailableItems,
     folderId,
     moveFileMutation,
     moveFolderMutation,
@@ -643,6 +841,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
 
 
+
   if (queryError) {
     return (
       <Alert severity="error">
@@ -664,33 +863,58 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         onSortChange={handleSortChange}
         onToggleSortDirection={toggleSortDirection}
         onCreateFolder={handleCreateFolderClick}
+        onCut={() => {
+          if (selectedFiles.size > 0) {
+            handleCutKey();
+          }
+        }}
+        onPaste={handlePasteKey}
+        canCut={selectedFiles.size > 0}
+        canPaste={cutItems.size > 0}
+        cutItemsCount={selectedFiles.size}
       />
+
 
       {/* File Explorer Area */}
       <Paper
         ref={containerRef}
         tabIndex={0}
+        className="file-explorer-container"
         sx={{
           flex: 1,
           p: 2,
           border: '2px dashed',
           borderColor: isDragOver ? 'primary.main' : 'transparent',
           backgroundColor: isDragOver ? 'action.hover' : 'background.paper',
-          cursor: 'default',
+          cursor: isBoxSelecting ? 'crosshair' : 'default',
           transition: 'all 0.2s ease-in-out',
           minHeight: 400,
           position: 'relative',
           '&:focus': {
-            outline: '2px solid #3b82f6',
-            outlineOffset: 2,
+            outline: 'none',
           },
+          userSelect: 'none', // Prevent text selection during box selection
         }}
+        onClick={(e) => {
+          // Only clear selection if clicking on empty space
+          const hasFileItem = (e.target as HTMLElement).closest('[data-file-item]');
+          const hasButton = (e.target as HTMLElement).closest('button');
+          const hasIconButton = (e.target as HTMLElement).closest('.MuiIconButton-root');
+          
+          if (!hasFileItem && !hasButton && !hasIconButton) {
+            setSelectedFiles(new Set());
+          }
+        }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
         {allItems.length === 0 && uploads.length === 0 ? (
           <Box
+            className="file-explorer-empty-space"
             display="flex"
             flexDirection="column"
             alignItems="center"
@@ -706,17 +930,37 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
             </Typography>
           </Box>
         ) : (
-          <FileGrid
-            files={allItems}
-            selectedFiles={selectedFiles}
-            downloadingFile={downloadingFile}
-            focusedIndex={focusedIndex}
-            onFileClick={handleFileClick}
-            onContextMenu={handleContextMenu}
-            onDownload={handleDownload}
-            onDelete={handleDeleteClick}
-            onFolderClick={onFolderClick}
-            onFileMove={handleFileMove}
+          <div className="file-explorer-grid-container">
+            <FileGrid
+              files={allItems}
+              selectedFiles={selectedFiles}
+              downloadingFile={downloadingFile}
+              focusedIndex={focusedIndex}
+              onFileClick={handleFileClick}
+              onContextMenu={handleContextMenu}
+              onDownload={handleDownload}
+              onDelete={handleDeleteClick}
+              onFolderClick={onFolderClick}
+              onFileMove={handleFileMove}
+              onItemSelect={handleItemSelect}
+            />
+          </div>
+        )}
+
+        {/* Box selection overlay */}
+        {isBoxSelecting && boxSelectionStart && boxSelectionEnd && (
+          <Box
+            sx={{
+              position: 'absolute',
+              left: Math.min(boxSelectionStart.x, boxSelectionEnd.x),
+              top: Math.min(boxSelectionStart.y, boxSelectionEnd.y),
+              width: Math.abs(boxSelectionEnd.x - boxSelectionStart.x),
+              height: Math.abs(boxSelectionEnd.y - boxSelectionStart.y),
+              border: '2px solid #3b82f6',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              pointerEvents: 'none',
+              zIndex: 1000,
+            }}
           />
         )}
       </Paper>
@@ -763,7 +1007,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
                     setCutItems(new Set([item.id]));
                     handleContextMenuClose();
                   }}>
-                    <DeleteIcon sx={{ mr: 1 }} />
+                    <CutIcon sx={{ mr: 1 }} />
                     Cut
                   </MenuItem>
                 </>
@@ -773,27 +1017,24 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
               {isItemFolder && (
                 <>
                   <MenuItem onClick={() => {
-                    if (onFolderClick) onFolderClick(item.id, item.name);
+                    console.log('DEBUG: FileExplorer context menu Open Folder clicked for:', item.name);
+                    if (onFolderClick) {
+                      console.log('DEBUG: FileExplorer calling onFolderClick from context menu');
+                      onFolderClick(item.id, item.name);
+                    } else {
+                      console.log('DEBUG: FileExplorer onFolderClick not available in context menu');
+                    }
                     handleContextMenuClose();
                   }}>
                     <FolderIcon sx={{ mr: 1 }} />
                     Open Folder
                   </MenuItem>
                   <MenuItem onClick={() => {
-                    setRenameItem(item);
-                    setNewItemName(item.name);
-                    setRenameDialogOpen(true);
-                    handleContextMenuClose();
-                  }}>
-                    <EditIcon sx={{ mr: 1 }} />
-                    Rename
-                  </MenuItem>
-                  <MenuItem onClick={() => {
                     setSelectedFiles(new Set([item.id]));
                     setCutItems(new Set([item.id]));
                     handleContextMenuClose();
                   }}>
-                    <DeleteIcon sx={{ mr: 1 }} />
+                    <CutIcon sx={{ mr: 1 }} />
                     Cut
                   </MenuItem>
                 </>

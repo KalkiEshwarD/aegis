@@ -21,6 +21,8 @@ type Config struct {
 }
 
 func Load() *Config {
+	log.Println("DEBUG: Loading configuration...")
+
 	config := &Config{
 		DatabaseURL:        getEnvRequired("DATABASE_URL"),
 		MinIOEndpoint:      getEnv("MINIO_ENDPOINT", "localhost:9000"),
@@ -33,6 +35,9 @@ func Load() *Config {
 		CORSAllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000"),
 		BaseURL:            getEnv("BASE_URL", "http://localhost:8080"),
 	}
+
+	log.Printf("DEBUG: Configuration loaded - Port: %s, CORS Origins: %s, BaseURL: %s", config.Port, config.CORSAllowedOrigins, config.BaseURL)
+	log.Printf("DEBUG: JWT Secret length: %d characters", len(config.JWTSecret))
 
 	// Validate that sensitive values are not using known insecure defaults
 	validateSecureConfig(config)

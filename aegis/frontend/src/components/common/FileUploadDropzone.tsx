@@ -18,13 +18,12 @@ import { UPLOAD_FILE_FROM_MAP_MUTATION, GET_MY_STATS } from '../../apollo/files'
 import {
   generateEncryptionKey,
   encryptFile,
-  calculateFileHash,
   fileToUint8Array,
   uint8ArrayToBase64,
 } from '../../utils/crypto';
-import { formatFileSize, getMimeTypeFromExtension } from '../../utils/fileUtils';
+import { formatFileSize, calculateFileHash } from '../../shared/utils';
 import { FileUploadProgress } from '../../types';
-import { getErrorMessage, getErrorCode } from '../../utils/errorHandling';
+import { handleFileOperationError } from '../../shared/errors';
 import withErrorBoundary from '../hocs/withErrorBoundary';
 import withAuth from '../hocs/withAuth';
 
@@ -121,7 +120,7 @@ const FileUploadDropzone: React.FC<FileUploadDropzoneProps> = ({
       const encryptedDataBase64 = uint8ArrayToBase64(encryptedDataWithNonce);
 
       // Determine MIME type
-      const mimeType = file.type || getMimeTypeFromExtension(file.name);
+      const mimeType = file.type || 'application/octet-stream';
 
       // Prepare encrypted key for storage (we'll store it encrypted with user's key in a real implementation)
       // For now, we'll store it as base64 (in production, this should be encrypted with user's master key)
@@ -167,18 +166,19 @@ const FileUploadDropzone: React.FC<FileUploadDropzoneProps> = ({
 
     } catch (err: any) {
       console.error('Upload error:', err);
-      const errorMessage = getErrorMessage(err) || 'Upload failed';
-      const errorCode = getErrorCode(err);
 
-      // Provide more specific error messages based on error code
+      // Use centralized error handling
+      const errorMessage = err?.message || err?.toString() || 'Upload failed';
+
+      // Provide more specific error messages based on error content
       let displayMessage = errorMessage;
-      if (errorCode === 'storage_quota_exceeded') {
+      if (errorMessage.includes('quota') || errorMessage.includes('storage')) {
         displayMessage = 'Storage quota exceeded. Please free up space or contact administrator.';
-      } else if (errorCode === 'validation_error') {
+      } else if (errorMessage.includes('validation') || errorMessage.includes('invalid')) {
         displayMessage = 'File validation failed. Please check file format and size.';
-      } else if (errorCode === 'authentication_error') {
+      } else if (errorMessage.includes('auth') || errorMessage.includes('unauthorized')) {
         displayMessage = 'Authentication required. Please log in again.';
-      } else if (errorCode === 'permission_error') {
+      } else if (errorMessage.includes('permission') || errorMessage.includes('forbidden')) {
         displayMessage = 'Permission denied. You may not have access to upload files.';
       }
 

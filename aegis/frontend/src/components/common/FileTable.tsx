@@ -12,10 +12,6 @@ import {
   Typography,
   Box,
   Alert,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Button,
   TextField,
   InputAdornment,
@@ -27,7 +23,8 @@ import {
   InsertDriveFile as FileIcon,
 } from '@mui/icons-material';
 import { GET_MY_FILES } from '../../apollo/files';
-import { formatFileSize } from '../../utils/fileUtils';
+import { formatFileSize } from '../../shared/utils';
+import { DeleteConfirmationDialog } from '../../shared/components';
 import { UserFile, FileFilterInput } from '../../types';
 import { useFileOperations } from '../../hooks/useFileOperations';
 import withErrorBoundary from '../hocs/withErrorBoundary';
@@ -217,21 +214,13 @@ const FileTableBase: React.FC<FileTableWithDataProps> = ({
       )}
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>Delete File</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to delete "{fileToDelete?.filename}"?
-            This action cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleDeleteConfirm} color="error" variant="contained">
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <DeleteConfirmationDialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        itemName={fileToDelete?.filename || ''}
+        itemType="file"
+      />
     </Box>
   );
 };
