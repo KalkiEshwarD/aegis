@@ -34,14 +34,14 @@ import (
 
 // ShareAccessTemplateData represents the data passed to the share access HTML template
 type ShareAccessTemplateData struct {
-	Token                string
-	Filename             string
-	MimeType             string
-	SizeFormatted        string
-	ExpiresAt            *time.Time
-	ExpiresAtFormatted   string
-	MaxDownloads         int
-	RemainingDownloads   int
+	Token              string
+	Filename           string
+	MimeType           string
+	SizeFormatted      string
+	ExpiresAt          *time.Time
+	ExpiresAtFormatted string
+	MaxDownloads       int
+	RemainingDownloads int
 }
 
 // formatFileSize formats bytes into human readable format

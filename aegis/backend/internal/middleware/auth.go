@@ -22,7 +22,6 @@ const (
 	UserContextKey contextKey = "user"
 )
 
-
 // AuthMiddleware validates JWT tokens and adds user context
 func AuthMiddleware(cfg *config.Config, authService *services.AuthService, db *database.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {

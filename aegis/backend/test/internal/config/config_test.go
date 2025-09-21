@@ -60,14 +60,14 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 		"DATABASE_URL", "MINIO_ENDPOINT", "MINIO_ACCESS_KEY", "MINIO_SECRET_KEY",
 		"MINIO_BUCKET", "JWT_SECRET", "PORT", "GIN_MODE",
 	}
-	
+
 	originalValues := make(map[string]string)
 	for _, envVar := range envVars {
 		if value, exists := os.LookupEnv(envVar); exists {
 			originalValues[envVar] = value
 		}
 	}
-	
+
 	defer func() {
 		// Restore original values
 		for _, envVar := range envVars {
@@ -78,7 +78,7 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 			}
 		}
 	}()
-	
+
 	// Set custom environment variables
 	os.Setenv("DATABASE_URL", "postgres://test:test@testhost:5432/testdb")
 	os.Setenv("MINIO_ENDPOINT", "testminio:9000")
@@ -88,9 +88,9 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 	os.Setenv("JWT_SECRET", "test-jwt-secret-that-is-at-least-32-characters")
 	os.Setenv("PORT", "3000")
 	os.Setenv("GIN_MODE", "release")
-	
+
 	cfg := config.Load()
-	
+
 	assert.Equal(t, "postgres://test:test@testhost:5432/testdb", cfg.DatabaseURL)
 	assert.Equal(t, "testminio:9000", cfg.MinIOEndpoint)
 	assert.Equal(t, "testaccess", cfg.MinIOAccessKey)

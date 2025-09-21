@@ -204,6 +204,19 @@ export const GET_MY_TRASHED_FOLDERS = gql`
       parent_id
       created_at
       updated_at
+      children {
+        id
+        name
+      }
+      files {
+        id
+        filename
+        mime_type
+        created_at
+        file {
+          size_bytes
+        }
+      }
     }
   }
 `;
@@ -252,6 +265,18 @@ export const STAR_FILE_MUTATION = gql`
 export const UNSTAR_FILE_MUTATION = gql`
   mutation UnstarFile($id: ID!) {
     unstarFile(id: $id)
+  }
+`;
+
+export const STAR_FOLDER_MUTATION = gql`
+  mutation StarFolder($id: ID!) {
+    starFolder(id: $id)
+  }
+`;
+
+export const UNSTAR_FOLDER_MUTATION = gql`
+  mutation UnstarFolder($id: ID!) {
+    unstarFolder(id: $id)
   }
 `;
 

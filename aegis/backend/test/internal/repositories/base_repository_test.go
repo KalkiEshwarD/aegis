@@ -15,11 +15,11 @@ import (
 
 type BaseRepositoryTestSuite struct {
 	suite.Suite
-	db              *gorm.DB
-	baseRepository  *repositories.BaseRepository
-	testUser        models.User
-	testFile        models.File
-	testUserFile    models.UserFile
+	db             *gorm.DB
+	baseRepository *repositories.BaseRepository
+	testUser       models.User
+	testFile       models.File
+	testUserFile   models.UserFile
 }
 
 func (suite *BaseRepositoryTestSuite) SetupSuite() {

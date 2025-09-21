@@ -30,46 +30,46 @@ type GraphQLEndpoints struct {
 }
 
 type APIEndpoints struct {
-	Base   string
-	Files  FilesEndpoints
-	Share  ShareEndpoints
-	Shared SharedEndpoints
-	Health HealthEndpoints
+	Base    string
+	Files   FilesEndpoints
+	Share   ShareEndpoints
+	Shared  SharedEndpoints
+	Health  HealthEndpoints
 	GraphQL GraphQLEndpoints
 }
 
 type Config struct {
-	DatabaseURL             string
-	MinIOEndpoint           string
-	MinIOAccessKey          string
-	MinIOSecretKey          string
-	MinIOBucket             string
-	JWTSecret               string
-	Port                    string
-	GinMode                 string
-	CORSAllowedOrigins      string
-	BaseURL                 string
+	DatabaseURL                string
+	MinIOEndpoint              string
+	MinIOAccessKey             string
+	MinIOSecretKey             string
+	MinIOBucket                string
+	JWTSecret                  string
+	Port                       string
+	GinMode                    string
+	CORSAllowedOrigins         string
+	BaseURL                    string
 	RateLimitRequestsPerSecond float64
-	RateLimitBurst          int
-	APIEndpoints            APIEndpoints
+	RateLimitBurst             int
+	APIEndpoints               APIEndpoints
 }
 
 func Load() *Config {
 	log.Println("DEBUG: Loading configuration...")
 
 	config := &Config{
-		DatabaseURL:             getEnvRequired("DATABASE_URL"),
-		MinIOEndpoint:           getEnv("MINIO_ENDPOINT", "localhost:9000"),
-		MinIOAccessKey:          getEnvRequired("MINIO_ACCESS_KEY"),
-		MinIOSecretKey:          getEnvRequired("MINIO_SECRET_KEY"),
-		MinIOBucket:             getEnv("MINIO_BUCKET", "aegis-files"),
-		JWTSecret:               getEnvRequired("JWT_SECRET"),
-		Port:                    getEnv("PORT", "8080"),
-		GinMode:                 getEnv("GIN_MODE", "debug"),
-		CORSAllowedOrigins:      getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000"),
-		BaseURL:                 getEnv("BASE_URL", "http://localhost:8080"),
+		DatabaseURL:                getEnvRequired("DATABASE_URL"),
+		MinIOEndpoint:              getEnv("MINIO_ENDPOINT", "localhost:9000"),
+		MinIOAccessKey:             getEnvRequired("MINIO_ACCESS_KEY"),
+		MinIOSecretKey:             getEnvRequired("MINIO_SECRET_KEY"),
+		MinIOBucket:                getEnv("MINIO_BUCKET", "aegis-files"),
+		JWTSecret:                  getEnvRequired("JWT_SECRET"),
+		Port:                       getEnv("PORT", "8080"),
+		GinMode:                    getEnv("GIN_MODE", "debug"),
+		CORSAllowedOrigins:         getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000"),
+		BaseURL:                    getEnv("BASE_URL", "http://localhost:8080"),
 		RateLimitRequestsPerSecond: getEnvFloat("RATE_LIMIT_REQUESTS_PER_SECOND", 10.0),
-		RateLimitBurst:          getEnvInt("RATE_LIMIT_BURST", 20),
+		RateLimitBurst:             getEnvInt("RATE_LIMIT_BURST", 20),
 		APIEndpoints: APIEndpoints{
 			Base: "/v1/api",
 			Files: FilesEndpoints{
@@ -139,10 +139,10 @@ func getEnvInt(key string, defaultValue int) int {
 func validateSecureConfig(config *Config) {
 	// Check for known insecure defaults
 	insecureDefaults := map[string]string{
-		"DATABASE_URL":    "postgres://aegis_user:aegis_password@localhost:5432/aegis?sslmode=disable",
+		"DATABASE_URL":     "postgres://aegis_user:aegis_password@localhost:5432/aegis?sslmode=disable",
 		"MINIO_ACCESS_KEY": "minioadmin",
 		"MINIO_SECRET_KEY": "minioadmin123",
-		"JWT_SECRET":      "your-super-secret-jwt-key-change-in-production",
+		"JWT_SECRET":       "your-super-secret-jwt-key-change-in-production",
 	}
 
 	for envVar, insecureValue := range insecureDefaults {

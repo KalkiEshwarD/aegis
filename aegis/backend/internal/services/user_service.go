@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"log"
+	"strings"
 
 	apperrors "github.com/balkanid/aegis-backend/internal/errors"
 	"golang.org/x/crypto/bcrypt"
@@ -25,18 +26,18 @@ func NewUserService(authService *AuthService, db *database.DB) *UserService {
 // Register creates a new user account
 func (s *UserService) Register(username, email, password string) (*models.User, string, error) {
 	// Validate username
-	if err := utils.ValidateUsername(username); err != nil {
-		return nil, "", apperrors.Wrap(err, apperrors.ErrCodeInvalidArgument, "username validation failed")
+	if result := utils.ValidateUsername(username); result.HasErrors() {
+		return nil, "", apperrors.New(apperrors.ErrCodeInvalidArgument, "username validation failed: "+strings.Join(result.Errors, ", "))
 	}
 
 	// Validate email
-	if err := utils.ValidateEmail(email); err != nil {
-		return nil, "", apperrors.Wrap(err, apperrors.ErrCodeInvalidArgument, "email validation failed")
+	if result := utils.ValidateEmail(email); result.HasErrors() {
+		return nil, "", apperrors.New(apperrors.ErrCodeInvalidArgument, "email validation failed: "+strings.Join(result.Errors, ", "))
 	}
 
 	// Validate password
-	if err := utils.ValidatePassword(password, utils.DefaultPasswordRequirements()); err != nil {
-		return nil, "", apperrors.Wrap(err, apperrors.ErrCodeInvalidArgument, "password validation failed")
+	if result := utils.ValidatePassword(password, utils.DefaultPasswordRequirements()); result.HasErrors() {
+		return nil, "", apperrors.New(apperrors.ErrCodeInvalidArgument, "password validation failed: "+strings.Join(result.Errors, ", "))
 	}
 
 	// Check if user already exists
@@ -190,7 +191,6 @@ func (s *UserService) GetAllUsers() ([]*models.User, error) {
 	err := s.db.GetDB().Find(&users).Error
 	return users, err
 }
-
 
 // UserStats represents user storage statistics
 type UserStats struct {

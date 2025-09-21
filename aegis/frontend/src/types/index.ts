@@ -44,6 +44,7 @@ export interface Folder {
   user_id: string;
   name: string;
   parent_id?: string;
+  is_starred: boolean;
   created_at: string;
   updated_at: string;
   user?: User;

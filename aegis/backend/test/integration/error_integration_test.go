@@ -26,10 +26,10 @@ func (suite *ErrorIntegrationTestSuite) TestInvalidGraphQLQueries() {
 	ctx := context.Background()
 
 	testCases := []struct {
-		name        string
-		query       string
-		variables   map[string]interface{}
-		errorMsg    string
+		name      string
+		query     string
+		variables map[string]interface{}
+		errorMsg  string
 	}{
 		{
 			name: "Invalid syntax",
@@ -80,8 +80,8 @@ func (suite *ErrorIntegrationTestSuite) TestInvalidGraphQLQueries() {
 				}
 			`,
 			variables: map[string]interface{}{
-				"identifier":    "test@test.com",
-				"password": 123, // Should be string
+				"identifier": "test@test.com",
+				"password":   123, // Should be string
 			},
 			errorMsg: "type",
 		},
@@ -105,10 +105,10 @@ func (suite *ErrorIntegrationTestSuite) TestAuthenticationFailures() {
 	ctx := context.Background()
 
 	testCases := []struct {
-		name      string
-		query     string
-		token     string
-		errorMsg  string
+		name     string
+		query    string
+		token    string
+		errorMsg string
 	}{
 		{
 			name: "No authorization header",
@@ -204,8 +204,8 @@ func (suite *ErrorIntegrationTestSuite) TestDatabaseConnectionFailures() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -273,8 +273,8 @@ func (suite *ErrorIntegrationTestSuite) TestStorageQuotaExceeded() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -355,8 +355,8 @@ func (suite *ErrorIntegrationTestSuite) TestConcurrentAccessScenarios() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -430,8 +430,8 @@ func (suite *ErrorIntegrationTestSuite) TestInvalidFileOperations() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -528,8 +528,8 @@ func (suite *ErrorIntegrationTestSuite) TestInvalidRoomOperations() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -637,8 +637,8 @@ func (suite *ErrorIntegrationTestSuite) TestNetworkTimeoutScenarios() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -714,8 +714,8 @@ func (suite *ErrorIntegrationTestSuite) TestDataIntegrityViolations() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 

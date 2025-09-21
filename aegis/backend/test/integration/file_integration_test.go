@@ -45,8 +45,8 @@ func (suite *FileIntegrationTestSuite) TestFileUploadSuccess() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -149,8 +149,8 @@ func (suite *FileIntegrationTestSuite) TestFileDownload() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -223,8 +223,8 @@ func (suite *FileIntegrationTestSuite) TestFileDeletion() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -304,8 +304,8 @@ func (suite *FileIntegrationTestSuite) TestFileDeletionUnauthorized() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -376,8 +376,8 @@ func (suite *FileIntegrationTestSuite) TestStorageQuotaEnforcement() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -463,8 +463,8 @@ func (suite *FileIntegrationTestSuite) TestFileFilteringAndSearch() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -569,8 +569,8 @@ func (suite *FileIntegrationTestSuite) TestFileUploadValidation() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -697,8 +697,8 @@ func (suite *FileIntegrationTestSuite) TestConcurrentFileOperations() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -791,8 +791,8 @@ func (suite *FileIntegrationTestSuite) TestTrashOperationsGraphQL() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -903,8 +903,8 @@ func (suite *FileIntegrationTestSuite) TestRestoreFileGraphQL() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -1029,8 +1029,8 @@ func (suite *FileIntegrationTestSuite) TestPermanentlyDeleteFileGraphQL() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -1155,8 +1155,8 @@ func (suite *FileIntegrationTestSuite) TestMyTrashedFilesGraphQL() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -1253,8 +1253,8 @@ func (suite *FileIntegrationTestSuite) TestTrashOperationsUnauthorized() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -1354,8 +1354,8 @@ func (suite *FileIntegrationTestSuite) TestPasswordBasedFileSharing() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -1401,11 +1401,11 @@ func (suite *FileIntegrationTestSuite) TestPasswordBasedFileSharing() {
 
 	var createShareResponse struct {
 		CreateFileShare struct {
-			ID         string `json:"id"`
-			ShareToken string `json:"share_token"`
-			MaxDownloads int  `json:"max_downloads"`
-			ExpiresAt   *string `json:"expires_at"`
-			UserFile    struct {
+			ID           string  `json:"id"`
+			ShareToken   string  `json:"share_token"`
+			MaxDownloads int     `json:"max_downloads"`
+			ExpiresAt    *string `json:"expires_at"`
+			UserFile     struct {
 				Filename string `json:"filename"`
 			} `json:"user_file"`
 		} `json:"createFileShare"`
@@ -1429,7 +1429,7 @@ func (suite *FileIntegrationTestSuite) TestPasswordBasedFileSharing() {
 
 	accessVariables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"token":          shareToken,
+			"token":           shareToken,
 			"master_password": masterPassword,
 		},
 	}
@@ -1447,7 +1447,7 @@ func (suite *FileIntegrationTestSuite) TestPasswordBasedFileSharing() {
 	// Test accessing with wrong password
 	wrongPasswordVariables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"token":          shareToken,
+			"token":           shareToken,
 			"master_password": "WrongPassword123!",
 		},
 	}
@@ -1498,8 +1498,8 @@ func (suite *FileIntegrationTestSuite) TestPasswordComplexityValidation() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -1612,8 +1612,8 @@ func (suite *FileIntegrationTestSuite) TestShareAccessAuditLogging() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -1672,7 +1672,7 @@ func (suite *FileIntegrationTestSuite) TestShareAccessAuditLogging() {
 	// Successful access
 	accessVariables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"token":          shareToken,
+			"token":           shareToken,
 			"master_password": masterPassword,
 		},
 	}
@@ -1687,7 +1687,7 @@ func (suite *FileIntegrationTestSuite) TestShareAccessAuditLogging() {
 	// Failed access attempt
 	wrongPasswordVariables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"token":          shareToken,
+			"token":           shareToken,
 			"master_password": "WrongPassword123!",
 		},
 	}
@@ -1725,8 +1725,8 @@ func (suite *FileIntegrationTestSuite) TestEndToEndShareCreationAndAccessFlow() 
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -1782,7 +1782,7 @@ func (suite *FileIntegrationTestSuite) TestEndToEndShareCreationAndAccessFlow() 
 
 	var uploadResponse struct {
 		UploadFileFromMap struct {
-			ID      string `json:"id"`
+			ID       string `json:"id"`
 			Filename string `json:"filename"`
 			UserID   string `json:"user_id"`
 			FileID   string `json:"file_id"`
@@ -1820,11 +1820,11 @@ func (suite *FileIntegrationTestSuite) TestEndToEndShareCreationAndAccessFlow() 
 
 	var createShareResponse struct {
 		CreateFileShare struct {
-			ID             string  `json:"id"`
-			ShareToken     string  `json:"share_token"`
-			MaxDownloads   int     `json:"max_downloads"`
-			DownloadCount  int     `json:"download_count"`
-			ExpiresAt      *string `json:"expires_at"`
+			ID            string  `json:"id"`
+			ShareToken    string  `json:"share_token"`
+			MaxDownloads  int     `json:"max_downloads"`
+			DownloadCount int     `json:"download_count"`
+			ExpiresAt     *string `json:"expires_at"`
 		} `json:"createFileShare"`
 	}
 
@@ -1845,7 +1845,7 @@ func (suite *FileIntegrationTestSuite) TestEndToEndShareCreationAndAccessFlow() 
 
 	accessVariables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"token":          shareToken,
+			"token":           shareToken,
 			"master_password": masterPassword,
 		},
 	}
@@ -1884,7 +1884,7 @@ func (suite *FileIntegrationTestSuite) TestEndToEndShareCreationAndAccessFlow() 
 	// Step 4: Test failed access attempts
 	wrongPasswordVariables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"token":          shareToken,
+			"token":           shareToken,
 			"master_password": "WrongPassword123!",
 		},
 	}
@@ -1897,7 +1897,7 @@ func (suite *FileIntegrationTestSuite) TestEndToEndShareCreationAndAccessFlow() 
 	// Step 5: Test invalid token
 	invalidTokenVariables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"token":          "invalid_token_123456789012345678901234567890123456789012345678901234567890",
+			"token":           "invalid_token_123456789012345678901234567890123456789012345678901234567890",
 			"master_password": masterPassword,
 		},
 	}
@@ -1926,11 +1926,11 @@ func (suite *FileIntegrationTestSuite) TestEndToEndShareCreationAndAccessFlow() 
 
 	var statsResponse struct {
 		GetShareStats struct {
-			TotalAttempts     int64 `json:"total_attempts"`
+			TotalAttempts      int64 `json:"total_attempts"`
 			SuccessfulAttempts int64 `json:"successful_attempts"`
-			FailedAttempts    int64 `json:"failed_attempts"`
-			RecentAttempts    int64 `json:"recent_attempts"`
-			UniqueIPs         int64 `json:"unique_ips"`
+			FailedAttempts     int64 `json:"failed_attempts"`
+			RecentAttempts     int64 `json:"recent_attempts"`
+			UniqueIPs          int64 `json:"unique_ips"`
 		} `json:"getShareStats"`
 	}
 

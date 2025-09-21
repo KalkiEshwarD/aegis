@@ -206,8 +206,8 @@ func (suite *AdminIntegrationTestSuite) TestUserPromotionToAdmin() {
 	// Login as the newly promoted admin
 	regularLoginVars := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    suite.TestData.RegularUser.Email,
-			"password": password,
+			"identifier": suite.TestData.RegularUser.Email,
+			"password":   password,
 		},
 	}
 
@@ -251,8 +251,8 @@ func (suite *AdminIntegrationTestSuite) TestUserDeletionByAdmin() {
 
 	createVariables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    "delete_me@test.com",
-			"password": "password123",
+			"identifier": "delete_me@test.com",
+			"password":   "password123",
 		},
 	}
 
@@ -287,8 +287,8 @@ func (suite *AdminIntegrationTestSuite) TestUserDeletionByAdmin() {
 
 	loginVariables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    adminEmail,
-			"password": password,
+			"identifier": adminEmail,
+			"password":   password,
 		},
 	}
 
@@ -653,9 +653,9 @@ func (suite *AdminIntegrationTestSuite) TestAdminUserStats() {
 
 	var userStatsResponse struct {
 		MyStats struct {
-			TotalFiles    int `json:"total_files"`
-			UsedStorage   int `json:"used_storage"`
-			StorageQuota  int `json:"storage_quota"`
+			TotalFiles     int `json:"total_files"`
+			UsedStorage    int `json:"used_storage"`
+			StorageQuota   int `json:"storage_quota"`
 			StorageSavings int `json:"storage_savings"`
 		} `json:"myStats"`
 	}

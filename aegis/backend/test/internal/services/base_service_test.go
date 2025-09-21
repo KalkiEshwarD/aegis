@@ -15,10 +15,10 @@ import (
 
 type BaseServiceTestSuite struct {
 	suite.Suite
-	db          *gorm.DB
-	baseService *services.BaseService
-	testUser    models.User
-	testFile    models.File
+	db           *gorm.DB
+	baseService  *services.BaseService
+	testUser     models.User
+	testFile     models.File
 	testUserFile models.UserFile
 }
 

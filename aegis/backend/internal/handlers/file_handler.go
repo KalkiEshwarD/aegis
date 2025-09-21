@@ -21,7 +21,7 @@ type FileHandler struct {
 func NewFileHandler(fileService *services.FileService, authService *services.AuthService) *FileHandler {
 	return &FileHandler{
 		fileService: fileService,
-		authService:    authService,
+		authService: authService,
 	}
 }
 

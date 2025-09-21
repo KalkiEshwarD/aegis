@@ -8,9 +8,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/machinebox/graphql"
 	"gorm.io/driver/sqlite"
@@ -37,7 +39,7 @@ func NewTestGraphQLServer(cfg *config.Config) *TestGraphQLServer {
 	gin.SetMode(gin.TestMode)
 
 	// Initialize test database
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{}) 
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create test database: %v", err))
 	}
@@ -70,7 +72,14 @@ func NewTestGraphQLServer(cfg *config.Config) *TestGraphQLServer {
 	r := gin.Default()
 
 	// Add CORS middleware
-	r.Use(middleware.CORS(cfg.CORSAllowedOrigins))
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     strings.Split(cfg.CORSAllowedOrigins, ","),
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
 
 	// GraphQL endpoint with authentication middleware and gin context
 	r.POST("/graphql", middleware.AuthMiddleware(cfg, authService, dbService), func(c *gin.Context) {

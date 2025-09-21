@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"strings"
 
 	apperrors "github.com/balkanid/aegis-backend/internal/errors"
 	"golang.org/x/crypto/pbkdf2"
@@ -162,17 +163,17 @@ func GenerateRandomKey(length int) ([]byte, error) {
 func ValidatePasswordStrength(password string) error {
 	// Use stricter requirements for share passwords
 	reqs := PasswordRequirements{
-		MinLength:     12, // Stricter than default 8
-		RequireUpper:  true,
-		RequireLower:  true,
-		RequireDigit:  true,
+		MinLength:      12, // Stricter than default 8
+		RequireUpper:   true,
+		RequireLower:   true,
+		RequireDigit:   true,
 		RequireSpecial: true,
-		SpecialChars:  "!@#$%^&*()_+-=[]{}|;:,.<>?",
+		SpecialChars:   "!@#$%^&*()_+-=[]{}|;:,.<>?",
 	}
 
-	err := ValidatePassword(password, reqs)
-	if err != nil {
-		return apperrors.New(apperrors.ErrCodeValidation, "password does not meet security requirements: "+err.Error())
+	result := ValidatePassword(password, reqs)
+	if result.HasErrors() {
+		return apperrors.New(apperrors.ErrCodeValidation, "password does not meet security requirements: "+strings.Join(result.Errors, ", "))
 	}
 
 	return nil

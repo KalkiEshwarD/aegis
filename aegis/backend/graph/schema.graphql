@@ -322,6 +322,8 @@ type Mutation {
   downloadFile(id: ID!): String! # Returns download URL
   starFile(id: ID!): Boolean!
   unstarFile(id: ID!): Boolean!
+  starFolder(id: ID!): Boolean!
+  unstarFolder(id: ID!): Boolean!
 
   # Room operations
   createRoom(input: CreateRoomInput!): Room!

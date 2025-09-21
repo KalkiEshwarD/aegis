@@ -142,9 +142,9 @@ func TestValidateFileSize(t *testing.T) {
 		hasError bool
 	}{
 		{1000, 100, 2000, false},
-		{50, 100, 2000, true},   // Too small
-		{3000, 100, 2000, true}, // Too large
-		{100, 100, 2000, false}, // Min boundary
+		{50, 100, 2000, true},    // Too small
+		{3000, 100, 2000, true},  // Too large
+		{100, 100, 2000, false},  // Min boundary
 		{2000, 100, 2000, false}, // Max boundary
 	}
 

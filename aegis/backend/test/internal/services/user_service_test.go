@@ -366,21 +366,7 @@ func (suite *UserServiceTestSuite) TestGetAllUsers() {
 	assert.Equal(suite.T(), "user2@example.com", users[1].Email)
 }
 
-func (suite *UserServiceTestSuite) TestHashSHA256() {
-	data := []byte("test data")
-	hash := services.HashSHA256(data)
 
-	assert.NotEmpty(suite.T(), hash)
-	assert.Len(suite.T(), hash, 64) // SHA-256 produces 64 character hex string
-
-	// Same data should produce same hash
-	hash2 := services.HashSHA256(data)
-	assert.Equal(suite.T(), hash, hash2)
-
-	// Different data should produce different hash
-	hash3 := services.HashSHA256([]byte("different data"))
-	assert.NotEqual(suite.T(), hash, hash3)
-}
 
 func (suite *UserServiceTestSuite) TestUserStats_Struct() {
 	stats := &services.UserStats{

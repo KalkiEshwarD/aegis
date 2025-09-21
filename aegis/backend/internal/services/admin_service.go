@@ -7,7 +7,7 @@ import (
 	"github.com/balkanid/aegis-backend/internal/models"
 )
 
-type AdminService struct{
+type AdminService struct {
 	db *database.DB
 }
 

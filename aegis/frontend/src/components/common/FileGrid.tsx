@@ -244,7 +244,7 @@ const FileGrid: React.FC<FileGridProps> = ({
     };
 
     const getItemName = () => {
-      return isItemFolder ? item.name : item.filename;
+      return isItemFolder ? (item.name || 'Unnamed Folder') : (item.filename || 'Unnamed File');
     };
 
     const getItemSize = () => {
@@ -313,7 +313,7 @@ const FileGrid: React.FC<FileGridProps> = ({
 
           {/* Action buttons */}
           <Box sx={{ position: 'absolute', top: 4, right: 4, display: 'flex', gap: 0.5 }}>
-            {onRestore && isFile(item) && (
+            {onRestore && (
               <IconButton
                 size="small"
                 sx={{ backgroundColor: 'rgba(255, 255, 255, 0.8)', '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.9)' } }}

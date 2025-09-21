@@ -13,19 +13,19 @@ type ErrorCode string
 
 // Shared error codes loaded from JSON file
 var (
-	ErrCodeUnknown             ErrorCode = "unknown_error"
-	ErrCodeNotFound            ErrorCode = "not_found"
-	ErrCodeInvalidArgument     ErrorCode = "invalid_argument"
-	ErrCodeUnauthorized        ErrorCode = "unauthorized"
-	ErrCodeForbidden           ErrorCode = "forbidden"
-	ErrCodeConflict            ErrorCode = "conflict"
-	ErrCodeInternal            ErrorCode = "internal_error"
-	ErrCodeNetwork             ErrorCode = "network_error"
-	ErrCodeAuthentication      ErrorCode = "authentication_error"
-	ErrCodeValidation          ErrorCode = "validation_error"
-	ErrCodeFileUpload          ErrorCode = "file_upload_error"
-	ErrCodeFileDownload        ErrorCode = "file_download_error"
-	ErrCodePermission          ErrorCode = "permission_error"
+	ErrCodeUnknown              ErrorCode = "unknown_error"
+	ErrCodeNotFound             ErrorCode = "not_found"
+	ErrCodeInvalidArgument      ErrorCode = "invalid_argument"
+	ErrCodeUnauthorized         ErrorCode = "unauthorized"
+	ErrCodeForbidden            ErrorCode = "forbidden"
+	ErrCodeConflict             ErrorCode = "conflict"
+	ErrCodeInternal             ErrorCode = "internal_error"
+	ErrCodeNetwork              ErrorCode = "network_error"
+	ErrCodeAuthentication       ErrorCode = "authentication_error"
+	ErrCodeValidation           ErrorCode = "validation_error"
+	ErrCodeFileUpload           ErrorCode = "file_upload_error"
+	ErrCodeFileDownload         ErrorCode = "file_download_error"
+	ErrCodePermission           ErrorCode = "permission_error"
 	ErrCodeStorageQuotaExceeded ErrorCode = "storage_quota_exceeded"
 )
 

@@ -66,6 +66,32 @@ func (r *folderResolver) ParentID(ctx context.Context, obj *models.Folder) (*str
 	return &parentID, nil
 }
 
+// Files is the resolver for the files field.
+func (r *folderResolver) Files(ctx context.Context, obj *models.Folder) ([]*models.UserFile, error) {
+	db := r.Resolver.DB.GetDB()
+
+	var files []*models.UserFile
+
+	// If the folder is trashed (has DeletedAt), we need to include trashed files
+	if obj.DeletedAt.Valid {
+		// For trashed folders, get all files (including trashed ones) that belong to this folder
+		if err := db.Unscoped().Preload("File").Where("folder_id = ?", obj.ID).Find(&files).Error; err != nil {
+			log.Printf("ERROR: Failed to load files for trashed folder %d: %v", obj.ID, err)
+			return nil, err
+		}
+		log.Printf("DEBUG: Loaded %d files (including trashed) for trashed folder %d", len(files), obj.ID)
+	} else {
+		// For normal folders, only get non-trashed files
+		if err := db.Preload("File").Where("folder_id = ?", obj.ID).Find(&files).Error; err != nil {
+			log.Printf("ERROR: Failed to load files for folder %d: %v", obj.ID, err)
+			return nil, err
+		}
+		log.Printf("DEBUG: Loaded %d non-trashed files for folder %d", len(files), obj.ID)
+	}
+
+	return files, nil
+}
+
 // Register is the resolver for the register field.
 func (r *mutationResolver) Register(ctx context.Context, input model.RegisterInput) (*model.AuthPayload, error) {
 	userService := r.Resolver.UserService
@@ -357,6 +383,46 @@ func (r *mutationResolver) UnstarFile(ctx context.Context, id string) (bool, err
 	}
 
 	err = r.Resolver.FileService.UnstarFile(user.ID, uint(userFileID))
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// StarFolder is the resolver for the starFolder field.
+func (r *mutationResolver) StarFolder(ctx context.Context, id string) (bool, error) {
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return false, fmt.Errorf("unauthenticated: %w", err)
+	}
+
+	folderID, err := strconv.ParseUint(id, 10, 32)
+	if err != nil {
+		return false, fmt.Errorf("invalid folder ID: %w", err)
+	}
+
+	err = r.Resolver.FileService.StarFolder(user.ID, uint(folderID))
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// UnstarFolder is the resolver for the unstarFolder field.
+func (r *mutationResolver) UnstarFolder(ctx context.Context, id string) (bool, error) {
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return false, fmt.Errorf("unauthenticated: %w", err)
+	}
+
+	folderID, err := strconv.ParseUint(id, 10, 32)
+	if err != nil {
+		return false, fmt.Errorf("invalid folder ID: %w", err)
+	}
+
+	err = r.Resolver.FileService.UnstarFolder(user.ID, uint(folderID))
 	if err != nil {
 		return false, err
 	}

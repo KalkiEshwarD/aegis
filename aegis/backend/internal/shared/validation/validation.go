@@ -127,23 +127,23 @@ func ValidateUsername(username string) error {
 
 // PasswordRequirements defines password validation requirements
 type PasswordRequirements struct {
-	MinLength    int
-	RequireUpper bool
-	RequireLower bool
-	RequireDigit bool
+	MinLength      int
+	RequireUpper   bool
+	RequireLower   bool
+	RequireDigit   bool
 	RequireSpecial bool
-	SpecialChars string
+	SpecialChars   string
 }
 
 // DefaultPasswordRequirements returns default password requirements
 func DefaultPasswordRequirements() PasswordRequirements {
 	return PasswordRequirements{
-		MinLength:     8,
-		RequireUpper:  true,
-		RequireLower:  true,
-		RequireDigit:  true,
+		MinLength:      8,
+		RequireUpper:   true,
+		RequireLower:   true,
+		RequireDigit:   true,
 		RequireSpecial: true,
-		SpecialChars:  "!@#$%^&*()_+-=[]{}|;:,.<>?",
+		SpecialChars:   "!@#$%^&*()_+-=[]{}|;:,.<>?",
 	}
 }
 
@@ -188,10 +188,10 @@ func ValidatePassword(password string, reqs PasswordRequirements) error {
 
 // FileValidationRules defines rules for file validation
 type FileValidationRules struct {
-	MaxSize            int64
-	AllowedMimeTypes   []string
-	AllowedExtensions  []string
-	RequireValidName   bool
+	MaxSize           int64
+	AllowedMimeTypes  []string
+	AllowedExtensions []string
+	RequireValidName  bool
 }
 
 // ValidateFile validates file properties

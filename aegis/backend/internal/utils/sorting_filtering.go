@@ -189,7 +189,7 @@ func SearchFiles(files []FileInfo, query string) []FileInfo {
 
 	for _, file := range files {
 		if strings.Contains(strings.ToLower(file.Filename), query) ||
-		   strings.Contains(strings.ToLower(file.MimeType), query) {
+			strings.Contains(strings.ToLower(file.MimeType), query) {
 			filtered = append(filtered, file)
 		}
 	}

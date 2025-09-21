@@ -51,7 +51,7 @@ func RateLimitMiddleware(cfg *config.Config) gin.HandlerFunc {
 		if !limiter.Allow() {
 			c.Header("Retry-After", "60") // Suggest retry after 60 seconds
 			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error": "Too many requests",
+				"error":   "Too many requests",
 				"message": "Rate limit exceeded. Please try again later.",
 			})
 			c.Abort()

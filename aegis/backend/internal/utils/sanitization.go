@@ -8,14 +8,14 @@ import (
 
 // HTMLEscapeMap contains HTML entity mappings for sanitization
 var HTMLEscapeMap = map[rune]string{
-	'&': "&",
-	'<': "<",
-	'>': ">",
-	'"': "&quot;",
+	'&':  "&",
+	'<':  "<",
+	'>':  ">",
+	'"':  "&quot;",
 	'\'': "&#x27;",
-	'/': "&#x2F;",
-	'`': "&#x60;",
-	'=': "&#x3D;",
+	'/':  "&#x2F;",
+	'`':  "&#x60;",
+	'=':  "&#x3D;",
 }
 
 // SanitizeHTML encodes HTML entities to prevent XSS attacks

@@ -41,8 +41,8 @@ func (suite *RoomIntegrationTestSuite) TestRoomCreationSuccess() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -86,10 +86,10 @@ func (suite *RoomIntegrationTestSuite) TestRoomCreationSuccess() {
 
 	var createResponse struct {
 		CreateRoom struct {
-			ID       string `json:"id"`
-			Name     string `json:"name"`
+			ID        string `json:"id"`
+			Name      string `json:"name"`
 			CreatorID string `json:"creator_id"`
-			Members  []struct {
+			Members   []struct {
 				ID     string `json:"id"`
 				UserID string `json:"user_id"`
 				Role   string `json:"role"`
@@ -135,8 +135,8 @@ func (suite *RoomIntegrationTestSuite) TestRoomMembershipManagement() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -318,8 +318,8 @@ func (suite *RoomIntegrationTestSuite) TestRoleBasedAccessControl() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    adminEmail,
-			"password": password,
+			"identifier": adminEmail,
+			"password":   password,
 		},
 	}
 
@@ -411,8 +411,8 @@ func (suite *RoomIntegrationTestSuite) TestRoleBasedAccessControl() {
 	// Test permissions - login as different users
 	regularLoginVars := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    suite.TestData.RegularUser.Email,
-			"password": password,
+			"identifier": suite.TestData.RegularUser.Email,
+			"password":   password,
 		},
 	}
 
@@ -470,8 +470,8 @@ func (suite *RoomIntegrationTestSuite) TestFileSharingInRooms() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -632,8 +632,8 @@ func (suite *RoomIntegrationTestSuite) TestRoomQueries() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -668,10 +668,10 @@ func (suite *RoomIntegrationTestSuite) TestRoomQueries() {
 
 	var myRoomsResponse struct {
 		MyRooms []struct {
-			ID       string `json:"id"`
-			Name     string `json:"name"`
+			ID        string `json:"id"`
+			Name      string `json:"name"`
 			CreatorID string `json:"creator_id"`
-			Members  []struct {
+			Members   []struct {
 				ID   string `json:"id"`
 				Role string `json:"role"`
 			} `json:"members"`
@@ -719,8 +719,8 @@ func (suite *RoomIntegrationTestSuite) TestRoomAccessControl() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -785,8 +785,8 @@ func (suite *RoomIntegrationTestSuite) TestConcurrentRoomOperations() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 

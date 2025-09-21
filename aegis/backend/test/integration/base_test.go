@@ -123,11 +123,11 @@ import (
 // BaseIntegrationTestSuite provides common setup and teardown for integration tests
 type BaseIntegrationTestSuite struct {
 	suite.Suite
-	DBConfig    *TestDBConfig
-	TestDB      *gorm.DB
-	Server      *TestGraphQLServer
-	TestData    *TestData
-	Config      *config.Config
+	DBConfig *TestDBConfig
+	TestDB   *gorm.DB
+	Server   *TestGraphQLServer
+	TestData *TestData
+	Config   *config.Config
 }
 
 // SetupSuite is called once before all tests in the suite
@@ -136,9 +136,9 @@ func (suite *BaseIntegrationTestSuite) SetupSuite() {
 	suite.Config = &config.Config{
 		GinMode:        "test",
 		JWTSecret:      "test_jwt_secret_key_for_integration_tests_minimum_32_chars",
-		Port:           "8081", // Use a different port for tests
+		Port:           "8081",     // Use a different port for tests
 		DatabaseURL:    ":memory:", // SQLite in-memory database for tests
-		MinIOEndpoint:  "",     // Disable MinIO for tests
+		MinIOEndpoint:  "",         // Disable MinIO for tests
 		MinIOAccessKey: "",
 		MinIOSecretKey: "",
 		MinIOBucket:    "",

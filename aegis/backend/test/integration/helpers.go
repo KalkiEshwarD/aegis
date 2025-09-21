@@ -129,15 +129,15 @@ func ConvertPostgresToSQLite(postgresSQL string) string {
 
 	// Replace PostgreSQL-specific syntax
 	replacements := map[string]string{
-		"SERIAL PRIMARY KEY":                    "INTEGER PRIMARY KEY AUTOINCREMENT",
-		"TIMESTAMP WITH TIME ZONE":              "DATETIME",
+		"SERIAL PRIMARY KEY":                     "INTEGER PRIMARY KEY AUTOINCREMENT",
+		"TIMESTAMP WITH TIME ZONE":               "DATETIME",
 		"TIMESTAMP WITH TIME ZONE DEFAULT NOW()": "DATETIME DEFAULT CURRENT_TIMESTAMP",
-		"NOW()":                                 "CURRENT_TIMESTAMP",
-		"BOOLEAN":                               "INTEGER", // SQLite uses INTEGER for boolean
-		"BIGINT":                                "INTEGER",
-		"TRUE":                                  "1",
-		"FALSE":                                 "0",
-		"ON CONFLICT":                           "ON CONFLICT", // Keep as is, SQLite supports this
+		"NOW()":                                  "CURRENT_TIMESTAMP",
+		"BOOLEAN":                                "INTEGER", // SQLite uses INTEGER for boolean
+		"BIGINT":                                 "INTEGER",
+		"TRUE":                                   "1",
+		"FALSE":                                  "0",
+		"ON CONFLICT":                            "ON CONFLICT", // Keep as is, SQLite supports this
 	}
 
 	for pg, sqlite := range replacements {
@@ -158,9 +158,9 @@ func removePostgresSpecific(sql string) string {
 	for _, line := range lines {
 		// Skip PostgreSQL-specific lines
 		if strings.Contains(line, "language 'plpgsql'") ||
-		   strings.Contains(line, "CREATE OR REPLACE FUNCTION") ||
-		   strings.Contains(line, "CREATE TRIGGER") ||
-		   strings.Contains(line, "EXECUTE FUNCTION") {
+			strings.Contains(line, "CREATE OR REPLACE FUNCTION") ||
+			strings.Contains(line, "CREATE TRIGGER") ||
+			strings.Contains(line, "EXECUTE FUNCTION") {
 			continue
 		}
 		filtered = append(filtered, line)

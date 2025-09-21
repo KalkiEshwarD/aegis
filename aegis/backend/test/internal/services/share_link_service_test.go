@@ -17,12 +17,12 @@ import (
 
 type ShareLinkServiceTestSuite struct {
 	suite.Suite
-	db                *gorm.DB
-	shareLinkService  *services.ShareService
-	testUser          models.User
-	testFile          models.File
-	testUserFile      models.UserFile
-	testFileShare     models.FileShare
+	db               *gorm.DB
+	shareLinkService *services.ShareService
+	testUser         models.User
+	testFile         models.File
+	testUserFile     models.UserFile
+	testFileShare    models.FileShare
 }
 
 func (suite *ShareLinkServiceTestSuite) SetupSuite() {

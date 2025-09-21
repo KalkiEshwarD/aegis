@@ -100,11 +100,11 @@ func (suite *AuthIntegrationTestSuite) TestUserRegistrationValidationErrors() {
 	ctx := context.Background()
 
 	testCases := []struct {
-		name      string
-		username  string
-		email     string
-		password  string
-		errorMsg  string
+		name     string
+		username string
+		email    string
+		password string
+		errorMsg string
 	}{
 		{
 			name:     "Empty username",
@@ -230,8 +230,8 @@ func (suite *AuthIntegrationTestSuite) TestUserLoginSuccess() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -279,8 +279,8 @@ func (suite *AuthIntegrationTestSuite) TestUserLoginWrongPassword() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -311,8 +311,8 @@ func (suite *AuthIntegrationTestSuite) TestUserLoginNonExistentUser() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -344,8 +344,8 @@ func (suite *AuthIntegrationTestSuite) TestJWTTokenValidation() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -490,8 +490,8 @@ func (suite *AuthIntegrationTestSuite) TestUserSessionManagement() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -566,8 +566,8 @@ func (suite *AuthIntegrationTestSuite) TestUserDataIsolation() {
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    regularEmail,
-			"password": password,
+			"identifier": regularEmail,
+			"password":   password,
 		},
 	}
 
@@ -610,7 +610,7 @@ func (suite *AuthIntegrationTestSuite) TestUserDataIsolation() {
 
 	err = suite.Server.MakeAuthenticatedRequest(ctx, token, filesQuery, nil, &filesResponse)
 	suite.NoError(err, "Files query should succeed")
-	
+
 	// Should only see files belonging to this user
 	for _, file := range filesResponse.Data.MyFiles {
 		suite.Equal(suite.TestData.RegularUser.ID, uint(parseUint(file.UserID)), "File should belong to authenticated user")

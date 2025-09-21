@@ -16,7 +16,7 @@ import (
 
 type UserResourceRepositoryTestSuite struct {
 	suite.Suite
-	db                      *gorm.DB
+	db                     *gorm.DB
 	userResourceRepository *repositories.UserResourceRepository
 	testUser               models.User
 	testFile               models.File

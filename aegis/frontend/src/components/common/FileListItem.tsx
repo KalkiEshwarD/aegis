@@ -241,6 +241,9 @@ export const FileListItem: React.FC<FileListItemProps> = ({
             {isFile(item) && item.is_starred && (
               <StarIcon sx={{ color: 'warning.main', fontSize: 16 }} />
             )}
+            {isFolder(item) && item.is_starred && (
+              <StarIcon sx={{ color: 'warning.main', fontSize: 16 }} />
+            )}
           </Box>
         }
         secondary={
@@ -284,7 +287,7 @@ export const FileListItem: React.FC<FileListItemProps> = ({
           </IconButton>
         )}
 
-        {isFile(item) && onStarToggle && (
+        {(isFile(item) || isFolder(item)) && onStarToggle && (
           <IconButton
             size="small"
             onClick={(e) => {

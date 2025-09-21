@@ -198,7 +198,7 @@ func TestFilterFiles(t *testing.T) {
 			expected: []string{"another.pdf"},
 		},
 		{
-			name:     "no matches",
+			name: "no matches",
 			criteria: utils.FilterCriteria{
 				Filename: stringPtr("nonexistent"),
 			},
@@ -230,11 +230,11 @@ func TestPaginateFiles(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		page      int
-		pageSize  int
-		expected  []string
-		total     int
+		name     string
+		page     int
+		pageSize int
+		expected []string
+		total    int
 	}{
 		{
 			name:     "first page",

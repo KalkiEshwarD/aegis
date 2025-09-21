@@ -177,11 +177,11 @@ type CursorPaginationParams struct {
 
 // CursorPaginationResult represents cursor-based pagination result
 type CursorPaginationResult struct {
-	Items     interface{} `json:"items"`
-	NextCursor string     `json:"next_cursor,omitempty"`
-	PrevCursor string     `json:"prev_cursor,omitempty"`
-	HasNext    bool       `json:"has_next"`
-	HasPrev    bool       `json:"has_prev"`
+	Items      interface{} `json:"items"`
+	NextCursor string      `json:"next_cursor,omitempty"`
+	PrevCursor string      `json:"prev_cursor,omitempty"`
+	HasNext    bool        `json:"has_next"`
+	HasPrev    bool        `json:"has_prev"`
 }
 
 // EncodeCursor encodes an ID into a cursor string

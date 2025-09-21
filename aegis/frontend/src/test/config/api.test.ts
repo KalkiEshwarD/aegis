@@ -34,7 +34,7 @@ describe('API Configuration', () => {
   describe('Environment-based Configuration', () => {
     it('should use development endpoint when NODE_ENV is development', () => {
       // Mock the environment for this test
-      process.env.NODE_ENV = 'development';
+      // process.env.NODE_ENV = 'development';
       delete process.env.REACT_APP_GRAPHQL_ENDPOINT;
       delete process.env.REACT_APP_GRAPHQL_ENDPOINT_PROD;
 
@@ -46,7 +46,7 @@ describe('API Configuration', () => {
     });
 
     it('should use production endpoint when NODE_ENV is production', () => {
-      process.env.NODE_ENV = 'production';
+      // process.env.NODE_ENV = 'production';
       delete process.env.REACT_APP_GRAPHQL_ENDPOINT;
       delete process.env.REACT_APP_GRAPHQL_ENDPOINT_PROD;
 
@@ -57,7 +57,7 @@ describe('API Configuration', () => {
     });
 
     it('should prioritize REACT_APP_GRAPHQL_ENDPOINT in development', () => {
-      process.env.NODE_ENV = 'development';
+      // process.env.NODE_ENV = 'development';
       process.env.REACT_APP_GRAPHQL_ENDPOINT = 'http://custom-dev:3000/graphql';
 
       jest.resetModules();
@@ -67,7 +67,7 @@ describe('API Configuration', () => {
     });
 
     it('should prioritize REACT_APP_GRAPHQL_ENDPOINT_PROD in production', () => {
-      process.env.NODE_ENV = 'production';
+      // process.env.NODE_ENV = 'production';
       process.env.REACT_APP_GRAPHQL_ENDPOINT_PROD = 'https://custom-prod.com/graphql';
 
       jest.resetModules();

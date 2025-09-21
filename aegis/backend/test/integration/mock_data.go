@@ -219,25 +219,25 @@ func SetupBasicTestData(db *gorm.DB) (*TestData, error) {
 	}
 
 	return &TestData{
-		AdminUser:    adminUser,
-		RegularUser:  regularUser,
-		AnotherUser:  anotherUser,
-		File1:        file1,
-		File2:        file2,
-		UserFile1:    userFile1,
-		UserFile2:    userFile2,
-		Room:         room,
+		AdminUser:   adminUser,
+		RegularUser: regularUser,
+		AnotherUser: anotherUser,
+		File1:       file1,
+		File2:       file2,
+		UserFile1:   userFile1,
+		UserFile2:   userFile2,
+		Room:        room,
 	}, nil
 }
 
 // TestData holds references to all created test data
 type TestData struct {
-	AdminUser    *models.User
-	RegularUser  *models.User
-	AnotherUser  *models.User
-	File1        *models.File
-	File2        *models.File
-	UserFile1    *models.UserFile
-	UserFile2    *models.UserFile
-	Room         *models.Room
+	AdminUser   *models.User
+	RegularUser *models.User
+	AnotherUser *models.User
+	File1       *models.File
+	File2       *models.File
+	UserFile1   *models.UserFile
+	UserFile2   *models.UserFile
+	Room        *models.Room
 }

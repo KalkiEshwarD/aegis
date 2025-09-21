@@ -266,6 +266,36 @@ func (s *FileService) UnstarFile(userID, userFileID uint) error {
 	return nil
 }
 
+func (s *FileService) StarFolder(userID, folderID uint) error {
+	db := s.db.GetDB()
+
+	var folder models.Folder
+	if err := s.ValidateOwnership(&folder, folderID, userID); err != nil {
+		return err
+	}
+
+	if err := db.Model(&folder).Update("is_starred", true).Error; err != nil {
+		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to star folder")
+	}
+
+	return nil
+}
+
+func (s *FileService) UnstarFolder(userID, folderID uint) error {
+	db := s.db.GetDB()
+
+	var folder models.Folder
+	if err := s.ValidateOwnership(&folder, folderID, userID); err != nil {
+		return err
+	}
+
+	if err := db.Model(&folder).Update("is_starred", false).Error; err != nil {
+		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to unstar folder")
+	}
+
+	return nil
+}
+
 func (s *FileService) DeleteFile(userID, userFileID uint) error {
 	db := s.db.GetDB()
 

@@ -40,8 +40,8 @@ func (suite *UploadFromMapIntegrationTestSuite) TestUploadFileFromMap_Success() 
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -61,12 +61,12 @@ func (suite *UploadFromMapIntegrationTestSuite) TestUploadFileFromMap_Success() 
 
 	// Prepare upload data as a map (this is the key test - converting map to upload)
 	uploadData := map[string]interface{}{
-		"filename":     "test-from-map.pdf",
-		"mime_type":    "application/pdf",
-		"size_bytes":   float64(1024), // JSON numbers are float64
-		"content_hash": "hash-from-map-123",
+		"filename":      "test-from-map.pdf",
+		"mime_type":     "application/pdf",
+		"size_bytes":    float64(1024), // JSON numbers are float64
+		"content_hash":  "hash-from-map-123",
 		"encrypted_key": "encrypted-key-123",
-		"file_data":    []byte("test file content for map upload"),
+		"file_data":     []byte("test file content for map upload"),
 	}
 
 	// Convert to JSON string (this solves the original problem)
@@ -147,8 +147,8 @@ func (suite *UploadFromMapIntegrationTestSuite) TestUploadFileFromMap_InvalidJSO
 
 	variables := map[string]interface{}{
 		"input": map[string]interface{}{
-			"identifier":    email,
-			"password": password,
+			"identifier": email,
+			"password":   password,
 		},
 	}
 
@@ -197,12 +197,12 @@ func (suite *UploadFromMapIntegrationTestSuite) TestUploadFileFromMap_Unauthenti
 
 	// Prepare valid upload data
 	uploadData := map[string]interface{}{
-		"filename":     "test-unauth.pdf",
-		"mime_type":    "application/pdf",
-		"size_bytes":   float64(512),
-		"content_hash": "hash-unauth-123",
+		"filename":      "test-unauth.pdf",
+		"mime_type":     "application/pdf",
+		"size_bytes":    float64(512),
+		"content_hash":  "hash-unauth-123",
 		"encrypted_key": "key-unauth-123",
-		"file_data":    []byte("test content"),
+		"file_data":     []byte("test content"),
 	}
 
 	jsonData, err := json.Marshal(uploadData)

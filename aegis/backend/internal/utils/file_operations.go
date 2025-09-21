@@ -13,20 +13,20 @@ import (
 
 // FileOperationResult represents the result of a file operation
 type FileOperationResult struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
+	Success bool        `json:"success"`
+	Message string      `json:"message"`
 	Data    interface{} `json:"data,omitempty"`
 }
 
 // FileMetadata represents file metadata
 type FileMetadata struct {
-	Filename    string    `json:"filename"`
-	Size        int64     `json:"size"`
-	MimeType    string    `json:"mime_type"`
-	Extension   string    `json:"extension"`
-	Hash        string    `json:"hash"`
-	CreatedAt   time.Time `json:"created_at"`
-	ModifiedAt  time.Time `json:"modified_at"`
+	Filename   string    `json:"filename"`
+	Size       int64     `json:"size"`
+	MimeType   string    `json:"mime_type"`
+	Extension  string    `json:"extension"`
+	Hash       string    `json:"hash"`
+	CreatedAt  time.Time `json:"created_at"`
+	ModifiedAt time.Time `json:"modified_at"`
 }
 
 // CalculateFileHash calculates SHA-256 hash of file content
@@ -153,9 +153,9 @@ func GetFileCategory(mimeType string) string {
 // IsTextFile checks if file is a text file
 func IsTextFile(mimeType string) bool {
 	return strings.HasPrefix(mimeType, "text/") ||
-		   mimeType == "application/json" ||
-		   mimeType == "application/xml" ||
-		   mimeType == "application/javascript"
+		mimeType == "application/json" ||
+		mimeType == "application/xml" ||
+		mimeType == "application/javascript"
 }
 
 // IsImageFile checks if file is an image
@@ -176,10 +176,10 @@ func IsAudioFile(mimeType string) bool {
 // IsArchiveFile checks if file is an archive
 func IsArchiveFile(mimeType string) bool {
 	return strings.Contains(mimeType, "zip") ||
-		   strings.Contains(mimeType, "rar") ||
-		   strings.Contains(mimeType, "7z") ||
-		   strings.Contains(mimeType, "tar") ||
-		   strings.Contains(mimeType, "gzip")
+		strings.Contains(mimeType, "rar") ||
+		strings.Contains(mimeType, "7z") ||
+		strings.Contains(mimeType, "tar") ||
+		strings.Contains(mimeType, "gzip")
 }
 
 // GetFileIconType returns icon type based on file category
