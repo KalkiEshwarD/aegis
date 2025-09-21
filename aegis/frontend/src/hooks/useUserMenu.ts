@@ -25,11 +25,17 @@ export const useUserMenu = () => {
     handleMenuClose();
   };
 
+  const handleProfile = () => {
+    navigate('/profile');
+    handleMenuClose();
+  };
+
   return {
     anchorEl,
     handleMenuOpen,
     handleMenuClose,
     handleLogout,
     handleAdminPanel,
+    handleProfile,
   };
 };

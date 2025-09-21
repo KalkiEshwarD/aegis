@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { UserFile, FileFilterInput } from '../types';
 
 type SortOption = 'name' | 'date' | 'size';
@@ -43,20 +43,20 @@ export const useFileSorting = (files: UserFile[] | undefined) => {
     });
   }, [files, sortBy, sortDirection]);
 
-  const handleFilterChange = (field: keyof FileFilterInput, value: string) => {
+  const handleFilterChange = useCallback((field: keyof FileFilterInput, value: string) => {
     setFilter(prev => ({
       ...prev,
       [field]: value || undefined,
     }));
-  };
+  }, []);
 
-  const handleSortChange = (value: SortOption) => {
+  const handleSortChange = useCallback((value: SortOption) => {
     setSortBy(value);
-  };
+  }, []);
 
-  const toggleSortDirection = () => {
+  const toggleSortDirection = useCallback(() => {
     setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-  };
+  }, []);
 
   return {
     filter,

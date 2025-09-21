@@ -10,6 +10,7 @@ import apolloClient from './apollo/client';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import Dashboard from './components/dashboard/Dashboard';
+import Profile from './components/profile/Profile';
 import SharedDashboard from './components/dashboard/SharedDashboard';
 import AdminDashboard from './components/admin/AdminDashboard';
 import ShareAccess from './components/share/ShareAccess';
@@ -143,6 +144,12 @@ const AppRoutes: React.FC = () => {
         <Route path="/dashboard" element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/profile" element={
+          <ProtectedRoute>
+            <Profile />
           </ProtectedRoute>
         } />
 

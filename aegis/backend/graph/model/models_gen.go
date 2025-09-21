@@ -41,10 +41,11 @@ type AuthPayload struct {
 }
 
 type CreateFileShareInput struct {
-	UserFileID     string     `json:"user_file_id"`
-	MasterPassword string     `json:"master_password"`
-	MaxDownloads   *int       `json:"max_downloads,omitempty"`
-	ExpiresAt      *time.Time `json:"expires_at,omitempty"`
+	UserFileID       string     `json:"user_file_id"`
+	MasterPassword   string     `json:"master_password"`
+	MaxDownloads     *int       `json:"max_downloads,omitempty"`
+	ExpiresAt        *time.Time `json:"expires_at,omitempty"`
+	AllowedUsernames []string   `json:"allowed_usernames,omitempty"`
 }
 
 type CreateFolderInput struct {
@@ -139,10 +140,18 @@ type SharedWithMeFile struct {
 }
 
 type UpdateFileShareInput struct {
-	ShareID        string     `json:"share_id"`
-	MasterPassword *string    `json:"master_password,omitempty"`
-	MaxDownloads   *int       `json:"max_downloads,omitempty"`
-	ExpiresAt      *time.Time `json:"expires_at,omitempty"`
+	ShareID          string     `json:"share_id"`
+	MasterPassword   *string    `json:"master_password,omitempty"`
+	MaxDownloads     *int       `json:"max_downloads,omitempty"`
+	ExpiresAt        *time.Time `json:"expires_at,omitempty"`
+	AllowedUsernames []string   `json:"allowed_usernames,omitempty"`
+}
+
+type UpdateProfileInput struct {
+	Username        *string `json:"username,omitempty"`
+	Email           *string `json:"email,omitempty"`
+	CurrentPassword *string `json:"currentPassword,omitempty"`
+	NewPassword     *string `json:"newPassword,omitempty"`
 }
 
 type UploadFileFromMapInput struct {

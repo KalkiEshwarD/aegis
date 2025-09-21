@@ -1,4 +1,5 @@
 import React, { memo, useRef, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
   Drawer,
@@ -23,7 +24,6 @@ import {
   Add as AddIcon,
   CloudUpload as CloudUploadIcon,
   DriveFolderUpload as FolderUploadIcon,
-  Storage as StorageIcon,
   Home as HomeIcon,
   Schedule as RecentIcon,
   Share as SharedIcon,
@@ -44,11 +44,6 @@ interface NavigationItem {
   icon: React.ReactElement;
 }
 
-interface QuickAction {
-  label: string;
-  icon: React.ReactElement;
-}
-
 interface DashboardSidebarProps {
   selectedNav: string;
   onNavChange: (navId: string) => void;
@@ -64,20 +59,26 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   statsLoading,
   onUploadComplete,
 }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [folderName, setFolderName] = useState('');
 
+  const activeTab = location.pathname === '/shared' ? 'shared' : selectedNav;
+
   const { handleFiles } = useFileUpload(onUploadComplete);
   const [createFolderMutation] = useMutation(CREATE_FOLDER_MUTATION);
 
   const handleFileUpload = () => {
+    onNavChange('home');
     fileInputRef.current?.click();
   };
 
   const handleFolderUpload = () => {
+    onNavChange('home');
     folderInputRef.current?.click();
   };
 
@@ -136,11 +137,6 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
     { id: 'trash', label: 'Trash', icon: <TrashIcon /> },
   ];
 
-  const quickActions: QuickAction[] = [
-    { label: 'Upload File', icon: <CloudUploadIcon /> },
-    { label: 'New Folder', icon: <NewFolderIcon /> },
-  ];
-
   return (
     <Drawer
       variant="permanent"
@@ -152,12 +148,15 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
           boxSizing: 'border-box',
           backgroundColor: '#ffffff',
           borderRight: '1px solid #e5e7eb',
-          boxShadow: 'none'
+          boxShadow: 'none',
+          display: 'flex',
+          flexDirection: 'column',
+          pb: 2
         },
       }}
     >
       <Toolbar />
-      <Box sx={{ overflow: 'auto', p: 2 }}>
+      <Box sx={{ flex: 1, overflow: 'auto', px: 2, pt: 2, pb: 1 }}>
         {/* Create New Button */}
         <Paper sx={{
           p: 2,
@@ -187,13 +186,12 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
           {navigationItems.map((item) => (
             <ListItem key={item.id} disablePadding sx={{ mb: 0.5 }}>
               <ListItemButton
-                selected={selectedNav === item.id}
+                selected={activeTab === item.id}
                 onClick={() => {
                   if (item.id === 'shared') {
-                    // Navigate to shared endpoint
-                    window.location.href = '/shared';
+                    navigate('/shared');
                   } else {
-                    onNavChange(item.id);
+                    navigate('/dashboard', { state: { selectedNav: item.id } });
                   }
                 }}
                 sx={{
@@ -220,7 +218,7 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                   primary={item.label}
                   primaryTypographyProps={{
                     fontSize: '0.875rem',
-                    fontWeight: selectedNav === item.id ? 600 : 400
+                    fontWeight: activeTab === item.id ? 600 : 400
                   }}
                 />
               </ListItemButton>
@@ -229,59 +227,6 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
         </List>
 
         <Divider sx={{ my: 2 }} />
-
-        {/* Quick Actions */}
-        <Typography variant="subtitle2" sx={{ color: '#6b7280', mb: 2, fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Quick Actions
-        </Typography>
-        <List sx={{ px: 0 }}>
-          {quickActions.map((action, index) => (
-            <ListItem key={index} disablePadding sx={{ mb: 0.5 }}>
-              <ListItemButton sx={{
-                borderRadius: 2,
-                '&:hover': {
-                  backgroundColor: '#f8fafc',
-                }
-              }} onClick={action.label === 'Upload File' ? handleFileUpload : handleNewFolder}>
-                <ListItemIcon sx={{ color: '#6b7280', minWidth: 36 }}>
-                  {action.icon}
-                </ListItemIcon>
-                <ListItemText
-                  primary={action.label}
-                  primaryTypographyProps={{
-                    fontSize: '0.875rem'
-                  }}
-                />
-              </ListItemButton>
-            </ListItem>
-          ))}
-        </List>
-
-        {/* Storage Info */}
-        <Box sx={{ mt: 4, p: 3, backgroundColor: '#f8fafc', borderRadius: 3, border: '1px solid #e5e7eb' }}>
-          <Typography variant="subtitle2" sx={{ color: '#374151', mb: 2, fontWeight: 600 }}>
-            Storage Usage
-          </Typography>
-          <Typography variant="body2" sx={{ mb: 2, color: '#6b7280' }}>
-            {statsLoading ? '...' : formatFileSize(statsData?.myStats?.used_storage || 0)} of {statsLoading ? '...' : formatFileSize(statsData?.myStats?.storage_quota || 0)} used
-          </Typography>
-          <LinearProgress
-            variant="determinate"
-            value={statsLoading ? 0 : Math.min((statsData?.myStats?.used_storage || 0) / (statsData?.myStats?.storage_quota || 1) * 100, 100)}
-            sx={{
-              height: 8,
-              borderRadius: 4,
-              backgroundColor: '#e5e7eb',
-              '& .MuiLinearProgress-bar': {
-                backgroundColor: '#3b82f6',
-                borderRadius: 4
-              }
-            }}
-          />
-          <Typography variant="caption" sx={{ color: '#6b7280', mt: 1, display: 'block' }}>
-            {statsLoading ? '...' : `${Math.round((statsData?.myStats?.storage_savings || 0) / 1024)}KB`} space saved
-          </Typography>
-        </Box>
 
         {/* Hidden file inputs */}
         <input
@@ -400,6 +345,32 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
             </Box>
           </DialogContent>
         </Dialog>
+      </Box>
+
+      {/* Storage Info */}
+      <Box sx={{ p: 2, backgroundColor: '#f8fafc', borderRadius: 3, border: '1px solid #e5e7eb', mx: 2, mb: 1 }}>
+        <Typography variant="subtitle2" sx={{ color: '#374151', mb: 2, fontWeight: 600 }}>
+          Storage Usage
+        </Typography>
+        <Typography variant="body2" sx={{ mb: 2, color: '#6b7280' }}>
+          {statsLoading ? '...' : formatFileSize(statsData?.myStats?.used_storage || 0)} of {statsLoading ? '...' : formatFileSize(statsData?.myStats?.storage_quota || 0)} used
+        </Typography>
+        <LinearProgress
+          variant="determinate"
+          value={statsLoading ? 0 : Math.min((statsData?.myStats?.used_storage || 0) / (statsData?.myStats?.storage_quota || 1) * 100, 100)}
+          sx={{
+            height: 8,
+            borderRadius: 4,
+            backgroundColor: '#e5e7eb',
+            '& .MuiLinearProgress-bar': {
+              backgroundColor: '#3b82f6',
+              borderRadius: 4
+            }
+          }}
+        />
+        <Typography variant="caption" sx={{ color: '#6b7280', mt: 1, display: 'block' }}>
+          {statsLoading ? '...' : `${Math.round((statsData?.myStats?.storage_savings || 0) / 1024)}KB`} space saved
+        </Typography>
       </Box>
     </Drawer>
   );

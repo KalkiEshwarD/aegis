@@ -11,14 +11,14 @@ export const useDashboardNavigation = () => {
   const [folderPath, setFolderPath] = useState<FolderPath[]>([{ id: null, name: 'Home' }]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  const handleNavChange = (navId: string) => {
+  const handleNavChange = useCallback((navId: string) => {
     setSelectedNav(navId);
     // Reset folder selection when changing navigation
     if (navId !== 'home') {
       setSelectedFolderId(null);
       setFolderPath([{ id: null, name: 'Home' }]);
     }
-  };
+  }, []);
 
   const handleFolderSelect = useCallback((folderId: string | null, folderName?: string) => {
     setSelectedFolderId(folderId);
@@ -50,9 +50,9 @@ export const useDashboardNavigation = () => {
     }
   }, [folderPath]);
 
-  const triggerRefresh = () => {
+  const triggerRefresh = useCallback(() => {
     setRefreshTrigger(prev => prev + 1);
-  };
+  }, []);
 
   const canNavigateBack = folderPath.length > 1;
 

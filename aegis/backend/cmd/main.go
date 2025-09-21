@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"html/template"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -13,6 +15,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"golang.org/x/crypto/nacl/secretbox"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
@@ -29,6 +33,7 @@ import (
 	apperrors "github.com/balkanid/aegis-backend/internal/errors"
 	"github.com/balkanid/aegis-backend/internal/handlers"
 	"github.com/balkanid/aegis-backend/internal/middleware"
+	"github.com/balkanid/aegis-backend/internal/models"
 	"github.com/balkanid/aegis-backend/internal/services"
 )
 
@@ -255,7 +260,7 @@ func main() {
 			}
 
 			// Load and parse template
-			templatePath := filepath.Join("..", "templates", "share_access.html")
+			templatePath := filepath.Join("templates", "share_access.html")
 			tmpl, err := template.ParseFiles(templatePath)
 			if err != nil {
 				log.Printf("Error parsing template: %v", err)
@@ -306,6 +311,107 @@ func main() {
 				downloadPath, token, req.Password)
 
 			c.JSON(http.StatusOK, gin.H{"downloadUrl": downloadURL})
+		})
+
+		// Direct download endpoint for shared files
+		shareGroup.GET("/:token/download", func(c *gin.Context) {
+			token := c.Param("token")
+			password := c.Query("password")
+			keyParam := c.Query("key")
+
+			if password == "" && keyParam == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Password or decryption key is required"})
+				return
+			}
+
+			// Validate share token
+			fileShare, err := shareService.ValidateShareToken(token)
+			if err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Share not found"})
+				return
+			}
+
+			// Get user file info for filename and encryption key
+			var userFile models.UserFile
+			if err := shareService.GetDB().GetDB().Preload("File").Where("id = ?", fileShare.UserFileID).First(&userFile).Error; err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
+				return
+			}
+
+			// Get the file encryption key. For shared files, this must be decrypted
+			// using the password provided for the share.
+			var fileKey []byte
+			if keyParam != "" {
+				// If a raw key is provided (e.g., from passwordless share), decode and use it
+				var err error
+				fileKey, err = base64.StdEncoding.DecodeString(keyParam)
+				if err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid key format"})
+					return
+				}
+			} else {
+				// If password is provided, use it to decrypt the file key stored in the share
+				var err error
+				fileKey, err = shareService.DecryptFileKey(fileShare, password)
+				if err != nil {
+					c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid password"})
+					return
+				}
+			}
+
+			if len(fileKey) == 0 {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to obtain file key"})
+				return
+			}
+
+			// Get the encrypted file content
+			reader, mimeType, err := fileService.StreamFile(userFile.UserID, fileShare.UserFileID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get file"})
+				return
+			}
+			defer reader.Close()
+
+			// Read encrypted content
+			encryptedData, err := io.ReadAll(reader)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read file"})
+				return
+			}
+
+			// Decrypt the file content using NaCl secretbox (compatible with TweetNaCl)
+			// Extract nonce from the first 24 bytes (TweetNaCl secretbox nonce length)
+			if len(encryptedData) < 24 {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid encrypted file format"})
+				return
+			}
+
+			var nonce [24]byte
+			var secretboxKey [32]byte
+			copy(nonce[:], encryptedData[:24])
+			copy(secretboxKey[:], fileKey[:32]) // Ensure we have exactly 32 bytes for the key
+
+			ciphertext := encryptedData[24:]
+
+			decryptedData, ok := secretbox.Open(nil, ciphertext, &nonce, &secretboxKey)
+			if !ok {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decrypt file"})
+				return
+			}
+
+			// Increment download count
+			shareService.IncrementDownloadCount(fileShare.ID)
+
+			// Set headers for download
+			c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", userFile.Filename))
+			c.Header("Content-Type", mimeType)
+			c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+			c.Header("Pragma", "no-cache")
+			c.Header("Expires", "0")
+			c.Header("Content-Length", fmt.Sprintf("%d", len(decryptedData)))
+
+			// Send the decrypted file
+			c.Data(http.StatusOK, mimeType, decryptedData)
 		})
 	}
 

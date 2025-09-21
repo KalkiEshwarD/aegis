@@ -106,6 +106,16 @@ export const GET_MY_STATS = gql`
   }
 `;
 
+export const GET_USERS = gql`
+  query GetUsers($search: String) {
+    users(search: $search) {
+      id
+      username
+      email
+    }
+  }
+`;
+
 // File Mutations
 export const UPLOAD_FILE_MUTATION = gql`
   mutation UploadFile($input: UploadFileInput!) {
@@ -240,6 +250,7 @@ export const GET_STARRED_FILES_QUERY = gql`
       id
       filename
       mime_type
+      encryption_key
       folder_id
       is_starred
       created_at
@@ -251,6 +262,42 @@ export const GET_STARRED_FILES_QUERY = gql`
       folder {
         id
         name
+      }
+    }
+  }
+`;
+
+// Starred Folders Operations
+export const GET_STARRED_FOLDERS_QUERY = gql`
+  query GetStarredFolders {
+    myStarredFolders {
+      id
+      name
+      parent_id
+      created_at
+      updated_at
+      is_starred
+      user {
+        id
+        email
+      }
+      parent {
+        id
+        name
+      }
+      children {
+        id
+        name
+        created_at
+      }
+      files {
+        id
+        filename
+        mime_type
+        created_at
+        file {
+          size_bytes
+        }
       }
     }
   }
@@ -372,6 +419,7 @@ export const GET_MY_FOLDERS = gql`
       parent_id
       created_at
       updated_at
+      is_starred
       user {
         id
         email
@@ -610,6 +658,7 @@ export const GET_FILE_SHARES = gql`
       user_file_id
       share_token
       encrypted_key
+      plain_text_password
       salt
       iv
       expires_at
@@ -649,8 +698,8 @@ export const CREATE_FILE_SHARE_MUTATION = gql`
 `;
 
 export const DELETE_FILE_SHARE_MUTATION = gql`
-  mutation DeleteFileShare($id: ID!) {
-    deleteFileShare(id: $id)
+  mutation DeleteFileShare($share_id: ID!) {
+    deleteFileShare(share_id: $share_id)
   }
 `;
 

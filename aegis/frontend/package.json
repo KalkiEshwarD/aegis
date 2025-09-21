@@ -10,6 +10,7 @@
     "@hookform/resolvers": "^2.9.11",
     "@mui/icons-material": "^5.15.0",
     "@mui/material": "^5.15.0",
+    "@mui/x-date-pickers": "^6.20.2",
     "@pmmmwh/react-refresh-webpack-plugin": "^0.5.3",
     "@svgr/webpack": "^5.5.0",
     "@testing-library/dom": "^10.4.1",
@@ -30,6 +31,7 @@
     "case-sensitive-paths-webpack-plugin": "^2.4.0",
     "css-loader": "^6.5.1",
     "css-minimizer-webpack-plugin": "^3.2.0",
+    "date-fns": "^2.30.0",
     "dotenv": "^10.0.0",
     "dotenv-expand": "^5.1.0",
     "eslint": "^8.3.0",
@@ -137,7 +139,7 @@
       "^(?!.*\\.(js|jsx|mjs|cjs|ts|tsx|css|json)$)": "<rootDir>/config/jest/fileTransform.js"
     },
     "transformIgnorePatterns": [
-      "[/\\\\]node_modules[/\\\\].+\\.(js|jsx|mjs|cjs|ts|tsx)$",
+      "[/\\\\]node_modules[/\\\\](?!date-fns|@mui/x-date-pickers).+\\.(js|jsx|mjs|cjs|ts|tsx)$",
       "^.+\\.module\\.(css|sass|scss)$"
     ],
     "modulePaths": [],

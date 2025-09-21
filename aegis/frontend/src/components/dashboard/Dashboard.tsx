@@ -1,14 +1,15 @@
-import React, { memo, useState } from 'react';
+import React, { memo, useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
-   Box,
-   Toolbar,
-   Paper,
-   Button,
-   Dialog,
-   DialogTitle,
-   DialogContent,
-   DialogActions,
-   TextField,
+  Box,
+  Toolbar,
+  Paper,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
 } from '@mui/material';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_MY_STATS } from '../../apollo/files';
@@ -17,21 +18,24 @@ import FileExplorer from '../common/FileExplorer';
 import TrashView from './TrashView';
 import SharedView from './SharedView';
 import StarredView from './StarredView';
+import StarredSidebar from '../common/StarredSidebar';
 import DashboardAppBar from './DashboardAppBar';
 import DashboardSidebar from './DashboardSidebar';
 import StatsCards from './StatsCards';
 import { useDashboardNavigation } from '../../hooks/useDashboardNavigation';
 import { useUserMenu } from '../../hooks/useUserMenu';
+import { isFile } from '../../types';
 import withAuth from '../hocs/withAuth';
 import withErrorBoundary from '../hocs/withErrorBoundary';
 const drawerWidth = 240;
 
 const Dashboard: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const location = useLocation();
   const [viewMode, setViewMode] = useState<'list' | 'tile'>('tile');
   const [createFolderDialogOpen, setCreateFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [folderCreationError, setFolderCreationError] = useState<string | null>(null);
+  const [starredSidebarCollapsed, setStarredSidebarCollapsed] = useState(true);
 
   const { data: statsData, loading: statsLoading } = useQuery(GET_MY_STATS, {
     fetchPolicy: 'cache-and-network',
@@ -53,6 +57,12 @@ const Dashboard: React.FC = () => {
     triggerRefresh,
   } = useDashboardNavigation();
 
+  useEffect(() => {
+    if (location.state?.selectedNav) {
+      handleNavChange(location.state.selectedNav);
+    }
+  }, [location.state, handleNavChange]);
+
   const {
     anchorEl,
     handleMenuOpen,
@@ -63,11 +73,11 @@ const Dashboard: React.FC = () => {
     triggerRefresh();
   };
 
-  const handleFileDeleted = () => {
+  const handleFileRestored = () => {
     triggerRefresh();
   };
 
-  const handleFileRestored = () => {
+  const handleFileDeleted = () => {
     triggerRefresh();
   };
 
@@ -116,6 +126,23 @@ const Dashboard: React.FC = () => {
     setFolderCreationError(null);
   };
 
+  const handleToggleStarredSidebar = () => {
+    setStarredSidebarCollapsed(!starredSidebarCollapsed);
+  };
+
+  const handleStarredItemClick = (item: any) => {
+    if (isFile(item)) {
+      // Navigate to the folder containing this file
+      if (item.folder_id) {
+        handleFolderSelect(item.folder_id, item.folder?.name || 'Folder');
+      } else {
+        // File is in root, navigate to home
+        handleNavChange('home');
+      }
+    }
+    // For folders, onFolderClick handles it
+  };
+
   return (
     <Box sx={{
       display: 'flex',
@@ -127,8 +154,8 @@ const Dashboard: React.FC = () => {
         onMenuOpen={handleMenuOpen}
         anchorEl={anchorEl}
         onMenuClose={handleMenuClose}
-        onSearch={setSearchTerm}
-        searchTerm={searchTerm}
+        onToggleStarredSidebar={handleToggleStarredSidebar}
+        starredSidebarCollapsed={starredSidebarCollapsed}
       />
 
       {/* Sidebar */}
@@ -139,6 +166,16 @@ const Dashboard: React.FC = () => {
         statsLoading={statsLoading}
         onUploadComplete={handleUploadComplete}
       />
+
+      {/* Starred Sidebar */}
+      {!starredSidebarCollapsed && (
+        <StarredSidebar
+          isCollapsed={false}
+          onToggleCollapse={handleToggleStarredSidebar}
+          onFolderClick={handleFolderSelect}
+          onItemClick={handleStarredItemClick}
+        />
+      )}
 
       {/* Main Content */}
       <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
@@ -185,9 +222,7 @@ const Dashboard: React.FC = () => {
             boxShadow: 'none',
             borderRadius: 3
           }}>
-            <StarredView
-              onFileDeleted={handleFileDeleted}
-            />
+            <StarredView />
           </Paper>
         ) : (
           <Paper sx={{
@@ -203,7 +238,6 @@ const Dashboard: React.FC = () => {
               onFileDeleted={handleFileDeleted}
               onUploadComplete={handleUploadComplete}
               onFolderClick={(folderId, folderName) => handleFolderSelect(folderId, folderName)}
-              externalSearchTerm={searchTerm}
               externalViewMode={viewMode}
               key={refreshTrigger}
               // Header props

@@ -18,6 +18,7 @@ import {
   MoreVert as MoreVertIcon,
   Folder as FolderIcon,
   Restore as RestoreIcon,
+  Star as StarIcon,
 } from '@mui/icons-material';
 import { UserFile, FileExplorerItem, isFolder, isFile } from '../../types';
 import { formatFileSize } from '../../utils/fileUtils';
@@ -294,19 +295,23 @@ const FileGrid: React.FC<FileGridProps> = ({
           onDrop={isItemFolder ? handleDrop : undefined}
         >
           {getItemIcon(item)}
-          <Typography
-            variant="body2"
-            sx={{
-              mt: 1,
-              textAlign: 'center',
-              wordBreak: 'break-word',
-              maxWidth: '100%',
-              fontWeight: isItemSelected ? 600 : 400,
-            }}
-            noWrap
-          >
-            {getItemName()}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 1 }}>
+            <Typography
+              variant="body2"
+              sx={{
+                textAlign: 'center',
+                wordBreak: 'break-word',
+                maxWidth: '100%',
+                fontWeight: isItemSelected ? 600 : 400,
+              }}
+              noWrap
+            >
+              {getItemName()}
+            </Typography>
+            {item.is_starred && (
+              <StarIcon sx={{ ml: 0.5, color: '#fbbf24', fontSize: 16 }} />
+            )}
+          </Box>
           <Typography variant="caption" color="textSecondary">
             {getItemSize()}
           </Typography>

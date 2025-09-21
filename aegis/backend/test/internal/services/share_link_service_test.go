@@ -380,6 +380,61 @@ func (suite *ShareLinkServiceTestSuite) TestValidateShareURL_MissingToken() {
 	assert.Contains(suite.T(), err.Error(), "share token missing from URL")
 }
 
+func (suite *ShareLinkServiceTestSuite) TestCreateShare_WithAllowedUsernames() {
+	allowedUsernames := []string{"alice", "bob", "charlie"}
+	fileShare, err := suite.shareLinkService.CreateShare(suite.testUserFile.ID, "Password123!", 5, nil, allowedUsernames)
+
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), fileShare)
+	assert.Equal(suite.T(), allowedUsernames, fileShare.AllowedUsernames)
+}
+
+func (suite *ShareLinkServiceTestSuite) TestCreateShare_WithEmptyAllowedUsernames() {
+	allowedUsernames := []string{}
+	fileShare, err := suite.shareLinkService.CreateShare(suite.testUserFile.ID, "Password123!", 5, nil, allowedUsernames)
+
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), fileShare)
+	assert.Equal(suite.T(), allowedUsernames, fileShare.AllowedUsernames)
+}
+
+func (suite *ShareLinkServiceTestSuite) TestCreateShare_WithNilAllowedUsernames() {
+	fileShare, err := suite.shareLinkService.CreateShare(suite.testUserFile.ID, "Password123!", 5, nil, nil)
+
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), fileShare)
+	assert.Nil(suite.T(), fileShare.AllowedUsernames)
+}
+
+func (suite *ShareLinkServiceTestSuite) TestUpdateShare_WithAllowedUsernames() {
+	// First create a share without usernames
+	fileShare, err := suite.shareLinkService.CreateShare(suite.testUserFile.ID, "Password123!", 5, nil, nil)
+	assert.NoError(suite.T(), err)
+
+	// Update with usernames
+	newUsernames := []string{"user1", "user2"}
+	updatedShare, err := suite.shareLinkService.UpdateShare(suite.testUser.ID, fileShare.ID, nil, nil, nil, &newUsernames)
+
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), updatedShare)
+	assert.Equal(suite.T(), newUsernames, updatedShare.AllowedUsernames)
+}
+
+func (suite *ShareLinkServiceTestSuite) TestUpdateShare_RemoveAllowedUsernames() {
+	// First create a share with usernames
+	allowedUsernames := []string{"alice", "bob"}
+	fileShare, err := suite.shareLinkService.CreateShare(suite.testUserFile.ID, "Password123!", 5, nil, allowedUsernames)
+	assert.NoError(suite.T(), err)
+
+	// Update to remove usernames
+	emptyUsernames := []string{}
+	updatedShare, err := suite.shareLinkService.UpdateShare(suite.testUser.ID, fileShare.ID, nil, nil, nil, &emptyUsernames)
+
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), updatedShare)
+	assert.Equal(suite.T(), emptyUsernames, updatedShare.AllowedUsernames)
+}
+
 func TestShareLinkServiceSuite(t *testing.T) {
 	suite.Run(t, new(ShareLinkServiceTestSuite))
 }

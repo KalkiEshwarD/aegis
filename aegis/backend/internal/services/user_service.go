@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"strings"
+	"time"
 
 	apperrors "github.com/balkanid/aegis-backend/internal/errors"
 	"golang.org/x/crypto/bcrypt"
@@ -190,6 +191,84 @@ func (s *UserService) GetAllUsers() ([]*models.User, error) {
 	var users []*models.User
 	err := s.db.GetDB().Find(&users).Error
 	return users, err
+}
+
+// SearchUsers returns users matching the search term for autocomplete
+func (s *UserService) SearchUsers(search string) ([]*models.User, error) {
+	var users []*models.User
+	query := s.db.GetDB()
+
+	if search != "" {
+		searchTerm := "%" + search + "%"
+		query = query.Where("username ILIKE ? OR email ILIKE ?", searchTerm, searchTerm)
+	}
+
+	// Limit results for autocomplete
+	err := query.Limit(10).Find(&users).Error
+	return users, err
+}
+
+// UpdateProfile updates user profile information
+func (s *UserService) UpdateProfile(userID uint, username, email, currentPassword, newPassword string) (*models.User, error) {
+	// Get current user
+	var user models.User
+	if err := s.db.GetDB().First(&user, userID).Error; err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeNotFound, "user not found")
+	}
+
+	// If changing password, verify current password
+	if newPassword != "" {
+		if currentPassword == "" {
+			return nil, apperrors.New(apperrors.ErrCodeInvalidArgument, "current password is required when changing password")
+		}
+		if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(currentPassword)); err != nil {
+			return nil, apperrors.New(apperrors.ErrCodeUnauthorized, "current password is incorrect")
+		}
+	}
+
+	// Check username uniqueness if changing
+	if username != "" && username != user.Username {
+		if result := utils.ValidateUsername(username); result.HasErrors() {
+			return nil, apperrors.New(apperrors.ErrCodeInvalidArgument, "username validation failed: "+strings.Join(result.Errors, ", "))
+		}
+		var existingUser models.User
+		if err := s.db.GetDB().Where("username = ? AND id != ?", username, userID).First(&existingUser).Error; err == nil {
+			return nil, apperrors.New(apperrors.ErrCodeConflict, "username already taken")
+		}
+		user.Username = username
+	}
+
+	// Check email uniqueness if changing
+	if email != "" && email != user.Email {
+		if result := utils.ValidateEmail(email); result.HasErrors() {
+			return nil, apperrors.New(apperrors.ErrCodeInvalidArgument, "email validation failed: "+strings.Join(result.Errors, ", "))
+		}
+		var existingUser models.User
+		if err := s.db.GetDB().Where("email = ? AND id != ?", email, userID).First(&existingUser).Error; err == nil {
+			return nil, apperrors.New(apperrors.ErrCodeConflict, "email already taken")
+		}
+		user.Email = email
+	}
+
+	// Hash new password if provided
+	if newPassword != "" {
+		if result := utils.ValidatePassword(newPassword, utils.DefaultPasswordRequirements()); result.HasErrors() {
+			return nil, apperrors.New(apperrors.ErrCodeInvalidArgument, "password validation failed: "+strings.Join(result.Errors, ", "))
+		}
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+		if err != nil {
+			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to hash password")
+		}
+		user.PasswordHash = string(hashedPassword)
+	}
+
+	// Update user
+	user.UpdatedAt = time.Now()
+	if err := s.db.GetDB().Save(&user).Error; err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to update user")
+	}
+
+	return &user, nil
 }
 
 // UserStats represents user storage statistics

@@ -51,6 +51,7 @@ type Folder {
   parent_id: ID
   created_at: Time!
   updated_at: Time!
+  is_starred: Boolean!
   user: User
   parent: Folder
   children: [Folder!]!
@@ -166,6 +167,7 @@ input CreateFileShareInput {
   master_password: String!
   max_downloads: Int
   expires_at: Time
+  allowed_usernames: [String!]
 }
 
 input UpdateFileShareInput {
@@ -173,11 +175,19 @@ input UpdateFileShareInput {
   master_password: String
   max_downloads: Int
   expires_at: Time
+  allowed_usernames: [String!]
 }
 
 input AccessSharedFileInput {
   token: String!
   master_password: String!
+}
+
+input UpdateProfileInput {
+  username: String
+  email: String
+  currentPassword: String
+  newPassword: String
 }
 
 # Statistics and admin types
@@ -206,11 +216,15 @@ type FileShare {
   envelope_key: String!
   envelope_salt: String!
   envelope_iv: String!
+  encrypted_password: String
+  password_iv: String
+  plain_text_password: String
   max_downloads: Int!
   download_count: Int!
   expires_at: Time
   created_at: Time!
   updated_at: Time!
+  allowed_usernames: [String!]!
   user_file: UserFile
 }
 
@@ -276,9 +290,11 @@ type Query {
   me: User!
   myFiles(filter: FileFilterInput): [UserFile!]!
   myStarredFiles: [UserFile!]!
+  myStarredFolders: [Folder!]!
   myTrashedFiles: [UserFile!]!
   myTrashedFolders: [Folder!]!
   myStats: UserStats!
+  users(search: String): [User!]!
 
   # Room queries
   myRooms: [Room!]!
@@ -350,4 +366,7 @@ type Mutation {
   # Admin operations
   promoteUserToAdmin(user_id: ID!): Boolean!
   deleteUserAccount(user_id: ID!): Boolean!
+
+  # Profile operations
+  updateProfile(input: UpdateProfileInput!): User!
 }

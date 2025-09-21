@@ -42,17 +42,38 @@ import {
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_MY_FILES, MOVE_FILE_MUTATION } from '../../apollo/files';
 import { GET_MY_FOLDERS, CREATE_FOLDER_MUTATION, RENAME_FOLDER_MUTATION, MOVE_FOLDER_MUTATION, DELETE_FOLDER_MUTATION } from '../../apollo/folders';
-import { STAR_FILE_MUTATION, UNSTAR_FILE_MUTATION } from '../../apollo/queries';
+import { STAR_FILE_MUTATION, UNSTAR_FILE_MUTATION, STAR_FOLDER_MUTATION, UNSTAR_FOLDER_MUTATION, GET_STARRED_FILES_QUERY, GET_STARRED_FOLDERS_QUERY } from '../../apollo/queries';
 import { GET_MY_TRASHED_FILES, GET_MY_TRASHED_FOLDERS, RESTORE_FILE_MUTATION, PERMANENTLY_DELETE_FILE_MUTATION, RESTORE_FOLDER_MUTATION, PERMANENTLY_DELETE_FOLDER_MUTATION, GET_MY_STATS } from '../../apollo/queries';
 import { UserFile, Folder, FileExplorerItem, isFolder, isFile } from '../../types';
 import { useFileOperations } from '../../hooks/useFileOperations';
 import { useFileUpload } from '../../hooks/useFileUpload';
-import { useFileSorting } from '../../hooks/useFileSorting';
 import FileGrid from './FileGrid';
 import FileToolbar from './FileToolbar';
 import { FileListItem } from './FileListItem';
 import UploadProgress from './UploadProgress';
 import { ShareLinkManager } from './ShareLinkManager';
+
+// Helper function to calculate folder size recursively
+const calculateFolderSize = (folder: Folder): number => {
+  let totalSize = 0;
+
+  // Add sizes of direct files in this folder
+  if (folder.files) {
+    totalSize += folder.files.reduce((sum, file) => {
+      return sum + (file.file?.size_bytes || 0);
+    }, 0);
+  }
+
+  // Add sizes of files in subfolders recursively
+  if (folder.children) {
+    totalSize += folder.children.reduce((sum, childFolder) => {
+      return sum + calculateFolderSize(childFolder);
+    }, 0);
+  }
+
+  return totalSize;
+};
+
 
 interface FileExplorerProps {
     folderId?: string | null;
@@ -77,6 +98,7 @@ interface FileExplorerProps {
     // Trash mode props
     isTrashMode?: boolean;
     onFileRestored?: () => void;
+    isStarredMode?: boolean;
 }
 
 const FileExplorer: React.FC<FileExplorerProps> = ({
@@ -102,6 +124,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     // Trash mode props
     isTrashMode = false,
     onFileRestored,
+    isStarredMode = false,
 }) => {
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<{
@@ -165,8 +188,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     setSearchQuery(externalSearchTerm);
   }, [externalSearchTerm]);
 
-  const { data, error: queryError, refetch } = useQuery(isTrashMode ? GET_MY_TRASHED_FILES : GET_MY_FILES, {
-    variables: isTrashMode ? {} : {
+  const { data, error: queryError, refetch } = useQuery(isTrashMode ? GET_MY_TRASHED_FILES : (isStarredMode ? GET_STARRED_FILES_QUERY : GET_MY_FILES), {
+    variables: isTrashMode || isStarredMode ? {} : {
       filter: {
         folder_id: folderId || "",
         includeTrashed: false // Explicitly exclude trashed files
@@ -181,7 +204,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     },
   });
 
-  const { data: foldersData, refetch: refetchFolders } = useQuery(GET_MY_FOLDERS, {
+  const { data: foldersData, refetch: refetchFolders } = useQuery(isStarredMode ? GET_STARRED_FOLDERS_QUERY : GET_MY_FOLDERS, {
     fetchPolicy: 'cache-and-network',
   });
 
@@ -192,10 +215,10 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
   // Get all available files and folders for paste operations
   const allAvailableItems = useMemo(() => {
-    const allFiles = (isTrashMode ? data?.myTrashedFiles : data?.myFiles) || [];
-    const allFolders = isTrashMode ? [] : (foldersData?.myFolders || []); // No paste operations in trash mode
+    const allFiles = (isTrashMode ? data?.myTrashedFiles : (isStarredMode ? data?.myStarredFiles : data?.myFiles)) || [];
+    const allFolders = isTrashMode ? [] : (isStarredMode ? foldersData?.myStarredFolders : foldersData?.myFolders) || []; // No paste operations in trash mode
     return [...allFiles, ...allFolders];
-  }, [isTrashMode, data?.myTrashedFiles, data?.myFiles, foldersData?.myFolders]);
+  }, [isTrashMode, isStarredMode, data?.myTrashedFiles, data?.myStarredFiles, data?.myFiles, foldersData?.myStarredFolders, foldersData?.myFolders]);
 
   const [moveFileMutation] = useMutation(MOVE_FILE_MUTATION);
   const [createFolderMutation] = useMutation(CREATE_FOLDER_MUTATION);
@@ -204,6 +227,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const [deleteFolderMutation] = useMutation(DELETE_FOLDER_MUTATION);
   const [starFileMutation] = useMutation(STAR_FILE_MUTATION);
   const [unstarFileMutation] = useMutation(UNSTAR_FILE_MUTATION);
+  const [starFolderMutation] = useMutation(STAR_FOLDER_MUTATION);
+  const [unstarFolderMutation] = useMutation(UNSTAR_FOLDER_MUTATION);
   const [restoreFileMutation] = useMutation(RESTORE_FILE_MUTATION);
   const [permanentlyDeleteFileMutation] = useMutation(PERMANENTLY_DELETE_FILE_MUTATION);
   const [restoreFolderMutation] = useMutation(RESTORE_FOLDER_MUTATION);
@@ -213,7 +238,21 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const currentFolders = useMemo(() => {
     let filtered;
 
-    if (isTrashMode) {
+    if (isStarredMode) {
+      // In starred mode, show all starred folders (no folder hierarchy filtering)
+      filtered = foldersData?.myStarredFolders?.filter((folder: Folder) => {
+        // First filter out null/undefined items
+        if (!folder) return false;
+
+        // Search filter for folders
+        if (searchQuery) {
+          const query = searchQuery.toLowerCase();
+          return folder.name.toLowerCase().includes(query);
+        }
+
+        return true;
+      }) || [];
+    } else if (isTrashMode) {
       // In trash mode, try to use trashed folders data, but fall back to creating virtual folders
       if (trashedFoldersData?.myTrashedFolders) {
         // Normal path: use actual trashed folders data
@@ -346,11 +385,11 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     });
 
     return filtered;
-  }, [isTrashMode, foldersData?.myFolders, trashedFoldersData?.myTrashedFolders, data?.myTrashedFiles, folderId, searchQuery, fileSortBy, fileSortOrder]);
+  }, [isTrashMode, isStarredMode, foldersData?.myFolders, foldersData?.myStarredFolders, trashedFoldersData?.myTrashedFolders, data?.myTrashedFiles, folderId, searchQuery, fileSortBy, fileSortOrder]);
 
   // Client-side filter files by folder_id and search query
   const filteredFiles = useMemo(() => {
-    const files = isTrashMode ? data?.myTrashedFiles : data?.myFiles;
+    const files = isTrashMode ? data?.myTrashedFiles : (isStarredMode ? data?.myStarredFiles : data?.myFiles);
     if (!files) return [];
 
     let filtered = files.filter((file: UserFile) => {
@@ -358,7 +397,9 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       if (!file || !file.id) return false;
 
       // Folder filter
-      if (isTrashMode) {
+      if (isStarredMode) {
+        // In starred mode, show all starred files (no folder filtering)
+      } else if (isTrashMode) {
         // In trash mode, if we're browsing into a specific folder, show only files from that folder
         if (folderId) {
           if (file.folder_id !== folderId) return false;
@@ -395,36 +436,15 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     });
 
     return filtered;
-  }, [isTrashMode, data?.myTrashedFiles, data?.myFiles, folderId, searchQuery]);
+  }, [isTrashMode, isStarredMode, data?.myTrashedFiles, data?.myStarredFiles, data?.myFiles, folderId, searchQuery]);
 
   // Use custom hooks
   const { downloadingFile, error, downloadFile, deleteFile } = useFileOperations();
   const { uploads, handleFiles, removeUpload, clearCompleted } = useFileUpload(onUploadComplete);
 
-  // Helper function to calculate folder size recursively
-  const calculateFolderSize = useCallback((folder: Folder): number => {
-    let totalSize = 0;
-
-    // Add sizes of direct files in this folder
-    if (folder.files) {
-      totalSize += folder.files.reduce((sum, file) => {
-        return sum + (file.file?.size_bytes || 0);
-      }, 0);
-    }
-
-    // Add sizes of files in subfolders recursively
-    if (folder.children) {
-      totalSize += folder.children.reduce((sum, childFolder) => {
-        return sum + calculateFolderSize(childFolder);
-      }, 0);
-    }
-
-    return totalSize;
-  }, []);
-
   // Combine folders and files for display and sort them together
   const allItems: FileExplorerItem[] = useMemo(() => {
-    const combined = [...currentFolders, ...filteredFiles];
+    let combined = [...currentFolders, ...filteredFiles];
 
     // Sort the combined array
     combined.sort((a: FileExplorerItem, b: FileExplorerItem) => {
@@ -472,7 +492,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     });
 
     return combined;
-  }, [currentFolders, filteredFiles, fileSortBy, fileSortOrder, calculateFolderSize]);
+  }, [currentFolders, filteredFiles, fileSortBy, fileSortOrder]);
 
   // Helper function to select a range of items
   const selectRange = useCallback((startIndex: number, endIndex: number) => {
@@ -523,6 +543,52 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     }
   }, [unstarFileMutation, refetch]);
 
+  const handleStarFolder = useCallback(async (folder: Folder) => {
+    try {
+      await starFolderMutation({
+        variables: { id: folder.id },
+      });
+      refetchFolders(); // Refresh the folder data
+      setSnackbarMessage(`Starred "${folder.name}"`);
+      setSnackbarOpen(true);
+    } catch (error) {
+      console.error('Error starring folder:', error);
+      setSnackbarMessage('Failed to star folder');
+      setSnackbarOpen(true);
+    }
+  }, [starFolderMutation, refetchFolders]);
+
+  const handleUnstarFolder = useCallback(async (folder: Folder) => {
+    try {
+      await unstarFolderMutation({
+        variables: { id: folder.id },
+      });
+      refetchFolders(); // Refresh the folder data
+      setSnackbarMessage(`Unstarred "${folder.name}"`);
+      setSnackbarOpen(true);
+    } catch (error) {
+      console.error('Error unstarring folder:', error);
+      setSnackbarMessage('Failed to unstar folder');
+      setSnackbarOpen(true);
+    }
+  }, [unstarFolderMutation, refetchFolders]);
+
+  const handleStarToggle = useCallback(async (item: FileExplorerItem) => {
+    if (isFile(item)) {
+      if (item.is_starred) {
+        await handleUnstarFile(item);
+      } else {
+        await handleStarFile(item);
+      }
+    } else if (isFolder(item)) {
+      if (item.is_starred) {
+        await handleUnstarFolder(item);
+      } else {
+        await handleStarFolder(item);
+      }
+    }
+  }, [handleStarFile, handleUnstarFile, handleStarFolder, handleUnstarFolder]);
+
   // Handle file selection
   const handleFileClick = (fileId: string, event: React.MouseEvent) => {
     console.log('DEBUG: handleFileClick called with fileId:', fileId, 'selectedFiles before:', Array.from(selectedFiles));
@@ -566,8 +632,10 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
     const selectedItems = allItems.filter(item => selectedItemIds.includes(item.id));
     const filesToStar = selectedItems.filter(item => isFile(item)) as UserFile[];
+    const foldersToStar = selectedItems.filter(item => isFolder(item)) as Folder[];
 
     try {
+      // Star files
       for (const file of filesToStar) {
         if (!file.is_starred) {
           await starFileMutation({
@@ -575,15 +643,27 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
           });
         }
       }
+
+      // Star folders
+      for (const folder of foldersToStar) {
+        if (!folder.is_starred) {
+          await starFolderMutation({
+            variables: { id: folder.id },
+          });
+        }
+      }
+
       refetch();
-      setSnackbarMessage(`Starred ${filesToStar.length} item(s)`);
+      refetchFolders();
+      const totalItems = filesToStar.length + foldersToStar.length;
+      setSnackbarMessage(`Starred ${totalItems} item(s)`);
       setSnackbarOpen(true);
     } catch (error) {
-      console.error('Error starring files:', error);
-      setSnackbarMessage('Failed to star files');
+      console.error('Error starring items:', error);
+      setSnackbarMessage('Failed to star items');
       setSnackbarOpen(true);
     }
-  }, [selectedFiles, allItems, starFileMutation, refetch]);
+  }, [selectedFiles, allItems, starFileMutation, starFolderMutation, refetch, refetchFolders]);
 
   // Handle restore selected items
   const handleRestoreSelected = useCallback(async () => {
@@ -876,7 +956,9 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   // Handle file/folder move via drag and drop
   const handleFileMove = useCallback(async (itemIds: string[], targetFolderId: string | null) => {
     try {
-      const allItems = [...(data?.myFiles || []), ...(foldersData?.myFolders || [])];
+      const allFiles = isStarredMode ? data?.myStarredFiles : data?.myFiles;
+      const allFolders = isStarredMode ? foldersData?.myStarredFolders : foldersData?.myFolders;
+      const allItems = [...(allFiles || []), ...(allFolders || [])];
       const itemsToMove = allItems.filter((item) => itemIds.includes(item.id));
 
       // Filter out items that are already in the target folder
@@ -1063,6 +1145,15 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
             handlePasteKey();
           }
           // If no internal items to paste, let browser handle the paste event naturally
+        }
+        break;
+      case 's':
+      case 'S':
+        if (cmdOrCtrl && shiftKey) {
+          event.preventDefault();
+          handleStarSelected();
+          setSnackbarMessage('Star toggle shortcut used');
+          setSnackbarOpen(true);
         }
         break;
     }
@@ -1583,8 +1674,59 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     }
   }, [selectedFiles.size, onSelectionChange]);
 
+  // Memoized toggle sort direction handler
+  const handleToggleSortDirection = useCallback(() => {
+    setFileSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+  }, []);
+
   // Determine if drag and drop should be enabled
-  const isDragDropEnabled = !isTrashMode && (allItems.length > 0 || uploads.length > 0 || !searchQuery);
+  const isDragDropEnabled = !isTrashMode && !isStarredMode && (allItems.length > 0 || uploads.length > 0 || !searchQuery);
+
+  // Memoized toolbar props to prevent unnecessary re-renders
+  const normalToolbarProps = useMemo(() => {
+    const canPasteValue = cutItems.size > 0 || copiedItems.size > 0;
+    const hasSelection = selectedFiles.size > 0;
+    const selectedItems = allItems.filter(item => selectedFiles.has(item.id));
+    const hasFiles = selectedItems.some(item => isFile(item));
+
+    return {
+      searchQuery,
+      sortBy: fileSortBy,
+      sortDirection: fileSortOrder,
+      onSearchChange: setSearchQuery,
+      onSortChange: setFileSortBy,
+      onToggleSortDirection: handleToggleSortDirection,
+      onCut: handleCut,
+      onPaste: handlePasteKey,
+      onDelete: handleDeleteSelected,
+      onStar: handleStarSelected,
+      canCut: hasSelection,
+      canPaste: canPasteValue,
+      canDelete: hasSelection,
+      canStar: hasSelection && hasFiles,
+      cutItemsCount: selectedFiles.size,
+    };
+  }, [searchQuery, fileSortBy, fileSortOrder, setSearchQuery, setFileSortBy, handleToggleSortDirection, handleCut, handlePasteKey, handleDeleteSelected, handleStarSelected, cutItems.size, copiedItems.size, selectedFiles.size, allItems, selectedFiles]);
+
+  const trashToolbarProps = useMemo(() => {
+    const hasSelection = selectedFiles.size > 0;
+    const selectedItems = allItems.filter(item => selectedFiles.has(item.id));
+    const hasFiles = selectedItems.some(item => isFile(item));
+
+    return {
+      searchQuery,
+      sortBy: fileSortBy,
+      sortDirection: fileSortOrder,
+      onSearchChange: setSearchQuery,
+      onSortChange: setFileSortBy,
+      onToggleSortDirection: handleToggleSortDirection,
+      onDelete: handleDeleteSelected,
+      onRestore: handleRestoreSelected,
+      canDelete: hasSelection,
+      canRestore: hasSelection && hasFiles,
+      cutItemsCount: selectedFiles.size,
+    };
+  }, [searchQuery, fileSortBy, fileSortOrder, setSearchQuery, setFileSortBy, handleToggleSortDirection, handleDeleteSelected, handleRestoreSelected, selectedFiles.size, allItems, selectedFiles]);
 
 
 
@@ -1715,7 +1857,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
               </Breadcrumbs>
             )
           )}
-          {showNewFolderButton && onCreateFolder && !isTrashMode && (
+          {showNewFolderButton && onCreateFolder && !isTrashMode && !isStarredMode && (
             <Button
               variant="contained"
               startIcon={<CreateNewFolderIcon />}
@@ -1730,52 +1872,11 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       ) : null}
 
       {/* Toolbar */}
-      {(() => {
-        const canPasteValue = cutItems.size > 0 || copiedItems.size > 0;
-        const hasSelection = selectedFiles.size > 0;
-        const selectedItems = allItems.filter(item => selectedFiles.has(item.id));
-        const hasFiles = selectedItems.some(item => isFile(item));
-        console.log('DEBUG: Toolbar render - cutItems.size:', cutItems.size, 'copiedItems.size:', copiedItems.size, 'canPaste:', canPasteValue, 'hasSelection:', hasSelection, 'hasFiles:', hasFiles);
-
-        if (isTrashMode) {
-          // Trash mode toolbar - simplified with restore and permanent delete
-          return (
-            <FileToolbar
-              searchQuery={searchQuery}
-              sortBy={fileSortBy}
-              sortDirection={fileSortOrder}
-              onSearchChange={setSearchQuery}
-              onSortChange={setFileSortBy}
-              onToggleSortDirection={() => setFileSortOrder(fileSortOrder === 'asc' ? 'desc' : 'asc')}
-              onDelete={handleDeleteSelected} // This will be permanent delete in trash mode
-              onRestore={handleRestoreSelected}
-              canDelete={hasSelection}
-              canRestore={hasSelection && hasFiles}
-              cutItemsCount={selectedFiles.size}
-            />
-          );
-        }
-
-        return (
-          <FileToolbar
-            searchQuery={searchQuery}
-            sortBy={fileSortBy}
-            sortDirection={fileSortOrder}
-            onSearchChange={setSearchQuery}
-            onSortChange={setFileSortBy}
-            onToggleSortDirection={() => setFileSortOrder(fileSortOrder === 'asc' ? 'desc' : 'asc')}
-            onCut={handleCut}
-            onPaste={handlePasteKey}
-            onDelete={handleDeleteSelected}
-            onStar={handleStarSelected}
-            canCut={hasSelection}
-            canPaste={canPasteValue}
-            canDelete={hasSelection}
-            canStar={hasSelection && hasFiles}
-            cutItemsCount={selectedFiles.size}
-          />
-        );
-      })()}
+      {isTrashMode ? (
+        <FileToolbar {...trashToolbarProps} />
+      ) : (
+        <FileToolbar {...normalToolbarProps} />
+      )}
 
 
       {/* File Explorer Area */}
@@ -1838,6 +1939,23 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
               </Typography>
               <Typography variant="body2" color="textSecondary">
                 Try adjusting your search terms
+              </Typography>
+            </Box>
+          ) : isStarredMode ? (
+            // Starred empty state
+            <Box
+              display="flex"
+              flexDirection="column"
+              alignItems="center"
+              justifyContent="center"
+              sx={{ height: '100%', minHeight: 300 }}
+            >
+              <StarIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+              <Typography variant="h6" gutterBottom>
+                No starred files
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                Your starred files and folders will appear here
               </Typography>
             </Box>
           ) : isTrashMode ? (
@@ -1908,15 +2026,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
                     onDelete={() => isFile(item) ? handleDeleteClick(item) : undefined}
                     onRestore={() => isTrashMode ? handleRestoreClick(item) : undefined}
                     onFolderClick={() => isFolder(item) ? onFolderClick?.(item.id, item.name) : undefined}
-                    onStarToggle={() => {
-                      if (isFile(item)) {
-                        if (item.is_starred) {
-                          handleUnstarFile(item);
-                        } else {
-                          handleStarFile(item);
-                        }
-                      }
-                    }}
+                    onStarToggle={() => handleStarToggle(item)}
                     onFileMove={handleFileMove}
                     onItemSelect={handleItemSelect}
                   />
@@ -1925,36 +2035,31 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
             )}
           </div>
         )}
-
-        {/* Box selection overlay */}
-        {isBoxSelecting && boxSelectionStart && boxSelectionEnd && (
+        {boxSelectionStart && boxSelectionEnd && (
           <Box
             sx={{
               position: 'absolute',
+              border: '1px solid #90caf9',
+              backgroundColor: 'rgba(144, 202, 249, 0.2)',
               left: Math.min(boxSelectionStart.x, boxSelectionEnd.x),
               top: Math.min(boxSelectionStart.y, boxSelectionEnd.y),
-              width: Math.abs(boxSelectionEnd.x - boxSelectionStart.x),
-              height: Math.abs(boxSelectionEnd.y - boxSelectionStart.y),
-              border: '2px solid #3b82f6',
-              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              width: Math.abs(boxSelectionStart.x - boxSelectionEnd.x),
+              height: Math.abs(boxSelectionStart.y - boxSelectionEnd.y),
               pointerEvents: 'none',
-              zIndex: 1000,
             }}
           />
         )}
       </Paper>
 
-      {/* Upload Progress Summary */}
-      <UploadProgress
-        uploads={uploads}
-        onRemoveUpload={removeUpload}
-        onClearCompleted={clearCompleted}
-      />
+      {/* Upload Progress */}
+      {uploads.length > 0 && (
+        <UploadProgress uploads={uploads} onRemoveUpload={removeUpload} onClearCompleted={clearCompleted} />
+      )}
 
       {/* Context Menu */}
       <Menu
         open={contextMenu !== null}
-        onClose={handleContextMenuClose}
+        onClose={() => setContextMenu(null)}
         anchorReference="anchorPosition"
         anchorPosition={
           contextMenu !== null
@@ -1962,229 +2067,149 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
             : undefined
         }
       >
-        {(() => {
-          const item = allItems.find(item => item.id === contextMenu?.fileId);
-          if (!item) return null;
-
-          const isItemFolder = isFolder(item);
-          const isItemFile = isFile(item);
-
-          return (
-            <>
-              {/* File-specific options */}
-              {isItemFile && (
-                <>
-                  <MenuItem onClick={() => {
-                    handleDownload(item);
-                    handleContextMenuClose();
-                  }}>
-                    <DownloadIcon sx={{ mr: 1 }} />
-                    Download
-                  </MenuItem>
-                  <MenuItem onClick={() => {
-                    setFileToShare(item);
-                    setShareDialogOpen(true);
-                    handleContextMenuClose();
-                  }}>
-                    <ShareIcon sx={{ mr: 1 }} />
-                    Share
-                  </MenuItem>
-                  <MenuItem onClick={() => {
-                    if (item.is_starred) {
-                      handleUnstarFile(item);
-                    } else {
-                      handleStarFile(item);
-                    }
-                    handleContextMenuClose();
-                  }}>
-                    {item.is_starred ? (
-                      <StarIcon sx={{ mr: 1, color: '#fbbf24' }} />
-                    ) : (
-                      <StarBorderIcon sx={{ mr: 1 }} />
-                    )}
-                    {item.is_starred ? 'Unstar' : 'Star'}
-                  </MenuItem>
-                  <MenuItem onClick={() => {
-                    const itemIds = [item.id];
-                    setCutItems(new Set(itemIds));
-                    localStorage.setItem('fileExplorerCutItems', JSON.stringify(itemIds));
-                    setCopiedItems(new Set());
-                    localStorage.setItem('fileExplorerCopiedItems', JSON.stringify([]));
-                    setSelectedFiles(new Set());
-                    setSnackbarMessage(`1 item(s) cut`);
-                    setSnackbarOpen(true);
-                    handleContextMenuClose();
-                  }}>
-                    <CutIcon sx={{ mr: 1 }} />
-                    Cut
-                  </MenuItem>
-                </>
-              )}
-
-              {/* Folder-specific options */}
-              {isItemFolder && (
-                <>
-                  <MenuItem onClick={() => {
-                    if (onFolderClick) onFolderClick(item.id, item.name);
-                    handleContextMenuClose();
-                  }}>
-                    <FolderIcon sx={{ mr: 1 }} />
-                    Open Folder
-                  </MenuItem>
-                  <MenuItem onClick={() => {
-                    const itemIds = [item.id];
-                    setCutItems(new Set(itemIds));
-                    localStorage.setItem('fileExplorerCutItems', JSON.stringify(itemIds));
-                    setCopiedItems(new Set());
-                    localStorage.setItem('fileExplorerCopiedItems', JSON.stringify([]));
-                    setSelectedFiles(new Set());
-                    setSnackbarMessage(`1 item(s) cut`);
-                    setSnackbarOpen(true);
-                    handleContextMenuClose();
-                  }}>
-                    <CutIcon sx={{ mr: 1 }} />
-                    Cut
-                  </MenuItem>
-                </>
-              )}
-
-              {/* Common options for both files and folders */}
-              {isTrashMode ? (
-                <>
-                  <MenuItem onClick={() => {
-                    handleRestoreClick(item);
-                    handleContextMenuClose();
-                  }}>
-                    <RestoreIcon sx={{ mr: 1 }} />
-                    Restore
-                  </MenuItem>
-                  <MenuItem onClick={() => {
-                    handlePermanentDeleteClick(item);
-                    handleContextMenuClose();
-                  }}>
-                    <DeleteForeverIcon sx={{ mr: 1 }} />
-                    Delete Permanently
-                  </MenuItem>
-                </>
-              ) : (
-                <>
-                  <MenuItem onClick={() => {
-                    setRenameItem(item);
-                    setNewItemName(isItemFolder ? item.name : item.filename);
-                    setRenameDialogOpen(true);
-                    handleContextMenuClose();
-                  }}>
-                    <EditIcon sx={{ mr: 1 }} />
-                    Rename
-                  </MenuItem>
-
-                  <MenuItem onClick={() => {
-                    if (isItemFile) {
-                      handleDeleteClick(item);
-                    } else if (isItemFolder) {
-                      handleDeleteFolder(item);
-                    }
-                    handleContextMenuClose();
-                  }}>
-                    <DeleteIcon sx={{ mr: 1 }} />
-                    Delete
-                  </MenuItem>
-                </>
-              )}
-            </>
-          );
-        })()}
+        {isTrashMode ? (
+          // Trash-specific context menu
+          <>
+            <MenuItem onClick={() => {
+              const item = allItems.find(i => i.id === contextMenu?.fileId);
+              if (item) handleRestoreClick(item);
+              setContextMenu(null);
+            }}>
+              <RestoreIcon sx={{ mr: 1 }} /> Restore
+            </MenuItem>
+            <MenuItem onClick={() => {
+              const item = allItems.find(i => i.id === contextMenu?.fileId);
+              if (item) handlePermanentDeleteClick(item);
+              setContextMenu(null);
+            }}>
+              <DeleteForeverIcon sx={{ mr: 1 }} /> Delete Permanently
+            </MenuItem>
+          </>
+        ) : (
+          // Normal context menu
+          <>
+            <MenuItem onClick={() => {
+              const file = files.find((f: UserFile) => f.id === contextMenu?.fileId);
+              if (file) handleDownload(file);
+              setContextMenu(null);
+            }}>
+              <DownloadIcon sx={{ mr: 1 }} /> Download
+            </MenuItem>
+            <MenuItem onClick={() => {
+              const item = allItems.find(i => i.id === contextMenu?.fileId);
+              if (item) {
+                setRenameItem(item);
+                setNewItemName(isFolder(item) ? item.name : (item as UserFile).filename);
+                setRenameError(null);
+                setRenameDialogOpen(true);
+              }
+              setContextMenu(null);
+            }}>
+              <EditIcon sx={{ mr: 1 }} /> Rename
+            </MenuItem>
+            <MenuItem onClick={() => {
+              const file = files.find((f: UserFile) => f.id === contextMenu?.fileId);
+              if (file) {
+                setFileToShare(file);
+                setShareDialogOpen(true);
+              }
+              setContextMenu(null);
+            }}>
+              <ShareIcon sx={{ mr: 1 }} /> Share
+            </MenuItem>
+            <MenuItem onClick={() => {
+              const item = allItems.find(i => i.id === contextMenu?.fileId);
+              if (item) handleStarToggle(item);
+              setContextMenu(null);
+            }}>
+              {allItems.find(i => i.id === contextMenu?.fileId)?.is_starred ? <StarBorderIcon sx={{ mr: 1 }} /> : <StarIcon sx={{ mr: 1 }} />}
+              {allItems.find(i => i.id === contextMenu?.fileId)?.is_starred ? 'Unstar' : 'Star'}
+            </MenuItem>
+            <MenuItem onClick={() => {
+              if (contextMenu?.fileId) {
+                setSelectedFiles(new Set([contextMenu.fileId]));
+                handleCutKey();
+              }
+              setContextMenu(null);
+            }}>
+              <CutIcon sx={{ mr: 1 }} /> Cut
+            </MenuItem>
+            <MenuItem onClick={() => {
+              const file = files.find((f: UserFile) => f.id === contextMenu?.fileId);
+              if (file) handleDeleteClick(file);
+              setContextMenu(null);
+            }}>
+              <DeleteIcon sx={{ mr: 1 }} /> Delete
+            </MenuItem>
+          </>
+        )}
       </Menu>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>Delete File</DialogTitle>
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+      >
+        <DialogTitle>Confirm Deletion</DialogTitle>
         <DialogContent>
-          <Typography>
-            Are you sure you want to delete "{fileToDelete?.filename}"?
-            Files can be restored from trash.
-          </Typography>
+          Are you sure you want to {isTrashMode ? 'permanently delete' : 'delete'} "{fileToDelete?.filename}"?
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleDeleteConfirm} color="error" variant="contained">
+          <Button onClick={isTrashMode ? handlePermanentDeleteConfirm : handleDeleteConfirm} color="error">
             Delete
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Bulk Delete Confirmation Dialog */}
-      <Dialog open={bulkDeleteDialogOpen} onClose={() => setBulkDeleteDialogOpen(false)}>
-        <DialogTitle>Delete Selected Items</DialogTitle>
+      <Dialog
+        open={bulkDeleteDialogOpen}
+        onClose={() => setBulkDeleteDialogOpen(false)}
+      >
+        <DialogTitle>Confirm Bulk Deletion</DialogTitle>
         <DialogContent>
-          <Typography>
-            Are you sure you want to delete {itemsToDelete.length} selected item{itemsToDelete.length !== 1 ? 's' : ''}?
-            Files can be restored from trash.
-          </Typography>
-          {itemsToDelete.length > 0 && (
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Items to delete:
-              </Typography>
-              {itemsToDelete.slice(0, 5).map((item) => (
-                <Typography key={item.id} variant="body2" sx={{ ml: 2 }}>
-                  • {isFolder(item) ? item.name : (item as UserFile).filename}
-                </Typography>
-              ))}
-              {itemsToDelete.length > 5 && (
-                <Typography variant="body2" sx={{ ml: 2, fontStyle: 'italic' }}>
-                  ... and {itemsToDelete.length - 5} more
-                </Typography>
-              )}
-            </Box>
-          )}
+          Are you sure you want to delete {itemsToDelete.length} selected item(s)?
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setBulkDeleteDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleBulkDeleteConfirm} color="error" variant="contained">
-            Delete {itemsToDelete.length} Item{itemsToDelete.length !== 1 ? 's' : ''}
+          <Button onClick={handleBulkDeleteConfirm} color="error">
+            Delete
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Folder Delete Confirmation Dialog */}
-      <Dialog open={folderDeleteDialogOpen} onClose={() => setFolderDeleteDialogOpen(false)}>
-        <DialogTitle>{isTrashMode ? 'Permanently Delete Folder' : 'Delete Folder'}</DialogTitle>
+      <Dialog
+        open={folderDeleteDialogOpen}
+        onClose={() => setFolderDeleteDialogOpen(false)}
+      >
+        <DialogTitle>Confirm Folder Deletion</DialogTitle>
         <DialogContent>
-          {isTrashMode ? (
-            <>
-              <Typography sx={{ mb: 2 }}>
-                Are you sure you want to permanently delete the folder "{folderToDelete?.name}" and all its contents?
-              </Typography>
-              <Alert severity="warning">
-                This action cannot be undone. The folder and all its contents will be completely removed from the system.
-              </Alert>
-            </>
-          ) : (
-            <Typography>
-              Are you sure you want to delete the folder "{folderToDelete?.name}" and all its contents?
-              Files can be restored from trash.
-            </Typography>
-          )}
+          Are you sure you want to {isTrashMode ? 'permanently delete' : 'delete'} the folder "{folderToDelete?.name}"?
+          {!isTrashMode && ' All its contents will be moved to trash.'}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setFolderDeleteDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleDeleteFolderConfirm} color="error" variant="contained">
-            {isTrashMode ? 'Permanently Delete' : 'Delete'}
+          <Button onClick={handleDeleteFolderConfirm} color="error">
+            Delete
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Create Folder Dialog */}
-      <Dialog open={createFolderDialogOpen} onClose={handleCreateFolderCancel}>
+      <Dialog
+        open={createFolderDialogOpen}
+        onClose={handleCreateFolderCancel}
+      >
         <DialogTitle>Create New Folder</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
             margin="dense"
             label="Folder Name"
+            type="text"
             fullWidth
-            variant="outlined"
             value={newFolderName}
             onChange={(e) => setNewFolderName(e.target.value)}
             error={!!folderCreationError}
@@ -2198,26 +2223,23 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCreateFolderCancel}>Cancel</Button>
-          <Button
-            onClick={handleCreateFolderConfirm}
-            variant="contained"
-            disabled={!newFolderName.trim()}
-          >
-            Create
-          </Button>
+          <Button onClick={handleCreateFolderConfirm}>Create</Button>
         </DialogActions>
       </Dialog>
 
       {/* Rename Dialog */}
-      <Dialog open={renameDialogOpen} onClose={handleRenameCancel}>
-        <DialogTitle>Rename {renameItem && isFolder(renameItem) ? 'Folder' : 'File'}</DialogTitle>
+      <Dialog
+        open={renameDialogOpen}
+        onClose={handleRenameCancel}
+      >
+        <DialogTitle>Rename Item</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
             margin="dense"
             label="New Name"
+            type="text"
             fullWidth
-            variant="outlined"
             value={newItemName}
             onChange={(e) => setNewItemName(e.target.value)}
             error={!!renameError}
@@ -2231,142 +2253,78 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         </DialogContent>
         <DialogActions>
           <Button onClick={handleRenameCancel}>Cancel</Button>
-          <Button
-            onClick={handleRenameConfirm}
-            variant="contained"
-            disabled={!newItemName.trim()}
-          >
-            Rename
-          </Button>
+          <Button onClick={handleRenameConfirm}>Rename</Button>
         </DialogActions>
       </Dialog>
 
       {/* Share Dialog */}
-      <Dialog 
-        open={shareDialogOpen} 
-        onClose={() => setShareDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
+      {fileToShare && (
+        <ShareLinkManager
+          open={shareDialogOpen}
+          onClose={() => setShareDialogOpen(false)}
+          userFileId={fileToShare.id}
+          filename={fileToShare.filename}
+        />
+      )}
+
+      {/* Restore Confirmation Dialog */}
+      <Dialog
+        open={restoreDialogOpen}
+        onClose={() => setRestoreDialogOpen(false)}
       >
-        <DialogTitle>Share File</DialogTitle>
+        <DialogTitle>Confirm Restore</DialogTitle>
         <DialogContent>
-          {fileToShare && (
-            <ShareLinkManager 
-              userFileId={fileToShare.id}
-              onShareDeleted={() => {
-                // Optionally refresh data or update UI
-              }}
-            />
-          )}
+          Are you sure you want to restore "{fileToRestore?.filename}"?
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setShareDialogOpen(false)}>
-            Close
+          <Button onClick={() => setRestoreDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleRestoreConfirm} color="primary">
+            Restore
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar for feedback */}
+      {/* Folder Restore Confirmation Dialog */}
+      <Dialog
+        open={folderRestoreDialogOpen}
+        onClose={() => setFolderRestoreDialogOpen(false)}
+      >
+        <DialogTitle>Confirm Folder Restore</DialogTitle>
+        <DialogContent>
+          Are you sure you want to restore the folder "{folderToRestore?.name}"?
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setFolderRestoreDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleFolderRestoreConfirm} color="primary">
+            Restore
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Empty Trash Confirmation Dialog */}
+      <Dialog
+        open={emptyTrashDialogOpen}
+        onClose={() => setEmptyTrashDialogOpen(false)}
+      >
+        <DialogTitle>Confirm Empty Trash</DialogTitle>
+        <DialogContent>
+          Are you sure you want to permanently delete all items in the trash? This action cannot be undone.
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEmptyTrashDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleEmptyTrashConfirm} color="error">
+            Empty Trash
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for notifications */}
       <Snackbar
         open={snackbarOpen}
-        autoHideDuration={3000}
+        autoHideDuration={6000}
         onClose={() => setSnackbarOpen(false)}
         message={snackbarMessage}
       />
-
-      {/* Error Display */}
-      {error && (
-        <Alert severity="error" sx={{ mt: 2 }}>
-          {error}
-        </Alert>
-      )}
-
-      {/* Trash-specific dialogs */}
-      {isTrashMode && (
-        <>
-          {/* Restore Confirmation Dialog */}
-          <Dialog open={restoreDialogOpen} onClose={() => setRestoreDialogOpen(false)}>
-            <DialogTitle>Restore File</DialogTitle>
-            <DialogContent>
-              <Typography>
-                Are you sure you want to restore "{fileToRestore?.filename}"?
-                The file will be moved back to your main files.
-              </Typography>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setRestoreDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleRestoreConfirm} color="success" variant="contained">
-                Restore
-              </Button>
-            </DialogActions>
-          </Dialog>
-
-          {/* Folder Restore Confirmation Dialog */}
-          <Dialog open={folderRestoreDialogOpen} onClose={() => setFolderRestoreDialogOpen(false)}>
-            <DialogTitle>Restore Folder</DialogTitle>
-            <DialogContent>
-              <Typography>
-                Are you sure you want to restore the folder "{folderToRestore?.name}" and all its contents?
-                The folder and its contents will be moved back to your main files.
-              </Typography>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setFolderRestoreDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleFolderRestoreConfirm} color="success" variant="contained">
-                Restore
-              </Button>
-            </DialogActions>
-          </Dialog>
-
-          {/* Permanent Delete Confirmation Dialog */}
-          <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-            <DialogTitle>Permanently Delete File</DialogTitle>
-            <DialogContent>
-              <Typography sx={{ mb: 2 }}>
-                Are you sure you want to permanently delete "{fileToDelete?.filename}"?
-              </Typography>
-              <Alert severity="warning">
-                This action cannot be undone. The file will be completely removed from the system.
-              </Alert>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handlePermanentDeleteConfirm} color="error" variant="contained">
-                Delete Permanently
-              </Button>
-            </DialogActions>
-          </Dialog>
-
-          {/* Empty Trash Confirmation Dialog */}
-          <Dialog open={emptyTrashDialogOpen} onClose={() => setEmptyTrashDialogOpen(false)}>
-            <DialogTitle>Empty Trash</DialogTitle>
-            <DialogContent>
-              <Typography sx={{ mb: 2 }}>
-                Are you sure you want to permanently delete all files in the trash?
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                This will permanently delete {data?.myTrashedFiles?.length || 0} file(s).
-              </Typography>
-              <Alert severity="error">
-                This action cannot be undone. All files in trash will be completely removed from the system.
-              </Alert>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setEmptyTrashDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleEmptyTrashConfirm} color="error" variant="contained">
-                Empty Trash
-              </Button>
-            </DialogActions>
-          </Dialog>
-
-          {/* Trash Error Display */}
-          {trashError && (
-            <Alert severity="error" sx={{ mt: 2 }}>
-              {trashError}
-            </Alert>
-          )}
-        </>
-      )}
     </Box>
   );
 };

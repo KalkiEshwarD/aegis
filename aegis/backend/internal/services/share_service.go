@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/url"
@@ -28,15 +29,21 @@ type ShareService struct {
 	cryptoConfig      *utils.CryptoConfig
 	rateLimiter       *RateLimiter
 	encryptionService *EncryptionService
+	sharePasswordKey  []byte // Service-wide key for encrypting share passwords
 }
 
 func NewShareService(db *database.DB, baseURL string, encryptionService *EncryptionService) *ShareService {
+	// Generate a service-wide key for encrypting share passwords
+	// In production, this should be loaded from a secure key store
+	sharePasswordKey, _ := utils.GenerateRandomKey(32)
+
 	return &ShareService{
 		BaseService:       NewBaseService(db),
 		baseURL:           strings.TrimSuffix(baseURL, "/"),
 		cryptoConfig:      utils.DefaultCryptoConfig(),
 		rateLimiter:       NewRateLimiter(),
 		encryptionService: encryptionService,
+		sharePasswordKey:  sharePasswordKey,
 	}
 }
 
@@ -44,7 +51,7 @@ func NewShareService(db *database.DB, baseURL string, encryptionService *Encrypt
 // Password-based Sharing
 //================================================================================
 
-func (s *ShareService) CreateShare(userFileID uint, masterPassword string, maxDownloads int, expiresAt *time.Time) (*models.FileShare, error) {
+func (s *ShareService) CreateShare(userFileID uint, masterPassword string, maxDownloads int, expiresAt *time.Time, allowedUsernames []string) (*models.FileShare, error) {
 	if err := utils.ValidatePasswordStrength(masterPassword); err != nil {
 		return nil, err
 	}
@@ -85,18 +92,28 @@ func (s *ShareService) CreateShare(userFileID uint, masterPassword string, maxDo
 		return nil, err
 	}
 
+	// Encrypt the share password with a service key for storage
+	encryptedPassword, passwordIV, err := s.encryptSharePassword(masterPassword)
+	if err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to encrypt share password")
+	}
+
 	fileShare := &models.FileShare{
-		UserFileID:    userFileID,
-		ShareToken:    shareToken,
-		EncryptedKey:  encryptedFileKey,
-		Salt:          "", // Keep for backward compatibility
-		IV:            fileKeyIV,
-		EnvelopeKey:   encryptedEnvelopeKey,
-		EnvelopeSalt:  envelopeSalt,
-		EnvelopeIV:    envelopeIV,
-		MaxDownloads:  maxDownloads,
-		DownloadCount: 0,
-		ExpiresAt:     expiresAt,
+		UserFileID:        userFileID,
+		ShareToken:        shareToken,
+		EncryptedKey:      encryptedFileKey,
+		Salt:              "", // Keep for backward compatibility
+		IV:                fileKeyIV,
+		EnvelopeKey:       encryptedEnvelopeKey,
+		EnvelopeSalt:      envelopeSalt,
+		EnvelopeIV:        envelopeIV,
+		EncryptedPassword: encryptedPassword,
+		PasswordIV:        passwordIV,
+		PlainTextPassword: masterPassword, // Store for display purposes
+		MaxDownloads:      maxDownloads,
+		DownloadCount:     0,
+		ExpiresAt:         expiresAt,
+		AllowedUsernames:  allowedUsernames,
 	}
 
 	if err := s.GetDB().GetDB().Create(fileShare).Error; err != nil {
@@ -113,7 +130,7 @@ func (s *ShareService) CreateShare(userFileID uint, masterPassword string, maxDo
 	return fileShare, nil
 }
 
-func (s *ShareService) UpdateShare(userID uint, shareID uint, masterPassword *string, maxDownloads *int, expiresAt *time.Time) (*models.FileShare, error) {
+func (s *ShareService) UpdateShare(userID uint, shareID uint, masterPassword *string, maxDownloads *int, expiresAt *time.Time, allowedUsernames *[]string) (*models.FileShare, error) {
 	// Get the existing share
 	var fileShare models.FileShare
 	err := s.GetDB().GetDB().
@@ -154,6 +171,7 @@ func (s *ShareService) UpdateShare(userID uint, shareID uint, masterPassword *st
 		updates["encrypted_key"] = encryptedKeyData.EncryptedKey
 		updates["salt"] = encryptedKeyData.Salt
 		updates["iv"] = encryptedKeyData.IV
+		updates["plain_text_password"] = *masterPassword // Update plain text password for display
 	}
 
 	// Update max downloads if provided
@@ -164,6 +182,16 @@ func (s *ShareService) UpdateShare(userID uint, shareID uint, masterPassword *st
 	// Update expiration if provided
 	if expiresAt != nil {
 		updates["expires_at"] = *expiresAt
+	}
+
+	// Update allowed usernames if provided
+	if allowedUsernames != nil {
+		// Manually marshal to JSON for proper storage
+		usernamesJSON, err := json.Marshal(*allowedUsernames)
+		if err != nil {
+			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to marshal allowed usernames")
+		}
+		updates["allowed_usernames"] = string(usernamesJSON)
 	}
 
 	// Update the share
@@ -293,6 +321,14 @@ func (s *ShareService) GetUserShares(userID uint) ([]*models.FileShare, error) {
 	}
 
 	return shares, nil
+}
+
+func (s *ShareService) encryptSharePassword(password string) (encryptedPassword string, iv string, err error) {
+	return utils.EncryptSharePassword(password, s.sharePasswordKey)
+}
+
+func (s *ShareService) decryptSharePassword(encryptedPassword, iv string) (string, error) {
+	return utils.DecryptSharePassword(encryptedPassword, iv, s.sharePasswordKey)
 }
 
 func (s *ShareService) generateShareToken() (string, error) {

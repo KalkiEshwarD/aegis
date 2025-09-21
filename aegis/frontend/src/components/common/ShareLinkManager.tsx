@@ -28,6 +28,8 @@ import {
   GetApp as GetAppIcon,
   ContentCopy as CopyIcon,
   Add as AddIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
 } from '@mui/icons-material';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_FILE_SHARES, DELETE_FILE_SHARE_MUTATION, CREATE_FILE_SHARE_MUTATION } from '../../apollo/queries';
@@ -37,6 +39,9 @@ import { ConfirmationDialog, SharePasswordDialog } from '../../shared/components
 
 interface ShareLinkManagerProps {
   userFileId?: string;
+  filename?: string;
+  open?: boolean;
+  onClose?: () => void;
   onShareDeleted?: () => void;
 }
 
@@ -50,12 +55,16 @@ interface DeleteFileShareResponse {
 
 export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
   userFileId,
+  filename,
+  open = false,
+  onClose,
   onShareDeleted,
 }) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [shareToDelete, setShareToDelete] = useState<FileShare | null>(null);
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const [createShareDialogOpen, setCreateShareDialogOpen] = useState(false);
+  const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
 
   const { data, loading, error, refetch } = useQuery<
     GetFileSharesResponse,
@@ -64,7 +73,7 @@ export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
 
   const [deleteFileShare, { loading: deletingShare }] = useMutation<
     DeleteFileShareResponse,
-    { id: string }
+    { share_id: string }
   >(DELETE_FILE_SHARE_MUTATION);
 
   const [createFileShare, { loading: creatingShare }] = useMutation<
@@ -82,7 +91,7 @@ export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
 
     try {
       await deleteFileShare({
-        variables: { id: shareToDelete.id },
+        variables: { share_id: shareToDelete.id },
       });
 
       // Refresh the share links
@@ -100,7 +109,7 @@ export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
     }
   };
 
-  const handleCreateShare = async (password: string) => {
+  const handleCreateShare = async (password: string, expiresAt?: Date, maxDownloads?: number) => {
     if (!userFileId) return;
 
     try {
@@ -109,6 +118,8 @@ export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
           input: {
             user_file_id: userFileId,
             master_password: password,
+            expires_at: expiresAt?.toISOString(),
+            max_downloads: maxDownloads,
           }
         }
       });
@@ -124,8 +135,10 @@ export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
     } finally {
       setCreateShareDialogOpen(false);
     }
-  };  const handleCopyLink = async (share: FileShare) => {
-    const shareUrl = `${window.location.origin}/shared/${share.share_token}`;
+  };
+
+  const handleCopyLink = async (share: FileShare) => {
+    const shareUrl = `${window.location.origin}/share/${share.share_token}`;
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopySuccess(share.id);
@@ -145,41 +158,49 @@ export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
     });
   };
 
-  const getShareStatus = (share: FileShare) => {
-    const now = new Date();
-    const expiresAt = share.expires_at ? new Date(share.expires_at) : null;
-    const isExpired = expiresAt && expiresAt < now;
-    const isLimitReached = share.max_downloads && share.download_count >= share.max_downloads;
 
-    if (isExpired) return { label: 'Expired', color: 'error' as const };
-    if (isLimitReached) return { label: 'Limit Reached', color: 'warning' as const };
-    return { label: 'Active', color: 'success' as const };
+  const togglePasswordVisibility = (shareId: string) => {
+    setVisiblePasswords(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(shareId)) {
+        newSet.delete(shareId);
+      } else {
+        newSet.add(shareId);
+      }
+      return newSet;
+    });
   };
 
-  const shares = (data?.myShares || []).filter((share: FileShare) => 
+  const shares = (data?.myShares || []).filter((share: FileShare) =>
     !userFileId || share.user_file_id === userFileId
   );
 
-  return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <ShareIcon />
-          Share Links
-        </Typography>
-        {userFileId && (
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setCreateShareDialogOpen(true)}
-            size="small"
-          >
-            Create Share
-          </Button>
-        )}
-      </Box>
+  // Get the filename from the prop or from the first share (all shares should be for the same file)
+  const fileName = filename || (shares.length > 0 ? shares[0].user_file?.filename : 'File');
 
-      {error && (
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <ShareIcon />
+          {fileName}
+        </Box>
+      </DialogTitle>
+      <DialogContent>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          {userFileId && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => setCreateShareDialogOpen(true)}
+              size="small"
+            >
+              Create Share
+            </Button>
+          )}
+        </Box>
+
+        {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
           Failed to load share links
         </Alert>
@@ -189,8 +210,6 @@ export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>File</TableCell>
-              <TableCell>Status</TableCell>
               <TableCell>Created</TableCell>
               <TableCell>Expires</TableCell>
               <TableCell>Downloads</TableCell>
@@ -201,13 +220,13 @@ export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} align="center">
+                <TableCell colSpan={5} align="center">
                   <Typography>Loading share links...</Typography>
                 </TableCell>
               </TableRow>
             ) : shares.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} align="center">
+                <TableCell colSpan={5} align="center">
                   <Box display="flex" flexDirection="column" alignItems="center" py={4}>
                     <ShareIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
                     <Typography variant="h6" color="textSecondary">
@@ -221,29 +240,8 @@ export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
               </TableRow>
             ) : (
               shares.map((share) => {
-                const status = getShareStatus(share);
                 return (
                   <TableRow key={share.id} hover>
-                    <TableCell>
-                      <Box>
-                        <Typography variant="body2" noWrap sx={{ maxWidth: 200 }}>
-                          {share.user_file?.filename || 'Unknown file'}
-                        </Typography>
-                        {share.user_file?.file && (
-                          <Typography variant="caption" color="text.secondary">
-                            {formatFileSize(share.user_file.file.size_bytes)}
-                          </Typography>
-                        )}
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        size="small"
-                        label={status.label}
-                        color={status.color}
-                        variant="outlined"
-                      />
-                    </TableCell>
                     <TableCell>
                       <Typography variant="body2">
                         {formatDate(share.created_at)}
@@ -267,17 +265,22 @@ export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      {share.encrypted_key ? (
-                        <Chip
-                          size="small"
-                          icon={<ShareIcon />}
-                          label="Protected"
-                          color="primary"
-                          variant="outlined"
-                        />
+                      {share.plain_text_password ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}>
+                            {visiblePasswords.has(share.id) ? share.plain_text_password : '••••••••'}
+                          </Typography>
+                          <IconButton
+                            size="small"
+                            onClick={() => togglePasswordVisibility(share.id)}
+                            title={visiblePasswords.has(share.id) ? 'Hide password' : 'Show password'}
+                          >
+                            {visiblePasswords.has(share.id) ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                          </IconButton>
+                        </Box>
                       ) : (
                         <Typography variant="body2" color="text.secondary">
-                          No
+                          No password
                         </Typography>
                       )}
                     </TableCell>
@@ -331,6 +334,10 @@ export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
         message="Create a password-protected share link for this file"
         isLoading={creatingShare}
       />
-    </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Close</Button>
+      </DialogActions>
+    </Dialog>
   );
 };

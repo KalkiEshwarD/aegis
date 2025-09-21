@@ -190,3 +190,63 @@ func VerifyPassword(password, hashedPassword string, salt []byte) bool {
 	expectedHash := HashPassword(password, salt)
 	return expectedHash == hashedPassword
 }
+
+// EncryptSharePassword encrypts a share password using a service-wide encryption key
+func EncryptSharePassword(password string, serviceKey []byte) (encryptedPassword string, iv string, err error) {
+	config := DefaultCryptoConfig()
+
+	// Generate IV
+	ivBytes := make([]byte, config.IVLength)
+	if _, err := rand.Read(ivBytes); err != nil {
+		return "", "", apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to generate IV")
+	}
+
+	// Create AES-GCM cipher with service key
+	block, err := aes.NewCipher(serviceKey)
+	if err != nil {
+		return "", "", apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to create AES cipher")
+	}
+
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", "", apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to create AES-GCM")
+	}
+
+	// Encrypt the password
+	ciphertext := aesGCM.Seal(nil, ivBytes, []byte(password), nil)
+
+	return base64.StdEncoding.EncodeToString(ciphertext), base64.StdEncoding.EncodeToString(ivBytes), nil
+}
+
+// DecryptSharePassword decrypts a share password using a service-wide encryption key
+func DecryptSharePassword(encryptedPassword, iv string, serviceKey []byte) (string, error) {
+	// Decode base64 strings
+	ivBytes, err := base64.StdEncoding.DecodeString(iv)
+	if err != nil {
+		return "", apperrors.New(apperrors.ErrCodeValidation, "invalid IV encoding")
+	}
+
+	encryptedBytes, err := base64.StdEncoding.DecodeString(encryptedPassword)
+	if err != nil {
+		return "", apperrors.New(apperrors.ErrCodeValidation, "invalid encrypted password encoding")
+	}
+
+	// Create AES-GCM cipher with service key
+	block, err := aes.NewCipher(serviceKey)
+	if err != nil {
+		return "", apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to create AES cipher")
+	}
+
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to create AES-GCM")
+	}
+
+	// Decrypt the password
+	plaintext, err := aesGCM.Open(nil, ivBytes, encryptedBytes, nil)
+	if err != nil {
+		return "", apperrors.New(apperrors.ErrCodeValidation, "failed to decrypt share password")
+	}
+
+	return string(plaintext), nil
+}

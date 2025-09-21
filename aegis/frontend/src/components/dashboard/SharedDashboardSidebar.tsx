@@ -69,10 +69,12 @@ const SharedDashboardSidebar: React.FC<SharedDashboardSidebarProps> = ({
   const [createFolderMutation] = useMutation(CREATE_FOLDER_MUTATION);
 
   const handleFileUpload = () => {
+    onNavChange('home');
     fileInputRef.current?.click();
   };
 
   const handleFolderUpload = () => {
+    onNavChange('home');
     folderInputRef.current?.click();
   };
 

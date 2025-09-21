@@ -75,25 +75,46 @@ const ShareAccess: React.FC = () => {
   });
 
   const [downloadSharedFile] = useMutation(DOWNLOAD_SHARED_FILE, {
-    onCompleted: (data) => {
-      if (data?.accessSharedFile) {
-        const downloadUrl = data.accessSharedFile;
-        // Create a temporary anchor element to trigger download
-        const link = document.createElement('a');
-        link.href = downloadUrl;
-        link.download = sharedFile?.filename || 'download';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        // Update download count locally
-        if (sharedFile) {
-          setSharedFile({
-            ...sharedFile,
-            download_count: sharedFile.download_count + 1
-          });
+    onCompleted: async (data) => {
+      if (data?.accessSharedFile && token) {
+        try {
+          // Extract the decryption key from the GraphQL response URL
+          const responseUrl = data.accessSharedFile;
+          const url = new URL(responseUrl);
+          const key = url.searchParams.get('key');
+          
+          // Construct the direct download URL using the new backend endpoint
+          const directDownloadUrl = `http://localhost:8080/v1/share/${token}/download?key=${encodeURIComponent(key || '')}`;
+          
+          console.log('Initiating browser download from:', directDownloadUrl);
+          
+          // Use window.open with proper download attributes to trigger browser's native download dialog
+          // This ensures the file goes to the user's configured Downloads folder
+          const downloadWindow = window.open(directDownloadUrl, '_blank');
+          
+          // Close the download window after a short delay if it opened successfully
+          if (downloadWindow) {
+            setTimeout(() => {
+              try {
+                downloadWindow.close();
+              } catch (e) {
+                // Window might already be closed or restricted, ignore
+              }
+            }, 2000);
+          }
+          
+          // Update download count locally (optimistically)
+          if (sharedFile) {
+            setSharedFile({
+              ...sharedFile,
+              download_count: sharedFile.download_count + 1
+            });
+          }
+          setError('');
+        } catch (error) {
+          console.error('Download error:', error);
+          setError('Failed to download file. Please try again.');
         }
-        setError('');
       }
     },
     onError: (error) => {

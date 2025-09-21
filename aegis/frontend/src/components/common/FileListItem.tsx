@@ -7,7 +7,6 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  Chip,
 } from '@mui/material';
 import {
   Folder as FolderIcon,
@@ -248,27 +247,32 @@ export const FileListItem: React.FC<FileListItemProps> = ({
         }
         secondary={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-            {isFile(item) ? (
-              <>
+              {isFile(item) ? (
+                <>
+                  <Typography variant="caption" color="text.secondary">
+                    {formatFileSize(item.file?.size_bytes || 0)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">•</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {formatDate(item.created_at)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">•</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{
+                    backgroundColor: 'action.selected',
+                    px: 1,
+                    py: 0.25,
+                    borderRadius: 1,
+                    fontSize: '0.7rem',
+                    fontWeight: 500
+                  }}>
+                    {item.mime_type?.split('/')[1]?.toUpperCase() || 'FILE'}
+                  </Typography>
+                </>
+              ) : (
                 <Typography variant="caption" color="text.secondary">
-                  {formatFileSize(item.file?.size_bytes || 0)}
+                  {countFolderItems(item)} item{countFolderItems(item) !== 1 ? 's' : ''} • {formatDate(item.created_at)}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">•</Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {formatDate(item.created_at)}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">•</Typography>
-                <Chip 
-                  label={item.mime_type?.split('/')[1]?.toUpperCase() || 'FILE'} 
-                  size="small" 
-                  variant="outlined"
-                />
-              </>
-            ) : (
-              <Typography variant="caption" color="text.secondary">
-                {countFolderItems(item)} item{countFolderItems(item) !== 1 ? 's' : ''} • {formatDate(item.created_at)}
-              </Typography>
-            )}
+              )}
           </Box>
         }
       />

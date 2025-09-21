@@ -208,11 +208,16 @@ export interface FileShare {
   encrypted_key: string;
   salt: string;
   iv: string;
+  envelope_key: string;
+  envelope_salt: string;
+  envelope_iv: string;
+  plain_text_password?: string;
   expires_at?: string;
   max_downloads?: number;
   download_count: number;
   created_at: string;
   updated_at: string;
+  allowed_usernames: string[];
   user_file?: UserFile;
 }
 

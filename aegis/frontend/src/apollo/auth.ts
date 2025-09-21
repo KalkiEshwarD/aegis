@@ -58,11 +58,12 @@ export const REFRESH_TOKEN_MUTATION = gql`
   }
 `;
 
-// User Queries
-export const GET_ME = gql`
-  query GetMe {
-    me {
+// Profile Mutations
+export const UPDATE_PROFILE_MUTATION = gql`
+  mutation UpdateProfile($input: UpdateProfileInput!) {
+    updateProfile(input: $input) {
       id
+      username
       email
       storage_quota
       used_storage
@@ -71,3 +72,21 @@ export const GET_ME = gql`
     }
   }
 `;
+
+// User Queries
+export const ME_QUERY = gql`
+  query Me {
+    me {
+      id
+      username
+      email
+      storage_quota
+      used_storage
+      is_admin
+      created_at
+    }
+  }
+`;
+
+// Backward compatibility alias
+export const GET_ME = ME_QUERY;

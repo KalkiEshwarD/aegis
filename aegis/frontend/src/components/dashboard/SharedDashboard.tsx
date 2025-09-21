@@ -62,10 +62,6 @@ const SharedDashboard: React.FC = () => {
     triggerRefresh();
   };
 
-  const handleFileDeleted = () => {
-    triggerRefresh();
-  };
-
   const handleFileRestored = () => {
     triggerRefresh();
   };
@@ -85,8 +81,6 @@ const SharedDashboard: React.FC = () => {
         onMenuOpen={handleMenuOpen}
         anchorEl={anchorEl}
         onMenuClose={handleMenuClose}
-        onSearch={setSearchTerm}
-        searchTerm={searchTerm}
       />
 
       {/* Sidebar - without shared tab */}
@@ -191,9 +185,7 @@ const SharedDashboard: React.FC = () => {
             boxShadow: 'none',
             borderRadius: 3
           }}>
-            <StarredView
-              onFileDeleted={handleFileDeleted}
-            />
+            <StarredView />
           </Paper>
         ) : (
           <Paper sx={{

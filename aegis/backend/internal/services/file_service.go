@@ -231,9 +231,75 @@ func (s *FileService) GetUserFiles(userID uint, filter *FileFilter) ([]*models.U
 }
 
 func (s *FileService) GetStarredFiles(userID uint) ([]*models.UserFile, error) {
+	db := s.db.GetDB()
+
+	// Get individually starred files
 	filters := make(map[string]interface{})
 	filters["is_starred"] = true
-	return s.userResourceRepo.FindUserFilesWithFilters(userID, filters, "File", "Folder")
+	individuallyStarredFiles, err := s.userResourceRepo.FindUserFilesWithFilters(userID, filters, "File", "Folder")
+	if err != nil {
+		return nil, err
+	}
+
+	// Get starred folders
+	starredFolders, err := s.GetStarredFolders(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Collect all folder IDs that are starred (including descendants)
+	var allStarredFolderIDs []uint
+	for _, folder := range starredFolders {
+		allStarredFolderIDs = append(allStarredFolderIDs, folder.ID)
+		descendantIDs, err := s.collectDescendantFolderIDs(db, folder.ID)
+		if err != nil {
+			return nil, err
+		}
+		allStarredFolderIDs = append(allStarredFolderIDs, descendantIDs...)
+	}
+
+	// Get files from starred folders
+	var filesFromStarredFolders []*models.UserFile
+	if len(allStarredFolderIDs) > 0 {
+		err = db.Where("user_id = ? AND folder_id IN (?) AND deleted_at IS NULL", userID, allStarredFolderIDs).
+			Preload("File").
+			Preload("Folder").
+			Find(&filesFromStarredFolders).Error
+		if err != nil {
+			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to get files from starred folders")
+		}
+	}
+
+	// Combine results and deduplicate
+	fileMap := make(map[uint]*models.UserFile)
+	for _, file := range individuallyStarredFiles {
+		fileMap[file.ID] = file
+	}
+	for _, file := range filesFromStarredFolders {
+		fileMap[file.ID] = file
+	}
+
+	// Convert map back to slice
+	var allStarredFiles []*models.UserFile
+	for _, file := range fileMap {
+		allStarredFiles = append(allStarredFiles, file)
+	}
+
+	fmt.Printf("DEBUG: GetStarredFiles for user %d returned %d files (%d individually starred, %d from starred folders)\n",
+		userID, len(allStarredFiles), len(individuallyStarredFiles), len(filesFromStarredFolders))
+	return allStarredFiles, nil
+}
+
+func (s *FileService) GetStarredFolders(userID uint) ([]*models.Folder, error) {
+	db := s.db.GetDB()
+
+	var folders []*models.Folder
+	if err := db.Where("user_id = ? AND is_starred = ? AND deleted_at IS NULL", userID, true).Find(&folders).Error; err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to get starred folders")
+	}
+
+	log.Printf("DEBUG: GetStarredFolders for user %d returned %d folders", userID, len(folders))
+	return folders, nil
 }
 
 func (s *FileService) StarFile(userID, userFileID uint) error {
@@ -692,6 +758,26 @@ func (s *FileService) collectDescendantFolders(db *gorm.DB, parentID uint) ([]ui
 	for _, child := range children {
 		folderIDs = append(folderIDs, child.ID)
 		descendants, err := s.collectDescendantFolders(db, child.ID)
+		if err != nil {
+			return nil, err
+		}
+		folderIDs = append(folderIDs, descendants...)
+	}
+
+	return folderIDs, nil
+}
+
+func (s *FileService) collectDescendantFolderIDs(db *gorm.DB, parentID uint) ([]uint, error) {
+	var folderIDs []uint
+	var children []models.Folder
+
+	if err := db.Where("parent_id = ? AND deleted_at IS NULL", parentID).Find(&children).Error; err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to get child folders")
+	}
+
+	for _, child := range children {
+		folderIDs = append(folderIDs, child.ID)
+		descendants, err := s.collectDescendantFolderIDs(db, child.ID)
 		if err != nil {
 			return nil, err
 		}

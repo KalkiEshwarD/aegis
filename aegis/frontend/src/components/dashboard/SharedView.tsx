@@ -38,6 +38,7 @@ import { useQuery, useMutation } from '@apollo/client';
 import { GET_FILE_SHARES, DELETE_FILE_SHARE_MUTATION, GET_SHARED_WITH_ME_QUERY, UPDATE_FILE_SHARE_MUTATION } from '../../apollo/queries';
 import { formatFileSize, formatDateTime } from '../../shared/utils';
 import { FileShare, SharedWithMeFile, UpdateFileShareInput } from '../../types';
+import { ShareLinkManager } from '../common/ShareLinkManager';
 
 interface SharedViewProps {
   onShareDeleted?: () => void;
@@ -88,6 +89,8 @@ const SharedView: React.FC<SharedViewProps> = ({ onShareDeleted }) => {
   const [tabValue, setTabValue] = useState(0);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingShare, setEditingShare] = useState<FileShare | null>(null);
+  const [shareManagerOpen, setShareManagerOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<any>(null);
   const [editForm, setEditForm] = useState({
     max_downloads: '',
     expires_at: '',
@@ -124,7 +127,7 @@ const SharedView: React.FC<SharedViewProps> = ({ onShareDeleted }) => {
     if (window.confirm('Are you sure you want to delete this shared link? This action cannot be undone.')) {
       try {
         await deleteFileShare({
-          variables: { id: shareId },
+          variables: { share_id: shareId },
         });
       } catch (err) {
         console.error('Failed to delete share:', err);
@@ -175,6 +178,16 @@ const SharedView: React.FC<SharedViewProps> = ({ onShareDeleted }) => {
     });
   };
 
+  const handleOpenShareManager = (file: any) => {
+    setSelectedFile(file);
+    setShareManagerOpen(true);
+  };
+
+  const handleCloseShareManager = () => {
+    setShareManagerOpen(false);
+    setSelectedFile(null);
+  };
+
   const formatDate = (dateString: string) => {
     try {
       return formatDateTime(dateString);
@@ -216,6 +229,18 @@ const SharedView: React.FC<SharedViewProps> = ({ onShareDeleted }) => {
       );
     }
 
+    // Group shares by file ID to show unique filenames
+    const groupedShares = shares.reduce((acc: Record<string, FileShare[]>, share: FileShare) => {
+      const fileId = share.user_file?.id;
+      if (fileId) {
+        if (!acc[fileId]) {
+          acc[fileId] = [];
+        }
+        acc[fileId].push(share);
+      }
+      return acc;
+    }, {});
+
     return (
       <TableContainer>
         <Table>
@@ -223,100 +248,72 @@ const SharedView: React.FC<SharedViewProps> = ({ onShareDeleted }) => {
             <TableRow>
               <TableCell>File Name</TableCell>
               <TableCell>Size</TableCell>
-              <TableCell>Downloads</TableCell>
-              <TableCell>Download Limit</TableCell>
-              <TableCell>Expires</TableCell>
-              <TableCell>Created</TableCell>
+              <TableCell>Total Shares</TableCell>
+              <TableCell>Total Downloads</TableCell>
+              <TableCell>Latest Created</TableCell>
               <TableCell align="center">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {shares.map((share: FileShare) => {
-              const isExpired = !!(share.expires_at && new Date(share.expires_at) < new Date());
-              const isLimitReached = !!(share.max_downloads && share.max_downloads > 0 && share.download_count >= share.max_downloads);
+            {Object.entries(groupedShares).map(([fileId, fileShares]) => {
+              const firstShare = fileShares[0];
+              const totalDownloads = fileShares.reduce((sum, share) => sum + share.download_count, 0);
+              const latestCreated = fileShares.reduce((latest, share) => {
+                return new Date(share.created_at) > new Date(latest.created_at) ? share : latest;
+              });
               
               return (
-                <TableRow key={share.id}>
+                <TableRow key={fileId}>
                   <TableCell>
                     <Box display="flex" alignItems="center">
                       <Box>
-                        <Typography variant="body2" fontWeight={500}>
-                          {share.user_file?.filename || 'Unknown'}
+                        <Typography 
+                          variant="body2" 
+                          fontWeight={500}
+                          sx={{ 
+                            cursor: 'pointer', 
+                            color: 'primary.main',
+                            '&:hover': { textDecoration: 'underline' }
+                          }}
+                          onClick={() => handleOpenShareManager(firstShare.user_file!)}
+                        >
+                          {firstShare.user_file?.filename || 'Unknown'}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {share.user_file?.mime_type}
+                          {firstShare.user_file?.mime_type}
                         </Typography>
                       </Box>
                     </Box>
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">
-                      {share.user_file?.file?.size_bytes ? formatFileSize(share.user_file.file.size_bytes) : 'Unknown'}
+                      {firstShare.user_file?.file?.size_bytes ? formatFileSize(firstShare.user_file.file.size_bytes) : 'Unknown'}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Box display="flex" alignItems="center" gap={1}>
-                      <Typography variant="body2">
-                        {share.download_count}
-                      </Typography>
-                      {isLimitReached && (
-                        <Chip label="Limit Reached" size="small" color="warning" />
-                      )}
-                    </Box>
-                  </TableCell>
-                  <TableCell>
                     <Typography variant="body2">
-                      {share.max_downloads && share.max_downloads > 0 ? share.max_downloads : 'Unlimited'}
+                      {fileShares.length}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    {share.expires_at ? (
-                      <Box display="flex" alignItems="center" gap={1}>
-                        <Typography variant="body2" color={isExpired ? 'error' : 'text.primary'}>
-                          {formatDate(share.expires_at)}
-                        </Typography>
-                        {isExpired && (
-                          <Chip label="Expired" size="small" color="error" />
-                        )}
-                      </Box>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary">
-                        Never
-                      </Typography>
-                    )}
+                    <Typography variant="body2">
+                      {totalDownloads}
+                    </Typography>
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">
-                      {formatDate(share.created_at)}
+                      {formatDate(latestCreated.created_at)}
                     </Typography>
                   </TableCell>
                   <TableCell align="center">
                     <Box display="flex" gap={1}>
-                      <Tooltip title="Copy Share Link">
+                      <Tooltip title="Manage Shares">
                         <IconButton
                           size="small"
-                          onClick={() => handleCopyLink(share.share_token)}
-                          disabled={isExpired || isLimitReached}
-                        >
-                          <LinkIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Edit Share Settings">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleEditShare(share)}
+                          onClick={() => handleOpenShareManager(firstShare.user_file!)}
                           color="primary"
                         >
                           <EditIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Delete Share">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleDeleteShare(share.id)}
-                          color="error"
-                        >
-                          <DeleteIcon />
                         </IconButton>
                       </Tooltip>
                     </Box>
@@ -485,6 +482,20 @@ const SharedView: React.FC<SharedViewProps> = ({ onShareDeleted }) => {
           <Button onClick={handleUpdateShare} variant="contained">Save Changes</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Share Link Manager Dialog */}
+      {shareManagerOpen && selectedFile && (
+        <ShareLinkManager
+          userFileId={selectedFile.id}
+          filename={selectedFile.filename}
+          open={shareManagerOpen}
+          onClose={handleCloseShareManager}
+          onShareDeleted={() => {
+            refetchMyShares();
+            handleCloseShareManager();
+          }}
+        />
+      )}
     </Container>
   );
 };

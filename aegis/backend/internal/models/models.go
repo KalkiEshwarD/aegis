@@ -150,11 +150,16 @@ type FileShare struct {
 	EnvelopeSalt string `gorm:"not null" json:"envelope_salt"` // Salt for envelope key encryption
 	EnvelopeIV   string `gorm:"not null" json:"envelope_iv"`   // IV for envelope key encryption
 
-	MaxDownloads  int        `gorm:"default:-1" json:"max_downloads"` // -1 means unlimited
-	DownloadCount int        `gorm:"default:0" json:"download_count"`
-	ExpiresAt     *time.Time `gorm:"index" json:"expires_at"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	EncryptedPassword string `json:"encrypted_password"`  // Encrypted share password
+	PasswordIV        string `json:"password_iv"`         // IV for password encryption
+	PlainTextPassword string `json:"plain_text_password"` // Plain text password for display
+
+	MaxDownloads     int        `gorm:"default:-1" json:"max_downloads"` // -1 means unlimited
+	DownloadCount    int        `gorm:"default:0" json:"download_count"`
+	ExpiresAt        *time.Time `gorm:"index" json:"expires_at"`
+	AllowedUsernames []string   `gorm:"type:text;serializer:json" json:"allowed_usernames"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
 
 	// Associations
 	UserFile UserFile `gorm:"foreignKey:UserFileID" json:"user_file,omitempty"`
