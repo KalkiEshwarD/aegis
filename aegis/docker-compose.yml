@@ -70,7 +70,7 @@ services:
       dockerfile: Dockerfile.dev
     container_name: aegis_frontend
     environment:
-      REACT_APP_GRAPHQL_ENDPOINT: ${REACT_APP_GRAPHQL_ENDPOINT:-http://localhost:8080/graphql}
+      REACT_APP_GRAPHQL_ENDPOINT: ${REACT_APP_GRAPHQL_ENDPOINT:-http://localhost:8080/v1/graphql}
       REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL:-http://localhost:8080}
     command: npm start
     ports:

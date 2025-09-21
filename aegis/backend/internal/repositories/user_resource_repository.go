@@ -157,6 +157,10 @@ func (urr *UserResourceRepository) FindUserFilesWithFilters(userID uint, filters
 		}
 	}
 
+	if isStarred, ok := filters["is_starred"].(bool); ok {
+		query = query.Where("user_files.is_starred = ?", isStarred)
+	}
+
 	if includeTrashed, ok := filters["include_trashed"].(*bool); ok && includeTrashed != nil && *includeTrashed {
 		// Include trashed files - use Unscoped() to include soft-deleted records
 		query = query.Unscoped()

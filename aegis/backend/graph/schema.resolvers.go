@@ -75,12 +75,8 @@ func (r *mutationResolver) Register(ctx context.Context, input model.RegisterInp
 		return nil, err
 	}
 
-	// Set HttpOnly cookie for secure token storage
-	ginCtx := ctx.Value("gin").(*gin.Context)
-	ginCtx.SetCookie("aegis_token", token, 3600*24*30, "/", "", false, true) // 30 days, HttpOnly
-
 	return &model.AuthPayload{
-		Token: token, // Keep for backward compatibility, but frontend should ignore
+		Token: token,
 		User:  user,
 	}, nil
 }
@@ -103,10 +99,6 @@ func (r *mutationResolver) Login(ctx context.Context, input model.LoginInput) (*
 
 	fmt.Printf("DEBUG: Login successful for user: %s\n", user.Email)
 
-	// Set HttpOnly cookie for authentication
-	ginCtx := ctx.Value("gin").(*gin.Context)
-	ginCtx.SetCookie("aegis_token", token, 86400, "/", "", false, true) // 24 hours, HttpOnly
-
 	return &model.AuthPayload{
 		Token: token,
 		User:  user,
@@ -120,10 +112,7 @@ func (r *mutationResolver) RefreshToken(ctx context.Context) (*model.AuthPayload
 
 // Logout is the resolver for the logout field.
 func (r *mutationResolver) Logout(ctx context.Context) (bool, error) {
-	// Clear the HttpOnly cookie
-	ginCtx := ctx.Value("gin").(*gin.Context)
-	ginCtx.SetCookie("aegis_token", "", -1, "/", "", false, true) // Expire immediately
-
+	// No cookies to clear since we use JWT-only authentication
 	return true, nil
 }
 
@@ -293,6 +282,46 @@ func (r *mutationResolver) DownloadFile(ctx context.Context, id string) (string,
 	}
 
 	return r.Resolver.FileService.GetFileDownloadURL(ctx, user, uint(userFileID))
+}
+
+// StarFile is the resolver for the starFile field.
+func (r *mutationResolver) StarFile(ctx context.Context, id string) (bool, error) {
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return false, fmt.Errorf("unauthenticated: %w", err)
+	}
+
+	userFileID, err := strconv.ParseUint(id, 10, 32)
+	if err != nil {
+		return false, fmt.Errorf("invalid file ID: %w", err)
+	}
+
+	err = r.Resolver.FileService.StarFile(user.ID, uint(userFileID))
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// UnstarFile is the resolver for the unstarFile field.
+func (r *mutationResolver) UnstarFile(ctx context.Context, id string) (bool, error) {
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return false, fmt.Errorf("unauthenticated: %w", err)
+	}
+
+	userFileID, err := strconv.ParseUint(id, 10, 32)
+	if err != nil {
+		return false, fmt.Errorf("invalid file ID: %w", err)
+	}
+
+	err = r.Resolver.FileService.UnstarFile(user.ID, uint(userFileID))
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 // CreateRoom is the resolver for the createRoom field.
@@ -516,6 +545,8 @@ func (r *mutationResolver) MoveFile(ctx context.Context, input model.MoveFileInp
 		return false, fmt.Errorf("unauthenticated: %w", err)
 	}
 
+	log.Printf("DEBUG: MoveFile called - UserID: %d, FileID: %s, FolderID: %v", user.ID, input.ID, input.FolderID)
+
 	fileID, err := strconv.ParseUint(input.ID, 10, 32)
 	if err != nil {
 		return false, fmt.Errorf("invalid file ID: %w", err)
@@ -529,13 +560,18 @@ func (r *mutationResolver) MoveFile(ctx context.Context, input model.MoveFileInp
 		}
 		fidUint := uint(fid)
 		folderID = &fidUint
+		log.Printf("DEBUG: Moving file %d to folder %d", fileID, *folderID)
+	} else {
+		log.Printf("DEBUG: Moving file %d to root (no folder)", fileID)
 	}
 
 	err = r.Resolver.FileService.MoveFile(user.ID, uint(fileID), folderID)
 	if err != nil {
+		log.Printf("ERROR: MoveFile failed: %v", err)
 		return false, err
 	}
 
+	log.Printf("DEBUG: MoveFile successful")
 	return true, nil
 }
 
@@ -837,6 +873,17 @@ func (r *queryResolver) MyFiles(ctx context.Context, filter *model.FileFilterInp
 
 	log.Printf("DEBUG: MyFiles resolver calling StorageService.GetUserFiles with fileFilter: %+v", fileFilter)
 	return r.Resolver.FileService.GetUserFiles(user.ID, fileFilter)
+}
+
+// MyStarredFiles is the resolver for the myStarredFiles field.
+func (r *queryResolver) MyStarredFiles(ctx context.Context) ([]*models.UserFile, error) {
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("unauthenticated: %w", err)
+	}
+
+	log.Printf("DEBUG: MyStarredFiles called for user %d", user.ID)
+	return r.Resolver.FileService.GetStarredFiles(user.ID)
 }
 
 // MyTrashedFiles is the resolver for the myTrashedFiles field.

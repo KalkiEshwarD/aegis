@@ -10,6 +10,7 @@ import apolloClient from './apollo/client';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import Dashboard from './components/dashboard/Dashboard';
+import SharedDashboard from './components/dashboard/SharedDashboard';
 import AdminDashboard from './components/admin/AdminDashboard';
 import ShareAccess from './components/share/ShareAccess';
 import SharedView from './components/dashboard/SharedView';
@@ -148,7 +149,7 @@ const AppRoutes: React.FC = () => {
         {/* Shared files route */}
         <Route path="/shared" element={
           <ProtectedRoute>
-            <SharedView />
+            <SharedDashboard />
           </ProtectedRoute>
         } />
 

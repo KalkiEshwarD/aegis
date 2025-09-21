@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
@@ -74,9 +75,14 @@ func (suite *MiddlewareTestSuite) SetupTest() {
 }
 
 func (suite *MiddlewareTestSuite) TestCORS_AllowedOrigin() {
-	// Setup route with CORS middleware
+	// Setup route with CORS middleware using gin-contrib/cors
 	router := gin.New()
-	router.Use(middleware.CORS("http://localhost:3000,https://example.com"))
+	corsConfig := cors.DefaultConfig()
+	corsConfig.AllowOrigins = []string{"http://localhost:3000", "https://example.com"}
+	corsConfig.AllowCredentials = true
+	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+	corsConfig.AllowHeaders = []string{"Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization", "accept", "origin", "Cache-Control", "X-Requested-With"}
+	router.Use(cors.New(corsConfig))
 	router.GET("/test", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "ok"})
 	})
@@ -104,9 +110,14 @@ func (suite *MiddlewareTestSuite) TestCORS_AllowedOrigin() {
 }
 
 func (suite *MiddlewareTestSuite) TestCORS_DisallowedOrigin() {
-	// Setup route with CORS middleware
+	// Setup route with CORS middleware using gin-contrib/cors
 	router := gin.New()
-	router.Use(middleware.CORS("http://localhost:3000"))
+	corsConfig := cors.DefaultConfig()
+	corsConfig.AllowOrigins = []string{"http://localhost:3000"}
+	corsConfig.AllowCredentials = true
+	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+	corsConfig.AllowHeaders = []string{"Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization", "accept", "origin", "Cache-Control", "X-Requested-With"}
+	router.Use(cors.New(corsConfig))
 	router.GET("/test", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "ok"})
 	})
@@ -117,8 +128,8 @@ func (suite *MiddlewareTestSuite) TestCORS_DisallowedOrigin() {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
+	// gin-contrib/cors with AllowCredentials=true rejects disallowed origins
 	assert.Equal(suite.T(), 403, w.Code)
-	assert.Contains(suite.T(), w.Body.String(), "Origin not allowed")
 }
 
 func (suite *MiddlewareTestSuite) TestAuthMiddleware_HealthEndpoint() {
@@ -161,14 +172,14 @@ func (suite *MiddlewareTestSuite) TestAuthMiddleware_InvalidAuthorizationFormat(
 		c.JSON(200, gin.H{"message": "protected"})
 	})
 
-	// Test invalid format (missing "Bearer")
+	// Test invalid format (missing "Bearer") - this will be treated as missing token
 	req, _ := http.NewRequest("GET", "/protected", nil)
 	req.Header.Set("Authorization", "invalidtoken")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
 	assert.Equal(suite.T(), 401, w.Code)
-	assert.Contains(suite.T(), w.Body.String(), "Invalid authorization header format")
+	assert.Contains(suite.T(), w.Body.String(), "Authorization header required")
 }
 
 func (suite *MiddlewareTestSuite) TestAuthMiddleware_InvalidToken() {
@@ -275,7 +286,7 @@ func (suite *MiddlewareTestSuite) TestGetUserFromContext_ValidUser() {
 		Email: "test@example.com",
 	}
 
-	ctx := context.WithValue(context.Background(), "user", user)
+	ctx := context.WithValue(context.Background(), middleware.UserContextKey, user)
 
 	retrievedUser, err := middleware.GetUserFromContext(ctx)
 
@@ -309,7 +320,7 @@ func (suite *MiddlewareTestSuite) TestRequireAdmin_ValidAdmin() {
 		IsAdmin: true,
 	}
 
-	ctx := context.WithValue(context.Background(), "user", user)
+	ctx := context.WithValue(context.Background(), middleware.UserContextKey, user)
 
 	retrievedUser, err := middleware.RequireAdmin(ctx)
 
@@ -325,7 +336,7 @@ func (suite *MiddlewareTestSuite) TestRequireAdmin_NonAdmin() {
 		IsAdmin: false,
 	}
 
-	ctx := context.WithValue(context.Background(), "user", user)
+	ctx := context.WithValue(context.Background(), middleware.UserContextKey, user)
 
 	retrievedUser, err := middleware.RequireAdmin(ctx)
 

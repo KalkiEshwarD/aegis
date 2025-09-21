@@ -30,6 +30,7 @@ export interface UserFile {
   mime_type: string;
   encryption_key: string;
   folder_id?: string;
+  is_starred: boolean;
   created_at: string;
   updated_at: string;
   user?: User;

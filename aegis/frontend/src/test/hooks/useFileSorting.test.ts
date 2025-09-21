@@ -11,6 +11,7 @@ const mockFiles: UserFile[] = [
     filename: 'zebra.txt',
     created_at: '2023-01-03T00:00:00Z',
     updated_at: '2023-01-03T00:00:00Z',
+    is_starred: false,
     file: {
       id: 'file-1',
       content_hash: 'hash1',
@@ -27,6 +28,7 @@ const mockFiles: UserFile[] = [
     filename: 'apple.txt',
     created_at: '2023-01-01T00:00:00Z',
     updated_at: '2023-01-01T00:00:00Z',
+    is_starred: true,
     file: {
       id: 'file-2',
       content_hash: 'hash2',
@@ -43,6 +45,7 @@ const mockFiles: UserFile[] = [
     filename: 'banana.pdf',
     created_at: '2023-01-02T00:00:00Z',
     updated_at: '2023-01-02T00:00:00Z',
+    is_starred: false,
     file: {
       id: 'file-3',
       content_hash: 'hash3',

@@ -10,6 +10,8 @@ import {
   InputAdornment,
   Button,
   Tooltip,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -17,19 +19,24 @@ import {
   CreateNewFolder as CreateNewFolderIcon,
   ContentCut as CutIcon,
   ContentPaste as PasteIcon,
+  ViewList as ListViewIcon,
+  ViewModule as TileViewIcon,
 } from '@mui/icons-material';
 import { FileFilterInput } from '../../types';
 
 type SortOption = 'name' | 'date' | 'size';
 type SortDirection = 'asc' | 'desc';
+type ViewMode = 'list' | 'tile';
 
 interface FileToolbarProps {
-  filter: FileFilterInput;
+  searchQuery: string;
   sortBy: SortOption;
   sortDirection: SortDirection;
-  onFilterChange: (field: keyof FileFilterInput, value: string) => void;
+  viewMode: ViewMode;
+  onSearchChange: (value: string) => void;
   onSortChange: (value: SortOption) => void;
   onToggleSortDirection: () => void;
+  onViewModeChange: (mode: ViewMode) => void;
   onCreateFolder?: () => void;
   onCut?: () => void;
   onPaste?: () => void;
@@ -39,12 +46,14 @@ interface FileToolbarProps {
 }
 
 const FileToolbar: React.FC<FileToolbarProps> = ({
-  filter,
+  searchQuery,
   sortBy,
   sortDirection,
-  onFilterChange,
+  viewMode,
+  onSearchChange,
   onSortChange,
   onToggleSortDirection,
+  onViewModeChange,
   onCreateFolder,
   onCut,
   onPaste,
@@ -62,8 +71,8 @@ const FileToolbar: React.FC<FileToolbarProps> = ({
       <TextField
         size="small"
         placeholder="Search files..."
-        value={filter.filename || ''}
-        onChange={(e) => onFilterChange('filename', e.target.value)}
+        value={searchQuery}
+        onChange={(e) => onSearchChange(e.target.value)}
         InputProps={{
           startAdornment: (
             <InputAdornment position="start">
@@ -117,6 +126,21 @@ const FileToolbar: React.FC<FileToolbarProps> = ({
           </IconButton>
         </span>
       </Tooltip>
+
+      {/* View Mode Toggle */}
+      <ToggleButtonGroup
+        value={viewMode}
+        exclusive
+        onChange={(_, newMode) => newMode && onViewModeChange(newMode)}
+        size="small"
+      >
+        <ToggleButton value="list">
+          <ListViewIcon fontSize="small" />
+        </ToggleButton>
+        <ToggleButton value="tile">
+          <TileViewIcon fontSize="small" />
+        </ToggleButton>
+      </ToggleButtonGroup>
 
       {/* New Folder Button */}
       {onCreateFolder && (

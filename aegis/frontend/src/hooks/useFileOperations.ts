@@ -47,7 +47,6 @@ export const useFileOperations = () => {
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
         },
-        credentials: 'include', // Include cookies for authentication
       });
 
       if (!response.ok) {

@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -8,6 +8,10 @@ import {
   Menu,
   MenuItem,
   Avatar,
+  TextField,
+  InputAdornment,
+  Fade,
+  ClickAwayListener,
 } from '@mui/material';
 import {
   ExitToApp,
@@ -16,6 +20,7 @@ import {
   Notifications as NotificationsIcon,
   Settings as SettingsIcon,
   Storage as StorageIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -24,15 +29,21 @@ interface DashboardAppBarProps {
   onMenuOpen: (event: React.MouseEvent<HTMLElement>) => void;
   anchorEl: HTMLElement | null;
   onMenuClose: () => void;
+  onSearch?: (searchTerm: string) => void;
+  searchTerm?: string;
 }
 
 const DashboardAppBar: React.FC<DashboardAppBarProps> = ({
   onMenuOpen,
   anchorEl,
   onMenuClose,
+  onSearch,
+  searchTerm = '',
 }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState(searchTerm);
 
   const handleLogout = () => {
     logout();
@@ -42,6 +53,33 @@ const DashboardAppBar: React.FC<DashboardAppBarProps> = ({
   const handleAdminPanel = () => {
     navigate('/admin');
     onMenuClose();
+  };
+
+  const handleSearchOpen = () => {
+    setSearchOpen(true);
+  };
+
+  const handleSearchClose = () => {
+    setSearchOpen(false);
+    setSearchValue('');
+    if (onSearch) {
+      onSearch('');
+    }
+  };
+
+  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+    setSearchValue(value);
+    if (onSearch) {
+      onSearch(value);
+    }
+  };
+
+  const handleSearchSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (onSearch) {
+      onSearch(searchValue);
+    }
   };
 
   return (
@@ -69,15 +107,68 @@ const DashboardAppBar: React.FC<DashboardAppBarProps> = ({
           }}>
             <StorageIcon sx={{ color: 'white', fontSize: 20 }} />
           </Box>
-          <Typography variant="h6" component="div" sx={{ fontWeight: 600, color: '#1f2937' }}>
-            AegisDrive
-          </Typography>
+          
+          {!searchOpen ? (
+            <Typography variant="h6" component="div" sx={{ fontWeight: 600, color: '#1f2937' }}>
+              AegisDrive
+            </Typography>
+          ) : (
+            <ClickAwayListener onClickAway={handleSearchClose}>
+              <Box sx={{ flexGrow: 1, maxWidth: 400 }}>
+                <Fade in={searchOpen}>
+                  <form onSubmit={handleSearchSubmit}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      placeholder="Search files..."
+                      value={searchValue}
+                      onChange={handleSearchChange}
+                      autoFocus
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchIcon sx={{ color: '#6b7280' }} />
+                          </InputAdornment>
+                        ),
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              size="small"
+                              onClick={handleSearchClose}
+                              sx={{ color: '#6b7280' }}
+                            >
+                              <CloseIcon fontSize="small" />
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                        sx: {
+                          backgroundColor: '#f9fafb',
+                          borderRadius: 2,
+                          '& .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#e5e7eb',
+                          },
+                          '&:hover .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#3b82f6',
+                          },
+                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#3b82f6',
+                          },
+                        }
+                      }}
+                    />
+                  </form>
+                </Fade>
+              </Box>
+            </ClickAwayListener>
+          )}
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <IconButton sx={{ color: '#6b7280' }}>
-            <SearchIcon />
-          </IconButton>
+          {!searchOpen && (
+            <IconButton onClick={handleSearchOpen} sx={{ color: '#6b7280' }}>
+              <SearchIcon />
+            </IconButton>
+          )}
 
           <IconButton sx={{ color: '#6b7280' }}>
             <NotificationsIcon />

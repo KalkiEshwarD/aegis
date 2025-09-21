@@ -7,33 +7,89 @@ import (
 	"strings"
 )
 
+type FilesEndpoints struct {
+	Base     string
+	Download string
+}
+
+type ShareEndpoints struct {
+	Base   string
+	Access string
+}
+
+type SharedEndpoints struct {
+	Base string
+}
+
+type HealthEndpoints struct {
+	Base string
+}
+
+type GraphQLEndpoints struct {
+	Base string
+}
+
+type APIEndpoints struct {
+	Base   string
+	Files  FilesEndpoints
+	Share  ShareEndpoints
+	Shared SharedEndpoints
+	Health HealthEndpoints
+	GraphQL GraphQLEndpoints
+}
+
 type Config struct {
-	DatabaseURL        string
-	MinIOEndpoint      string
-	MinIOAccessKey     string
-	MinIOSecretKey     string
-	MinIOBucket        string
-	JWTSecret          string
-	Port               string
-	GinMode            string
-	CORSAllowedOrigins string
-	BaseURL            string
+	DatabaseURL             string
+	MinIOEndpoint           string
+	MinIOAccessKey          string
+	MinIOSecretKey          string
+	MinIOBucket             string
+	JWTSecret               string
+	Port                    string
+	GinMode                 string
+	CORSAllowedOrigins      string
+	BaseURL                 string
+	RateLimitRequestsPerSecond float64
+	RateLimitBurst          int
+	APIEndpoints            APIEndpoints
 }
 
 func Load() *Config {
 	log.Println("DEBUG: Loading configuration...")
 
 	config := &Config{
-		DatabaseURL:        getEnvRequired("DATABASE_URL"),
-		MinIOEndpoint:      getEnv("MINIO_ENDPOINT", "localhost:9000"),
-		MinIOAccessKey:     getEnvRequired("MINIO_ACCESS_KEY"),
-		MinIOSecretKey:     getEnvRequired("MINIO_SECRET_KEY"),
-		MinIOBucket:        getEnv("MINIO_BUCKET", "aegis-files"),
-		JWTSecret:          getEnvRequired("JWT_SECRET"),
-		Port:               getEnv("PORT", "8080"),
-		GinMode:            getEnv("GIN_MODE", "debug"),
-		CORSAllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000"),
-		BaseURL:            getEnv("BASE_URL", "http://localhost:8080"),
+		DatabaseURL:             getEnvRequired("DATABASE_URL"),
+		MinIOEndpoint:           getEnv("MINIO_ENDPOINT", "localhost:9000"),
+		MinIOAccessKey:          getEnvRequired("MINIO_ACCESS_KEY"),
+		MinIOSecretKey:          getEnvRequired("MINIO_SECRET_KEY"),
+		MinIOBucket:             getEnv("MINIO_BUCKET", "aegis-files"),
+		JWTSecret:               getEnvRequired("JWT_SECRET"),
+		Port:                    getEnv("PORT", "8080"),
+		GinMode:                 getEnv("GIN_MODE", "debug"),
+		CORSAllowedOrigins:      getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000"),
+		BaseURL:                 getEnv("BASE_URL", "http://localhost:8080"),
+		RateLimitRequestsPerSecond: getEnvFloat("RATE_LIMIT_REQUESTS_PER_SECOND", 10.0),
+		RateLimitBurst:          getEnvInt("RATE_LIMIT_BURST", 20),
+		APIEndpoints: APIEndpoints{
+			Base: "/v1/api",
+			Files: FilesEndpoints{
+				Base:     "/v1/api/files",
+				Download: "/v1/api/files/:id/download",
+			},
+			Share: ShareEndpoints{
+				Base:   "/v1/share",
+				Access: "/v1/share/:token/access",
+			},
+			Shared: SharedEndpoints{
+				Base: "/v1/shared",
+			},
+			Health: HealthEndpoints{
+				Base: "/v1/health",
+			},
+			GraphQL: GraphQLEndpoints{
+				Base: "/v1/graphql",
+			},
+		},
 	}
 
 	log.Printf("DEBUG: Configuration loaded - Port: %s, CORS Origins: %s, BaseURL: %s", config.Port, config.CORSAllowedOrigins, config.BaseURL)
@@ -58,6 +114,26 @@ func getEnvRequired(key string) string {
 		log.Fatalf("Required environment variable %s is not set", key)
 	}
 	return value
+}
+
+func getEnvFloat(key string, defaultValue float64) float64 {
+	if value := os.Getenv(key); value != "" {
+		if parsed, err := strconv.ParseFloat(value, 64); err == nil {
+			return parsed
+		}
+		log.Printf("WARNING: Invalid float value for %s: %s, using default %.2f", key, value, defaultValue)
+	}
+	return defaultValue
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			return parsed
+		}
+		log.Printf("WARNING: Invalid int value for %s: %s, using default %d", key, value, defaultValue)
+	}
+	return defaultValue
 }
 
 func validateSecureConfig(config *Config) {

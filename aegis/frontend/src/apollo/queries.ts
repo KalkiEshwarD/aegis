@@ -80,6 +80,7 @@ export const GET_MY_FILES = gql`
       mime_type
       encryption_key
       folder_id
+      is_starred
       created_at
       file {
         id
@@ -191,6 +192,41 @@ export const RESTORE_FILE_MUTATION = gql`
 export const PERMANENTLY_DELETE_FILE_MUTATION = gql`
   mutation PermanentlyDeleteFile($fileID: ID!) {
     permanentlyDeleteFile(fileID: $fileID)
+  }
+`;
+
+// Starred Files Operations
+export const GET_STARRED_FILES_QUERY = gql`
+  query GetStarredFiles {
+    myStarredFiles {
+      id
+      filename
+      mime_type
+      folder_id
+      is_starred
+      created_at
+      file {
+        id
+        size_bytes
+        content_hash
+      }
+      folder {
+        id
+        name
+      }
+    }
+  }
+`;
+
+export const STAR_FILE_MUTATION = gql`
+  mutation StarFile($id: ID!) {
+    starFile(id: $id)
+  }
+`;
+
+export const UNSTAR_FILE_MUTATION = gql`
+  mutation UnstarFile($id: ID!) {
+    unstarFile(id: $id)
   }
 `;
 

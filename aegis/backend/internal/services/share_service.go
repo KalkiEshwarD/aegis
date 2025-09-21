@@ -24,17 +24,19 @@ import (
 
 type ShareService struct {
 	*BaseService
-	baseURL      string
-	cryptoConfig *utils.CryptoConfig
-	rateLimiter  *RateLimiter
+	baseURL           string
+	cryptoConfig      *utils.CryptoConfig
+	rateLimiter       *RateLimiter
+	encryptionService *EncryptionService
 }
 
-func NewShareService(db *database.DB, baseURL string) *ShareService {
+func NewShareService(db *database.DB, baseURL string, encryptionService *EncryptionService) *ShareService {
 	return &ShareService{
-		BaseService:  NewBaseService(db),
-		baseURL:      strings.TrimSuffix(baseURL, "/"),
-		cryptoConfig: utils.DefaultCryptoConfig(),
-		rateLimiter:  NewRateLimiter(),
+		BaseService:       NewBaseService(db),
+		baseURL:           strings.TrimSuffix(baseURL, "/"),
+		cryptoConfig:      utils.DefaultCryptoConfig(),
+		rateLimiter:       NewRateLimiter(),
+		encryptionService: encryptionService,
 	}
 }
 
@@ -60,9 +62,22 @@ func (s *ShareService) CreateShare(userFileID uint, masterPassword string, maxDo
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "invalid file encryption key")
 	}
 
-	encryptedKeyData, err := utils.EncryptFileKeyWithPassword(fileKey, masterPassword, s.cryptoConfig)
+	// Generate envelope key
+	envelopeKey, err := s.encryptionService.keyManager.GenerateEnvelopeKey()
 	if err != nil {
-		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to encrypt file key")
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to generate envelope key")
+	}
+
+	// Encrypt envelope key with password using PBKDF2+AES-GCM
+	encryptedEnvelopeKey, envelopeSalt, envelopeIV, err := s.encryptionService.EncryptEnvelopeKey(envelopeKey, masterPassword)
+	if err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to encrypt envelope key")
+	}
+
+	// Encrypt file key with envelope key
+	encryptedFileKey, fileKeyIV, err := s.encryptionService.EncryptFileKey(fileKey, envelopeKey)
+	if err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to encrypt file key with envelope key")
 	}
 
 	shareToken, err := s.generateShareToken()
@@ -73,9 +88,12 @@ func (s *ShareService) CreateShare(userFileID uint, masterPassword string, maxDo
 	fileShare := &models.FileShare{
 		UserFileID:    userFileID,
 		ShareToken:    shareToken,
-		EncryptedKey:  encryptedKeyData.EncryptedKey,
-		Salt:          encryptedKeyData.Salt,
-		IV:            encryptedKeyData.IV,
+		EncryptedKey:  encryptedFileKey,
+		Salt:          "", // Keep for backward compatibility
+		IV:            fileKeyIV,
+		EnvelopeKey:   encryptedEnvelopeKey,
+		EnvelopeSalt:  envelopeSalt,
+		EnvelopeIV:    envelopeIV,
 		MaxDownloads:  maxDownloads,
 		DownloadCount: 0,
 		ExpiresAt:     expiresAt,
@@ -192,6 +210,24 @@ func (s *ShareService) GetShareByToken(token string) (*models.FileShare, error) 
 }
 
 func (s *ShareService) DecryptFileKey(fileShare *models.FileShare, masterPassword string) ([]byte, error) {
+	// Use envelope key decryption for new shares
+	if fileShare.EnvelopeKey != "" && fileShare.EnvelopeSalt != "" && fileShare.EnvelopeIV != "" {
+		// Decrypt envelope key with password
+		envelopeKey, err := s.encryptionService.DecryptEnvelopeKey(fileShare.EnvelopeKey, fileShare.EnvelopeSalt, fileShare.EnvelopeIV, masterPassword)
+		if err != nil {
+			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to decrypt envelope key")
+		}
+
+		// Decrypt file key with envelope key
+		fileKey, err := s.encryptionService.DecryptFileKey(fileShare.EncryptedKey, fileShare.IV, envelopeKey)
+		if err != nil {
+			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to decrypt file key")
+		}
+
+		return fileKey, nil
+	}
+
+	// Fallback to legacy decryption for backward compatibility
 	encryptedKeyData := &utils.EncryptedKeyData{
 		EncryptedKey: fileShare.EncryptedKey,
 		Salt:         fileShare.Salt,
@@ -290,7 +326,7 @@ func (s *ShareService) GenerateShareLink(fileShare *models.FileShare) (string, e
 		return "", apperrors.New(apperrors.ErrCodeValidation, "file share cannot be nil")
 	}
 
-	shareURL := fmt.Sprintf("%s/share/%s", s.baseURL, fileShare.ShareToken)
+	shareURL := fmt.Sprintf("%s/v1/share/%s", s.baseURL, fileShare.ShareToken)
 
 	if _, err := url.Parse(shareURL); err != nil {
 		return "", apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to generate valid share URL")
@@ -417,7 +453,7 @@ func (s *ShareService) ValidateShareURL(shareURL string) (string, error) {
 		return "", apperrors.Wrap(err, apperrors.ErrCodeValidation, "invalid share URL format")
 	}
 
-	expectedPrefix := s.baseURL + "/share/"
+	expectedPrefix := s.baseURL + "/v1/share/"
 	if !strings.HasPrefix(shareURL, expectedPrefix) {
 		return "", apperrors.New(apperrors.ErrCodeValidation, "invalid share URL format")
 	}

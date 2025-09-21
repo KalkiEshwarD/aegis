@@ -24,10 +24,8 @@ func SecurityHeaders() gin.HandlerFunc {
 		// Permissions Policy (formerly Feature Policy)
 		c.Header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 
-		// Content Security Policy for share endpoints
-		if strings.Contains(c.Request.URL.Path, "/share") || strings.Contains(c.Request.URL.Path, "/download") {
-			c.Header("Content-Security-Policy", "default-src 'self'; script-src 'none'; style-src 'none'; img-src 'none'; font-src 'none'; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'")
-		}
+		// Content Security Policy - restrict to self for API endpoints
+		c.Header("Content-Security-Policy", "default-src 'self'")
 
 		// HSTS (HTTP Strict Transport Security) - only for HTTPS
 		if c.Request.TLS != nil {

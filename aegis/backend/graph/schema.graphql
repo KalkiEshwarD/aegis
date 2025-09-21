@@ -35,6 +35,7 @@ type UserFile {
   mime_type: String!
   encryption_key: String!
   folder_id: ID
+  is_starred: Boolean!
   created_at: Time!
   updated_at: Time!
   user: User
@@ -202,6 +203,9 @@ type FileShare {
   encrypted_key: String!
   salt: String!
   iv: String!
+  envelope_key: String!
+  envelope_salt: String!
+  envelope_iv: String!
   max_downloads: Int!
   download_count: Int!
   expires_at: Time
@@ -271,6 +275,7 @@ type Query {
   # User queries
   me: User!
   myFiles(filter: FileFilterInput): [UserFile!]!
+  myStarredFiles: [UserFile!]!
   myTrashedFiles: [UserFile!]!
   myStats: UserStats!
 
@@ -312,6 +317,8 @@ type Mutation {
   restoreFile(fileID: ID!): Boolean!
   permanentlyDeleteFile(fileID: ID!): Boolean!
   downloadFile(id: ID!): String! # Returns download URL
+  starFile(id: ID!): Boolean!
+  unstarFile(id: ID!): Boolean!
 
   # Room operations
   createRoom(input: CreateRoomInput!): Room!

@@ -87,6 +87,9 @@ type ComplexityRoot struct {
 		CreatedAt     func(childComplexity int) int
 		DownloadCount func(childComplexity int) int
 		EncryptedKey  func(childComplexity int) int
+		EnvelopeIV    func(childComplexity int) int
+		EnvelopeKey   func(childComplexity int) int
+		EnvelopeSalt  func(childComplexity int) int
 		ExpiresAt     func(childComplexity int) int
 		ID            func(childComplexity int) int
 		IV            func(childComplexity int) int
@@ -137,6 +140,8 @@ type ComplexityRoot struct {
 		RestoreFile           func(childComplexity int, fileID string) int
 		ShareFileToRoom       func(childComplexity int, userFileID string, roomID string) int
 		ShareFolderToRoom     func(childComplexity int, input model.ShareFolderToRoomInput) int
+		StarFile              func(childComplexity int, id string) int
+		UnstarFile            func(childComplexity int, id string) int
 		UpdateFileShare       func(childComplexity int, input model.UpdateFileShareInput) int
 		UploadFile            func(childComplexity int, input model.UploadFileInput) int
 		UploadFileFromMap     func(childComplexity int, input model.UploadFileFromMapInput) int
@@ -153,6 +158,7 @@ type ComplexityRoot struct {
 		MyFolders        func(childComplexity int) int
 		MyRooms          func(childComplexity int) int
 		MyShares         func(childComplexity int) int
+		MyStarredFiles   func(childComplexity int) int
 		MyStats          func(childComplexity int) int
 		MyTrashedFiles   func(childComplexity int) int
 		Room             func(childComplexity int, id string) int
@@ -250,6 +256,7 @@ type ComplexityRoot struct {
 		Folder        func(childComplexity int) int
 		FolderID      func(childComplexity int) int
 		ID            func(childComplexity int) int
+		IsStarred     func(childComplexity int) int
 		MimeType      func(childComplexity int) int
 		UpdatedAt     func(childComplexity int) int
 		User          func(childComplexity int) int
@@ -288,6 +295,8 @@ type MutationResolver interface {
 	RestoreFile(ctx context.Context, fileID string) (bool, error)
 	PermanentlyDeleteFile(ctx context.Context, fileID string) (bool, error)
 	DownloadFile(ctx context.Context, id string) (string, error)
+	StarFile(ctx context.Context, id string) (bool, error)
+	UnstarFile(ctx context.Context, id string) (bool, error)
 	CreateRoom(ctx context.Context, input model.CreateRoomInput) (*models.Room, error)
 	AddRoomMember(ctx context.Context, input model.AddRoomMemberInput) (bool, error)
 	RemoveRoomMember(ctx context.Context, roomID string, userID string) (bool, error)
@@ -310,6 +319,7 @@ type MutationResolver interface {
 type QueryResolver interface {
 	Me(ctx context.Context) (*models.User, error)
 	MyFiles(ctx context.Context, filter *model.FileFilterInput) ([]*models.UserFile, error)
+	MyStarredFiles(ctx context.Context) ([]*models.UserFile, error)
 	MyTrashedFiles(ctx context.Context) ([]*models.UserFile, error)
 	MyStats(ctx context.Context) (*model.UserStats, error)
 	MyRooms(ctx context.Context) ([]*models.Room, error)
@@ -486,6 +496,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.FileShare.EncryptedKey(childComplexity), true
+	case "FileShare.envelope_iv":
+		if e.complexity.FileShare.EnvelopeIV == nil {
+			break
+		}
+
+		return e.complexity.FileShare.EnvelopeIV(childComplexity), true
+	case "FileShare.envelope_key":
+		if e.complexity.FileShare.EnvelopeKey == nil {
+			break
+		}
+
+		return e.complexity.FileShare.EnvelopeKey(childComplexity), true
+	case "FileShare.envelope_salt":
+		if e.complexity.FileShare.EnvelopeSalt == nil {
+			break
+		}
+
+		return e.complexity.FileShare.EnvelopeSalt(childComplexity), true
 	case "FileShare.expires_at":
 		if e.complexity.FileShare.ExpiresAt == nil {
 			break
@@ -867,6 +895,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.ShareFolderToRoom(childComplexity, args["input"].(model.ShareFolderToRoomInput)), true
+	case "Mutation.starFile":
+		if e.complexity.Mutation.StarFile == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_starFile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.StarFile(childComplexity, args["id"].(string)), true
+	case "Mutation.unstarFile":
+		if e.complexity.Mutation.UnstarFile == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_unstarFile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UnstarFile(childComplexity, args["id"].(string)), true
 	case "Mutation.updateFileShare":
 		if e.complexity.Mutation.UpdateFileShare == nil {
 			break
@@ -971,6 +1021,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.MyShares(childComplexity), true
+	case "Query.myStarredFiles":
+		if e.complexity.Query.MyStarredFiles == nil {
+			break
+		}
+
+		return e.complexity.Query.MyStarredFiles(childComplexity), true
 	case "Query.myStats":
 		if e.complexity.Query.MyStats == nil {
 			break
@@ -1437,6 +1493,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.UserFile.ID(childComplexity), true
+	case "UserFile.is_starred":
+		if e.complexity.UserFile.IsStarred == nil {
+			break
+		}
+
+		return e.complexity.UserFile.IsStarred(childComplexity), true
 	case "UserFile.mime_type":
 		if e.complexity.UserFile.MimeType == nil {
 			break
@@ -1644,6 +1706,7 @@ type UserFile {
   mime_type: String!
   encryption_key: String!
   folder_id: ID
+  is_starred: Boolean!
   created_at: Time!
   updated_at: Time!
   user: User
@@ -1811,6 +1874,9 @@ type FileShare {
   encrypted_key: String!
   salt: String!
   iv: String!
+  envelope_key: String!
+  envelope_salt: String!
+  envelope_iv: String!
   max_downloads: Int!
   download_count: Int!
   expires_at: Time
@@ -1880,6 +1946,7 @@ type Query {
   # User queries
   me: User!
   myFiles(filter: FileFilterInput): [UserFile!]!
+  myStarredFiles: [UserFile!]!
   myTrashedFiles: [UserFile!]!
   myStats: UserStats!
 
@@ -1921,6 +1988,8 @@ type Mutation {
   restoreFile(fileID: ID!): Boolean!
   permanentlyDeleteFile(fileID: ID!): Boolean!
   downloadFile(id: ID!): String! # Returns download URL
+  starFile(id: ID!): Boolean!
+  unstarFile(id: ID!): Boolean!
 
   # Room operations
   createRoom(input: CreateRoomInput!): Room!
@@ -2226,6 +2295,28 @@ func (ec *executionContext) field_Mutation_shareFolderToRoom_args(ctx context.Co
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_starFile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_unstarFile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -2661,6 +2752,8 @@ func (ec *executionContext) fieldContext_AdminDashboard_recent_uploads(_ context
 				return ec.fieldContext_UserFile_encryption_key(ctx, field)
 			case "folder_id":
 				return ec.fieldContext_UserFile_folder_id(ctx, field)
+			case "is_starred":
+				return ec.fieldContext_UserFile_is_starred(ctx, field)
 			case "created_at":
 				return ec.fieldContext_UserFile_created_at(ctx, field)
 			case "updated_at":
@@ -3042,6 +3135,93 @@ func (ec *executionContext) fieldContext_FileShare_iv(_ context.Context, field g
 	return fc, nil
 }
 
+func (ec *executionContext) _FileShare_envelope_key(ctx context.Context, field graphql.CollectedField, obj *models.FileShare) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FileShare_envelope_key,
+		func(ctx context.Context) (any, error) {
+			return obj.EnvelopeKey, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FileShare_envelope_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FileShare",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FileShare_envelope_salt(ctx context.Context, field graphql.CollectedField, obj *models.FileShare) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FileShare_envelope_salt,
+		func(ctx context.Context) (any, error) {
+			return obj.EnvelopeSalt, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FileShare_envelope_salt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FileShare",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FileShare_envelope_iv(ctx context.Context, field graphql.CollectedField, obj *models.FileShare) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FileShare_envelope_iv,
+		func(ctx context.Context) (any, error) {
+			return obj.EnvelopeIV, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FileShare_envelope_iv(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FileShare",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _FileShare_max_downloads(ctx context.Context, field graphql.CollectedField, obj *models.FileShare) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -3225,6 +3405,8 @@ func (ec *executionContext) fieldContext_FileShare_user_file(_ context.Context, 
 				return ec.fieldContext_UserFile_encryption_key(ctx, field)
 			case "folder_id":
 				return ec.fieldContext_UserFile_folder_id(ctx, field)
+			case "is_starred":
+				return ec.fieldContext_UserFile_is_starred(ctx, field)
 			case "created_at":
 				return ec.fieldContext_UserFile_created_at(ctx, field)
 			case "updated_at":
@@ -3601,6 +3783,8 @@ func (ec *executionContext) fieldContext_Folder_files(_ context.Context, field g
 				return ec.fieldContext_UserFile_encryption_key(ctx, field)
 			case "folder_id":
 				return ec.fieldContext_UserFile_folder_id(ctx, field)
+			case "is_starred":
+				return ec.fieldContext_UserFile_is_starred(ctx, field)
 			case "created_at":
 				return ec.fieldContext_UserFile_created_at(ctx, field)
 			case "updated_at":
@@ -3815,6 +3999,8 @@ func (ec *executionContext) fieldContext_Mutation_uploadFile(ctx context.Context
 				return ec.fieldContext_UserFile_encryption_key(ctx, field)
 			case "folder_id":
 				return ec.fieldContext_UserFile_folder_id(ctx, field)
+			case "is_starred":
+				return ec.fieldContext_UserFile_is_starred(ctx, field)
 			case "created_at":
 				return ec.fieldContext_UserFile_created_at(ctx, field)
 			case "updated_at":
@@ -3882,6 +4068,8 @@ func (ec *executionContext) fieldContext_Mutation_uploadFileFromMap(ctx context.
 				return ec.fieldContext_UserFile_encryption_key(ctx, field)
 			case "folder_id":
 				return ec.fieldContext_UserFile_folder_id(ctx, field)
+			case "is_starred":
+				return ec.fieldContext_UserFile_is_starred(ctx, field)
 			case "created_at":
 				return ec.fieldContext_UserFile_created_at(ctx, field)
 			case "updated_at":
@@ -4068,6 +4256,88 @@ func (ec *executionContext) fieldContext_Mutation_downloadFile(ctx context.Conte
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_downloadFile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_starFile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_starFile,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().StarFile(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_starFile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_starFile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_unstarFile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_unstarFile,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().UnstarFile(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_unstarFile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_unstarFile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -4643,6 +4913,12 @@ func (ec *executionContext) fieldContext_Mutation_createFileShare(ctx context.Co
 				return ec.fieldContext_FileShare_salt(ctx, field)
 			case "iv":
 				return ec.fieldContext_FileShare_iv(ctx, field)
+			case "envelope_key":
+				return ec.fieldContext_FileShare_envelope_key(ctx, field)
+			case "envelope_salt":
+				return ec.fieldContext_FileShare_envelope_salt(ctx, field)
+			case "envelope_iv":
+				return ec.fieldContext_FileShare_envelope_iv(ctx, field)
 			case "max_downloads":
 				return ec.fieldContext_FileShare_max_downloads(ctx, field)
 			case "download_count":
@@ -4710,6 +4986,12 @@ func (ec *executionContext) fieldContext_Mutation_updateFileShare(ctx context.Co
 				return ec.fieldContext_FileShare_salt(ctx, field)
 			case "iv":
 				return ec.fieldContext_FileShare_iv(ctx, field)
+			case "envelope_key":
+				return ec.fieldContext_FileShare_envelope_key(ctx, field)
+			case "envelope_salt":
+				return ec.fieldContext_FileShare_envelope_salt(ctx, field)
+			case "envelope_iv":
+				return ec.fieldContext_FileShare_envelope_iv(ctx, field)
 			case "max_downloads":
 				return ec.fieldContext_FileShare_max_downloads(ctx, field)
 			case "download_count":
@@ -4988,6 +5270,8 @@ func (ec *executionContext) fieldContext_Query_myFiles(ctx context.Context, fiel
 				return ec.fieldContext_UserFile_encryption_key(ctx, field)
 			case "folder_id":
 				return ec.fieldContext_UserFile_folder_id(ctx, field)
+			case "is_starred":
+				return ec.fieldContext_UserFile_is_starred(ctx, field)
 			case "created_at":
 				return ec.fieldContext_UserFile_created_at(ctx, field)
 			case "updated_at":
@@ -5012,6 +5296,63 @@ func (ec *executionContext) fieldContext_Query_myFiles(ctx context.Context, fiel
 	if fc.Args, err = ec.field_Query_myFiles_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_myStarredFiles(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_myStarredFiles,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Query().MyStarredFiles(ctx)
+		},
+		nil,
+		ec.marshalNUserFile2ᚕᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUserFileᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_myStarredFiles(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_UserFile_id(ctx, field)
+			case "user_id":
+				return ec.fieldContext_UserFile_user_id(ctx, field)
+			case "file_id":
+				return ec.fieldContext_UserFile_file_id(ctx, field)
+			case "filename":
+				return ec.fieldContext_UserFile_filename(ctx, field)
+			case "mime_type":
+				return ec.fieldContext_UserFile_mime_type(ctx, field)
+			case "encryption_key":
+				return ec.fieldContext_UserFile_encryption_key(ctx, field)
+			case "folder_id":
+				return ec.fieldContext_UserFile_folder_id(ctx, field)
+			case "is_starred":
+				return ec.fieldContext_UserFile_is_starred(ctx, field)
+			case "created_at":
+				return ec.fieldContext_UserFile_created_at(ctx, field)
+			case "updated_at":
+				return ec.fieldContext_UserFile_updated_at(ctx, field)
+			case "user":
+				return ec.fieldContext_UserFile_user(ctx, field)
+			case "file":
+				return ec.fieldContext_UserFile_file(ctx, field)
+			case "folder":
+				return ec.fieldContext_UserFile_folder(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type UserFile", field.Name)
+		},
 	}
 	return fc, nil
 }
@@ -5054,6 +5395,8 @@ func (ec *executionContext) fieldContext_Query_myTrashedFiles(_ context.Context,
 				return ec.fieldContext_UserFile_encryption_key(ctx, field)
 			case "folder_id":
 				return ec.fieldContext_UserFile_folder_id(ctx, field)
+			case "is_starred":
+				return ec.fieldContext_UserFile_is_starred(ctx, field)
 			case "created_at":
 				return ec.fieldContext_UserFile_created_at(ctx, field)
 			case "updated_at":
@@ -5366,6 +5709,12 @@ func (ec *executionContext) fieldContext_Query_myShares(_ context.Context, field
 				return ec.fieldContext_FileShare_salt(ctx, field)
 			case "iv":
 				return ec.fieldContext_FileShare_iv(ctx, field)
+			case "envelope_key":
+				return ec.fieldContext_FileShare_envelope_key(ctx, field)
+			case "envelope_salt":
+				return ec.fieldContext_FileShare_envelope_salt(ctx, field)
+			case "envelope_iv":
+				return ec.fieldContext_FileShare_envelope_iv(ctx, field)
 			case "max_downloads":
 				return ec.fieldContext_FileShare_max_downloads(ctx, field)
 			case "download_count":
@@ -5727,6 +6076,8 @@ func (ec *executionContext) fieldContext_Query_allFiles(_ context.Context, field
 				return ec.fieldContext_UserFile_encryption_key(ctx, field)
 			case "folder_id":
 				return ec.fieldContext_UserFile_folder_id(ctx, field)
+			case "is_starred":
+				return ec.fieldContext_UserFile_is_starred(ctx, field)
 			case "created_at":
 				return ec.fieldContext_UserFile_created_at(ctx, field)
 			case "updated_at":
@@ -6125,6 +6476,8 @@ func (ec *executionContext) fieldContext_Room_files(_ context.Context, field gra
 				return ec.fieldContext_UserFile_encryption_key(ctx, field)
 			case "folder_id":
 				return ec.fieldContext_UserFile_folder_id(ctx, field)
+			case "is_starred":
+				return ec.fieldContext_UserFile_is_starred(ctx, field)
 			case "created_at":
 				return ec.fieldContext_UserFile_created_at(ctx, field)
 			case "updated_at":
@@ -7120,6 +7473,12 @@ func (ec *executionContext) fieldContext_SharedFileAccess_file_share(_ context.C
 				return ec.fieldContext_FileShare_salt(ctx, field)
 			case "iv":
 				return ec.fieldContext_FileShare_iv(ctx, field)
+			case "envelope_key":
+				return ec.fieldContext_FileShare_envelope_key(ctx, field)
+			case "envelope_salt":
+				return ec.fieldContext_FileShare_envelope_salt(ctx, field)
+			case "envelope_iv":
+				return ec.fieldContext_FileShare_envelope_iv(ctx, field)
 			case "max_downloads":
 				return ec.fieldContext_FileShare_max_downloads(ctx, field)
 			case "download_count":
@@ -7933,6 +8292,35 @@ func (ec *executionContext) fieldContext_UserFile_folder_id(_ context.Context, f
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UserFile_is_starred(ctx context.Context, field graphql.CollectedField, obj *models.UserFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_UserFile_is_starred,
+		func(ctx context.Context) (any, error) {
+			return obj.IsStarred, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_UserFile_is_starred(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UserFile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
 		},
 	}
 	return fc, nil
@@ -10661,6 +11049,21 @@ func (ec *executionContext) _FileShare(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "envelope_key":
+			out.Values[i] = ec._FileShare_envelope_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "envelope_salt":
+			out.Values[i] = ec._FileShare_envelope_salt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "envelope_iv":
+			out.Values[i] = ec._FileShare_envelope_iv(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "max_downloads":
 			out.Values[i] = ec._FileShare_max_downloads(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -10965,6 +11368,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "starFile":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_starFile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unstarFile":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_unstarFile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createRoom":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createRoom(ctx, field)
@@ -11165,6 +11582,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_myFiles(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "myStarredFiles":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_myStarredFiles(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -12532,6 +12971,11 @@ func (ec *executionContext) _UserFile(ctx context.Context, sel ast.SelectionSet,
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "is_starred":
+			out.Values[i] = ec._UserFile_is_starred(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "created_at":
 			out.Values[i] = ec._UserFile_created_at(ctx, field, obj)
 			if out.Values[i] == graphql.Null {

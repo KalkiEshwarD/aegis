@@ -501,7 +501,7 @@ func (suite *StorageServiceTestSuite) TestGetFileDownloadURL_Success() {
 	url, err := suite.storageService.GetFileDownloadURL(context.Background(), &suite.testUser, suite.testUserFile.ID)
 
 	assert.NoError(suite.T(), err)
-	assert.Contains(suite.T(), url, "http://localhost:8080/api/files")
+	assert.Contains(suite.T(), url, "http://localhost:8080/v1/api/files")
 	assert.Contains(suite.T(), url, fmt.Sprintf("%d/download", suite.testUserFile.ID))
 }
 

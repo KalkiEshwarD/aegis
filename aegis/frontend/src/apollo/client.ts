@@ -1,27 +1,30 @@
 import { ApolloClient, InMemoryCache, createHttpLink, from } from '@apollo/client';
 import { setContext } from '@apollo/client/link/context';
 import { onError } from '@apollo/client/link/error';
+import { RetryLink } from '@apollo/client/link/retry';
+import { apiConfig } from '../config/api';
 
 // Create a custom HTTP link that does NOT process uploads automatically
 // This prevents Apollo from trying to handle File objects and redirecting to uploadFile
 const httpLink = createHttpLink({
-  uri: process.env.REACT_APP_GRAPHQL_ENDPOINT || 'http://localhost:8080/graphql',
-  // Include credentials to send cookies with requests
-  credentials: 'include',
+  uri: apiConfig.graphql.endpoint,
   // Explicitly disable file upload handling to prevent interference
   fetchOptions: {
     method: 'POST',
+    timeout: apiConfig.graphql.timeout,
   },
 });
 
-// Auth link - Use cookies for authentication (HttpOnly cookies set by backend)
+// Auth link - Use JWT tokens for authentication
 const authLink = setContext((_, { headers }) => {
+  // Get token from localStorage
+  const token = localStorage.getItem('auth_token');
+
   return {
     headers: {
       ...headers,
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
     },
-    // Include credentials to send cookies with requests
-    credentials: 'include',
   };
 });
 
@@ -59,9 +62,25 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) 
   }
 });
 
+// Retry link for handling retries with exponential backoff
+const retryLink = new RetryLink({
+  attempts: {
+    max: apiConfig.graphql.retryAttempts,
+    retryIf: (error, _operation) => {
+      // Retry on network errors or specific GraphQL errors
+      return !!error;
+    },
+  },
+  delay: {
+    initial: apiConfig.graphql.retryDelay,
+    max: Infinity,
+    jitter: true,
+  },
+});
+
 // Create Apollo Client
 const client = new ApolloClient({
-  link: from([errorLink, authLink, httpLink]),
+  link: from([errorLink, authLink, retryLink, httpLink]),
   cache: new InMemoryCache(),
   defaultOptions: {
     watchQuery: {

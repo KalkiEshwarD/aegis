@@ -18,7 +18,7 @@ import (
 type ShareLinkServiceTestSuite struct {
 	suite.Suite
 	db                *gorm.DB
-	shareLinkService  *services.ShareLinkService
+	shareLinkService  *services.ShareService
 	testUser          models.User
 	testFile          models.File
 	testUserFile      models.UserFile
@@ -47,7 +47,11 @@ func (suite *ShareLinkServiceTestSuite) SetupSuite() {
 	// Create database service
 	dbService := database.NewDB(db)
 
-	suite.shareLinkService = services.NewShareLinkService(dbService, "http://localhost:8080")
+	// Create encryption service for testing
+	keyManagementService := services.NewKeyManagementService()
+	encryptionService := services.NewEncryptionService(keyManagementService)
+
+	suite.shareLinkService = services.NewShareService(dbService, "http://localhost:8080", encryptionService)
 }
 
 func (suite *ShareLinkServiceTestSuite) TearDownSuite() {
@@ -116,7 +120,9 @@ func (suite *ShareLinkServiceTestSuite) SetupTest() {
 
 func (suite *ShareLinkServiceTestSuite) TestNewShareLinkService() {
 	dbService := database.NewDB(suite.db)
-	service := services.NewShareLinkService(dbService, "http://test.com")
+	keyManagementService := services.NewKeyManagementService()
+	encryptionService := services.NewEncryptionService(keyManagementService)
+	service := services.NewShareService(dbService, "http://test.com", encryptionService)
 	assert.NotNil(suite.T(), service)
 }
 
@@ -124,14 +130,14 @@ func (suite *ShareLinkServiceTestSuite) TestGenerateShareLink_Success() {
 	shareURL, err := suite.shareLinkService.GenerateShareLink(&suite.testFileShare)
 
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), "http://localhost:8080/share/abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890", shareURL)
+	assert.Equal(suite.T(), "http://localhost:8080/v1/share/abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890", shareURL)
 
 	// Verify URL is valid
 	parsedURL, err := url.Parse(shareURL)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), "http", parsedURL.Scheme)
 	assert.Equal(suite.T(), "localhost:8080", parsedURL.Host)
-	assert.Equal(suite.T(), "/share/abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890", parsedURL.Path)
+	assert.Equal(suite.T(), "/v1/share/abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890", parsedURL.Path)
 }
 
 func (suite *ShareLinkServiceTestSuite) TestGenerateShareLink_NilFileShare() {
@@ -340,7 +346,7 @@ func (suite *ShareLinkServiceTestSuite) TestGenerateSecureToken() {
 }
 
 func (suite *ShareLinkServiceTestSuite) TestValidateShareURL_Valid() {
-	validURL := "http://localhost:8080/share/abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+	validURL := "http://localhost:8080/v1/share/abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
 	token, err := suite.shareLinkService.ValidateShareURL(validURL)
 
 	assert.NoError(suite.T(), err)
@@ -357,7 +363,7 @@ func (suite *ShareLinkServiceTestSuite) TestValidateShareURL_InvalidURL() {
 }
 
 func (suite *ShareLinkServiceTestSuite) TestValidateShareURL_WrongPrefix() {
-	wrongURL := "http://localhost:8080/download/abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+	wrongURL := "http://localhost:8080/v1/download/abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
 	token, err := suite.shareLinkService.ValidateShareURL(wrongURL)
 
 	assert.Error(suite.T(), err)
@@ -366,7 +372,7 @@ func (suite *ShareLinkServiceTestSuite) TestValidateShareURL_WrongPrefix() {
 }
 
 func (suite *ShareLinkServiceTestSuite) TestValidateShareURL_MissingToken() {
-	missingTokenURL := "http://localhost:8080/share/"
+	missingTokenURL := "http://localhost:8080/v1/share/"
 	token, err := suite.shareLinkService.ValidateShareURL(missingTokenURL)
 
 	assert.Error(suite.T(), err)

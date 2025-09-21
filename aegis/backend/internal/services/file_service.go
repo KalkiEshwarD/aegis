@@ -196,6 +196,42 @@ func (s *FileService) GetUserFiles(userID uint, filter *FileFilter) ([]*models.U
 	return s.userResourceRepo.FindUserFilesWithFilters(userID, filters, "File", "Folder")
 }
 
+func (s *FileService) GetStarredFiles(userID uint) ([]*models.UserFile, error) {
+	filters := make(map[string]interface{})
+	filters["is_starred"] = true
+	return s.userResourceRepo.FindUserFilesWithFilters(userID, filters, "File", "Folder")
+}
+
+func (s *FileService) StarFile(userID, userFileID uint) error {
+	db := s.db.GetDB()
+
+	var userFile models.UserFile
+	if err := s.ValidateOwnership(&userFile, userFileID, userID); err != nil {
+		return err
+	}
+
+	if err := db.Model(&userFile).Update("is_starred", true).Error; err != nil {
+		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to star file")
+	}
+
+	return nil
+}
+
+func (s *FileService) UnstarFile(userID, userFileID uint) error {
+	db := s.db.GetDB()
+
+	var userFile models.UserFile
+	if err := s.ValidateOwnership(&userFile, userFileID, userID); err != nil {
+		return err
+	}
+
+	if err := db.Model(&userFile).Update("is_starred", false).Error; err != nil {
+		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to unstar file")
+	}
+
+	return nil
+}
+
 func (s *FileService) DeleteFile(userID, userFileID uint) error {
 	db := s.db.GetDB()
 
@@ -343,7 +379,7 @@ func (s *FileService) GetFileDownloadURL(ctx context.Context, user *models.User,
 		baseURL = "http://localhost:8080"
 	}
 
-	return fmt.Sprintf("%s/api/files/%d/download?token=%s", baseURL, userFileID, token), nil
+	return fmt.Sprintf("%s/v1/api/files/%d/download?token=%s", baseURL, userFileID, token), nil
 }
 
 func (s *FileService) CheckDuplicateName(tableName, fieldName, parentFieldName string, userID uint, name string, parentID *uint, excludeID *uint) error {
@@ -593,22 +629,31 @@ func (s *FileService) isDescendant(db *gorm.DB, ancestorID, descendantID uint) b
 func (s *FileService) MoveFile(userID, fileID uint, newFolderID *uint) error {
 	db := s.db.GetDB()
 
+	log.Printf("DEBUG: FileService.MoveFile - UserID: %d, FileID: %d, NewFolderID: %v", userID, fileID, newFolderID)
+
 	var userFile models.UserFile
 	if err := s.ValidateOwnership(&userFile, fileID, userID); err != nil {
+		log.Printf("ERROR: ValidateOwnership failed for file %d: %v", fileID, err)
 		return err
 	}
+
+	log.Printf("DEBUG: Current file folder_id: %v", userFile.FolderID)
 
 	if newFolderID != nil {
 		var newFolder models.Folder
 		if err := s.ValidateOwnership(&newFolder, *newFolderID, userID); err != nil {
+			log.Printf("ERROR: ValidateOwnership failed for folder %d: %v", *newFolderID, err)
 			return err
 		}
+		log.Printf("DEBUG: Target folder validated: %d", *newFolderID)
 	}
 
 	if err := db.Model(&userFile).Update("folder_id", newFolderID).Error; err != nil {
+		log.Printf("ERROR: Failed to update file folder_id: %v", err)
 		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to move file")
 	}
 
+	log.Printf("DEBUG: File moved successfully - new folder_id: %v", newFolderID)
 	return nil
 }
 

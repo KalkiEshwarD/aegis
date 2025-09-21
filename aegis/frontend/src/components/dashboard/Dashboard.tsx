@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import {
   Box,
   Toolbar,
@@ -19,6 +19,7 @@ import { GET_MY_STATS } from '../../apollo/files';
 import FileExplorer from '../common/FileExplorer';
 import TrashView from './TrashView';
 import SharedView from './SharedView';
+import StarredView from './StarredView';
 import DashboardAppBar from './DashboardAppBar';
 import DashboardSidebar from './DashboardSidebar';
 import StatsCards from './StatsCards';
@@ -31,6 +32,8 @@ import withDataFetching from '../hocs/withDataFetching';
 const drawerWidth = 240;
 
 const Dashboard: React.FC = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+  
   const { data: statsData, loading: statsLoading } = useQuery(GET_MY_STATS, {
     fetchPolicy: 'cache-and-network',
   });
@@ -84,6 +87,8 @@ const Dashboard: React.FC = () => {
         onMenuOpen={handleMenuOpen}
         anchorEl={anchorEl}
         onMenuClose={handleMenuClose}
+        onSearch={setSearchTerm}
+        searchTerm={searchTerm}
       />
 
       {/* Sidebar */}
@@ -145,6 +150,7 @@ const Dashboard: React.FC = () => {
           <Typography variant="h4" sx={{ fontWeight: 600, color: '#1f2937', mb: 1 }}>
             {selectedNav === 'trash' ? 'Trash' : 
              selectedNav === 'shared' ? 'Shared Files' :
+             selectedNav === 'starred' ? 'Starred Files' :
              selectedFolderId ? 'Folder Files' : 'My Files'}
           </Typography>
           <Typography variant="body1" sx={{ color: '#6b7280' }}>
@@ -152,6 +158,8 @@ const Dashboard: React.FC = () => {
               ? 'Manage your deleted files - restore or permanently delete'
               : selectedNav === 'shared'
                 ? 'View and manage your shared files'
+              : selectedNav === 'starred'
+                ? 'Your starred files for quick access'
               : selectedFolderId
                 ? 'Files in selected folder'
                 : 'Manage your secure encrypted files'
@@ -192,6 +200,17 @@ const Dashboard: React.FC = () => {
               onShareDeleted={triggerRefresh}
             />
           </Paper>
+        ) : selectedNav === 'starred' ? (
+          <Paper sx={{
+            p: 4,
+            border: '1px solid #e5e7eb',
+            boxShadow: 'none',
+            borderRadius: 3
+          }}>
+            <StarredView
+              onFileDeleted={handleFileDeleted}
+            />
+          </Paper>
         ) : (
           <Paper sx={{
             p: 4,
@@ -230,6 +249,7 @@ const Dashboard: React.FC = () => {
               onFileDeleted={handleFileDeleted}
               onUploadComplete={handleUploadComplete}
               onFolderClick={(folderId, folderName) => handleFolderSelect(folderId, folderName)}
+              externalSearchTerm={searchTerm}
               key={refreshTrigger}
             />
           </Paper>

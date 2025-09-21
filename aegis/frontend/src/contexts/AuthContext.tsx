@@ -25,7 +25,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Check authentication on mount
   useEffect(() => {
-    checkAuth();
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      checkAuth();
+    } else {
+      setLoading(false);
+    }
   }, []);
 
   const checkAuth = async () => {
@@ -90,8 +95,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const authPayload: AuthPayload = data.login;
         console.log('DEBUG: Login successful, user:', authPayload.user);
         setUser(authPayload.user);
-        // Token is now stored in HttpOnly cookies by the backend
-        // No longer storing in localStorage for security
+        // Store JWT token in localStorage
+        localStorage.setItem('auth_token', authPayload.token);
       } else {
         console.error('DEBUG: Login failed: No data returned from mutation');
         throw new Error('Login failed: No data returned');
@@ -120,8 +125,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (data?.register) {
         const authPayload: AuthPayload = data.register;
         setUser(authPayload.user);
-        // Token is now stored in HttpOnly cookies by the backend
-        // No longer storing in localStorage for security
+        // Store JWT token in localStorage
+        localStorage.setItem('auth_token', authPayload.token);
       } else {
         throw new Error('Registration failed: No data returned');
       }
@@ -142,7 +147,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(null);
       // Clear all shared file tokens on logout
       setSharedFileTokens({});
-      // Cookies will be cleared by the backend during logout
+      // Clear JWT token from localStorage
+      localStorage.removeItem('auth_token');
     }
   };
 
@@ -223,7 +229,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const value: AuthContextType = {
     user,
-    token: null, // Token is now stored in HttpOnly cookies, not accessible to frontend
+    token: localStorage.getItem('auth_token'), // JWT token stored in localStorage
     login,
     register,
     logout,

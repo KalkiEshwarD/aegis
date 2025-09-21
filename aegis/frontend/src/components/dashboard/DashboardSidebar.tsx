@@ -22,6 +22,7 @@ import {
 import {
   Add as AddIcon,
   CloudUpload as CloudUploadIcon,
+  DriveFolderUpload as FolderUploadIcon,
   Storage as StorageIcon,
   Home as HomeIcon,
   Schedule as RecentIcon,
@@ -64,7 +65,9 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   onUploadComplete,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
+  const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [folderName, setFolderName] = useState('');
 
   const { handleFiles } = useFileUpload(onUploadComplete);
@@ -74,7 +77,20 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
     fileInputRef.current?.click();
   };
 
+  const handleFolderUpload = () => {
+    folderInputRef.current?.click();
+  };
+
   const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      handleFiles(Array.from(files));
+    }
+    // Reset the input so the same file can be selected again
+    event.target.value = '';
+  };
+
+  const handleFolderInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files && files.length > 0) {
       handleFiles(Array.from(files));
@@ -157,11 +173,11 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
             boxShadow: '0 4px 12px 0 rgb(0 0 0 / 0.15)'
           },
           transition: 'all 0.2s ease-in-out'
-        }} onClick={handleFileUpload}>
+        }} onClick={() => setNewDialogOpen(true)}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <AddIcon sx={{ mr: 1, fontSize: 20 }} />
             <Typography variant="body2" fontWeight={600}>
-              New Upload
+              New
             </Typography>
           </Box>
         </Paper>
@@ -172,7 +188,14 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
             <ListItem key={item.id} disablePadding sx={{ mb: 0.5 }}>
               <ListItemButton
                 selected={selectedNav === item.id}
-                onClick={() => onNavChange(item.id)}
+                onClick={() => {
+                  if (item.id === 'shared') {
+                    // Navigate to shared endpoint
+                    window.location.href = '/shared';
+                  } else {
+                    onNavChange(item.id);
+                  }
+                }}
                 sx={{
                   borderRadius: 2,
                   '&.Mui-selected': {
@@ -260,7 +283,7 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
           </Typography>
         </Box>
 
-        {/* Hidden file input */}
+        {/* Hidden file inputs */}
         <input
           type="file"
           ref={fileInputRef}
@@ -268,6 +291,14 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
           multiple
           style={{ display: 'none' }}
           accept="*/*"
+        />
+        <input
+          type="file"
+          ref={folderInputRef}
+          onChange={handleFolderInputChange}
+          multiple
+          {...{ webkitdirectory: '' }}
+          style={{ display: 'none' }}
         />
 
         {/* New Folder Dialog */}
@@ -297,6 +328,77 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
               Create
             </Button>
           </DialogActions>
+        </Dialog>
+
+        {/* New Dialog */}
+        <Dialog open={newDialogOpen} onClose={() => setNewDialogOpen(false)} maxWidth="sm" fullWidth>
+          <DialogContent>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2 }}>
+              <Button
+                onClick={() => { setNewDialogOpen(false); handleFileUpload(); }}
+                variant="text"
+                fullWidth
+                size="large"
+                startIcon={<CloudUploadIcon />}
+                sx={{
+                  py: 1.5,
+                  backgroundColor: 'white',
+                  color: '#6b7280',
+                  border: '1px solid #e5e7eb',
+                  '&:hover': {
+                    backgroundColor: '#f9fafb',
+                    borderColor: '#d1d5db'
+                  },
+                  justifyContent: 'flex-start',
+                  textTransform: 'none'
+                }}
+              >
+                Upload files
+              </Button>
+              <Button
+                onClick={() => { setNewDialogOpen(false); handleFolderUpload(); }}
+                variant="text"
+                fullWidth
+                size="large"
+                startIcon={<FolderUploadIcon />}
+                sx={{
+                  py: 1.5,
+                  backgroundColor: 'white',
+                  color: '#6b7280',
+                  border: '1px solid #e5e7eb',
+                  '&:hover': {
+                    backgroundColor: '#f9fafb',
+                    borderColor: '#d1d5db'
+                  },
+                  justifyContent: 'flex-start',
+                  textTransform: 'none'
+                }}
+              >
+                Upload folders
+              </Button>
+              <Button
+                onClick={() => { setNewDialogOpen(false); handleNewFolder(); }}
+                variant="text"
+                fullWidth
+                size="large"
+                startIcon={<NewFolderIcon />}
+                sx={{
+                  py: 1.5,
+                  backgroundColor: 'white',
+                  color: '#6b7280',
+                  border: '1px solid #e5e7eb',
+                  '&:hover': {
+                    backgroundColor: '#f9fafb',
+                    borderColor: '#d1d5db'
+                  },
+                  justifyContent: 'flex-start',
+                  textTransform: 'none'
+                }}
+              >
+                New Folder
+              </Button>
+            </Box>
+          </DialogContent>
         </Dialog>
       </Box>
     </Drawer>

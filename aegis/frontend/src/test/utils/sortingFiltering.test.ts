@@ -352,6 +352,7 @@ describe('userFileToFileInfo', () => {
       encryption_key: 'test-key',
       created_at: '2023-01-01T00:00:00Z',
       updated_at: '2023-01-01T00:00:00Z',
+      is_starred: false,
       file: {
         id: 'file1',
         size_bytes: 1024,
@@ -388,6 +389,7 @@ describe('userFileToFileInfo', () => {
       encryption_key: 'test-key',
       created_at: '2023-01-01T00:00:00Z',
       updated_at: '2023-01-01T00:00:00Z',
+      is_starred: false,
       user: {
         id: 'user1',
         username: 'testuser',
@@ -416,6 +418,7 @@ describe('userFilesToFileInfo', () => {
         encryption_key: 'test-key1',
         created_at: '2023-01-01T00:00:00Z',
         updated_at: '2023-01-01T00:00:00Z',
+        is_starred: false,
         file: { id: 'file1', size_bytes: 1024, content_hash: 'hash1', created_at: '2023-01-01T00:00:00Z' },
         user: { 
           id: 'user1', 
@@ -436,6 +439,7 @@ describe('userFilesToFileInfo', () => {
         encryption_key: 'test-key2',
         created_at: '2023-01-02T00:00:00Z',
         updated_at: '2023-01-02T00:00:00Z',
+        is_starred: true,
         file: { id: 'file2', size_bytes: 2048, content_hash: 'hash2', created_at: '2023-01-02T00:00:00Z' },
         user: { 
           id: 'user1', 

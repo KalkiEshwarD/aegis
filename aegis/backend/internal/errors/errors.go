@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // ErrorCode represents a custom error code.
@@ -99,6 +100,14 @@ func loadSharedErrorCodes() {
 	}
 }
 
+// APIError represents a standardized error response for API endpoints
+type APIError struct {
+	Code      string                 `json:"code"`
+	Message   string                 `json:"message"`
+	Details   map[string]interface{} `json:"details,omitempty"`
+	Timestamp string                 `json:"timestamp,omitempty"`
+}
+
 // Error is a custom error type.
 type Error struct {
 	Code    ErrorCode
@@ -112,6 +121,24 @@ func (e *Error) Error() string {
 		return fmt.Sprintf("%s: %s", e.Message, e.Err.Error())
 	}
 	return e.Message
+}
+
+// ToAPIError converts the custom error to a standardized API error response
+func (e *Error) ToAPIError() *APIError {
+	apiError := &APIError{
+		Code:      string(e.Code),
+		Message:   e.Message,
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+	}
+
+	// Add underlying error details if present
+	if e.Err != nil {
+		apiError.Details = map[string]interface{}{
+			"underlying_error": e.Err.Error(),
+		}
+	}
+
+	return apiError
 }
 
 // New creates a new custom error.

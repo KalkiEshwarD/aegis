@@ -41,6 +41,7 @@ type UserFile struct {
 	MimeType      string         `gorm:"not null" json:"mime_type"`
 	EncryptionKey string         `gorm:"not null" json:"-"` // Encrypted symmetric key for E2EE
 	IsShared      bool           `gorm:"default:false" json:"is_shared"`
+	IsStarred     bool           `gorm:"default:false" json:"is_starred"`
 	ShareCount    int            `gorm:"default:0" json:"share_count"`
 	CreatedAt     time.Time      `json:"created_at"`
 	UpdatedAt     time.Time      `json:"updated_at"`
@@ -136,12 +137,18 @@ type RoomFolder struct {
 
 // FileShare represents a password-protected file share
 type FileShare struct {
-	ID            uint       `gorm:"primaryKey" json:"id"`
-	UserFileID    uint       `gorm:"not null;index" json:"user_file_id"`
-	ShareToken    string     `gorm:"uniqueIndex;not null" json:"share_token"`
-	EncryptedKey  string     `gorm:"not null" json:"encrypted_key"`   // Encrypted file encryption key
-	Salt          string     `gorm:"not null" json:"salt"`            // Salt used for PBKDF2
-	IV            string     `gorm:"not null" json:"iv"`              // Initialization vector for AES-GCM
+	ID           uint   `gorm:"primaryKey" json:"id"`
+	UserFileID   uint   `gorm:"not null;index" json:"user_file_id"`
+	ShareToken   string `gorm:"uniqueIndex;not null" json:"share_token"`
+	EncryptedKey string `gorm:"not null" json:"encrypted_key"` // Encrypted file encryption key
+	Salt         string `gorm:"not null" json:"salt"`          // Salt used for PBKDF2
+	IV           string `gorm:"not null" json:"iv"`            // Initialization vector for AES-GCM
+
+	// Envelope Key fields for advanced encryption
+	EnvelopeKey  string `gorm:"not null" json:"envelope_key"`  // Encrypted envelope key (encrypted with password)
+	EnvelopeSalt string `gorm:"not null" json:"envelope_salt"` // Salt for envelope key encryption
+	EnvelopeIV   string `gorm:"not null" json:"envelope_iv"`   // IV for envelope key encryption
+
 	MaxDownloads  int        `gorm:"default:-1" json:"max_downloads"` // -1 means unlimited
 	DownloadCount int        `gorm:"default:0" json:"download_count"`
 	ExpiresAt     *time.Time `gorm:"index" json:"expires_at"`
