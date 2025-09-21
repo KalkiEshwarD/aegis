@@ -327,11 +327,38 @@ func (s *FileService) RestoreFile(userID, userFileID uint) error {
 		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "database error")
 	}
 
-	if userFile.DeletedAt.Valid == false {
+	if !userFile.DeletedAt.Valid {
 		return apperrors.New(apperrors.ErrCodeInvalidArgument, "file is not in trash")
 	}
 
-	if err := db.Exec("UPDATE user_files SET deleted_at = NULL WHERE id = ? AND user_id = ?", userFileID, userID).Error; err != nil {
+	// Determine where to restore the file
+	var folderID *uint
+
+	// If the file had a parent folder, check if that folder is deleted
+	if userFile.FolderID != nil {
+		var folder models.Folder
+		// Check if the folder exists and is not deleted
+		if err := db.Unscoped().Where("id = ? AND user_id = ?", *userFile.FolderID, userID).First(&folder).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				// Folder doesn't exist or was permanently deleted - restore to root
+				folderID = nil
+			} else {
+				return apperrors.Wrap(err, apperrors.ErrCodeInternal, "database error checking folder")
+			}
+		} else if folder.DeletedAt.Valid {
+			// Folder exists but is in trash - restore file to root
+			folderID = nil
+		} else {
+			// Folder exists and is not deleted - restore file to its original folder
+			folderID = userFile.FolderID
+		}
+	} else {
+		// File was originally in root - restore to root
+		folderID = nil
+	}
+
+	// Restore the file and update folder_id if necessary
+	if err := db.Exec("UPDATE user_files SET deleted_at = NULL, folder_id = ? WHERE id = ? AND user_id = ?", folderID, userFileID, userID).Error; err != nil {
 		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to restore user file record")
 	}
 

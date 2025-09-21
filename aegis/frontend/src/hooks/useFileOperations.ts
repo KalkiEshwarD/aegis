@@ -97,7 +97,7 @@ export const useFileOperations = () => {
 
   const deleteFileHandler = useCallback(async (file: UserFile) => {
     try {
-      await deleteFileMutation({
+      const result = await deleteFileMutation({
         variables: { id: file.id },
         refetchQueries: [
           { query: GET_MY_STATS },
@@ -107,7 +107,6 @@ export const useFileOperations = () => {
       });
       return true;
     } catch (err: any) {
-      console.error('Delete error:', err);
       const errorMessage = getErrorMessage(err) || 'Delete failed';
       const errorCode = getErrorCode(err);
 

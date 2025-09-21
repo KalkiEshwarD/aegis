@@ -999,13 +999,10 @@ func (r *queryResolver) MyTrashedFiles(ctx context.Context) ([]*models.UserFile,
 		return nil, fmt.Errorf("unauthenticated: %w", err)
 	}
 
-	log.Printf("!!!!! MyTrashedFiles resolver called !!!!!")
-	log.Printf("DEBUG: MyTrashedFiles called for user %d", user.ID)
 	includeTrashed := true
 	filter := &services.FileFilter{
 		IncludeTrashed: &includeTrashed,
 	}
-	log.Printf("DEBUG: Calling StorageService.GetUserFiles with IncludeTrashed: %v", *filter.IncludeTrashed)
 
 	// Get all files (including trashed ones)
 	allFiles, err := r.Resolver.FileService.GetUserFiles(user.ID, filter)
@@ -1021,7 +1018,6 @@ func (r *queryResolver) MyTrashedFiles(ctx context.Context) ([]*models.UserFile,
 		}
 	}
 
-	log.Printf("DEBUG: Found %d trashed files out of %d total files", len(trashedFiles), len(allFiles))
 	return trashedFiles, nil
 }
 

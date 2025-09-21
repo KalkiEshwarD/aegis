@@ -42,8 +42,8 @@ import {
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_MY_FILES, MOVE_FILE_MUTATION } from '../../apollo/files';
 import { GET_MY_FOLDERS, CREATE_FOLDER_MUTATION, RENAME_FOLDER_MUTATION, MOVE_FOLDER_MUTATION, DELETE_FOLDER_MUTATION } from '../../apollo/folders';
-import { STAR_FILE_MUTATION, UNSTAR_FILE_MUTATION, STAR_FOLDER_MUTATION, UNSTAR_FOLDER_MUTATION } from '../../apollo/queries';
-import { GET_MY_TRASHED_FILES, GET_MY_TRASHED_FOLDERS, RESTORE_FILE_MUTATION, PERMANENTLY_DELETE_FILE_MUTATION, RESTORE_FOLDER_MUTATION, PERMANENTLY_DELETE_FOLDER_MUTATION } from '../../apollo/queries';
+import { STAR_FILE_MUTATION, UNSTAR_FILE_MUTATION } from '../../apollo/queries';
+import { GET_MY_TRASHED_FILES, GET_MY_TRASHED_FOLDERS, RESTORE_FILE_MUTATION, PERMANENTLY_DELETE_FILE_MUTATION, RESTORE_FOLDER_MUTATION, PERMANENTLY_DELETE_FOLDER_MUTATION, GET_MY_STATS } from '../../apollo/queries';
 import { UserFile, Folder, FileExplorerItem, isFolder, isFile } from '../../types';
 import { useFileOperations } from '../../hooks/useFileOperations';
 import { useFileUpload } from '../../hooks/useFileUpload';
@@ -168,12 +168,17 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const { data, error: queryError, refetch } = useQuery(isTrashMode ? GET_MY_TRASHED_FILES : GET_MY_FILES, {
     variables: isTrashMode ? {} : {
       filter: {
-        // Temporarily disable folder_id filtering due to GraphQL schema issues
-        // folder_id: folderId || undefined,
+        folder_id: folderId || "",
         includeTrashed: false // Explicitly exclude trashed files
       }
     },
     fetchPolicy: 'cache-and-network',
+    onCompleted: (data: any) => {
+      // Debug logging removed - issue resolved
+    },
+    onError: (error) => {
+      // Debug logging removed - issue resolved
+    },
   });
 
   const { data: foldersData, refetch: refetchFolders } = useQuery(GET_MY_FOLDERS, {
@@ -199,8 +204,6 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const [deleteFolderMutation] = useMutation(DELETE_FOLDER_MUTATION);
   const [starFileMutation] = useMutation(STAR_FILE_MUTATION);
   const [unstarFileMutation] = useMutation(UNSTAR_FILE_MUTATION);
-  const [starFolderMutation] = useMutation(STAR_FOLDER_MUTATION);
-  const [unstarFolderMutation] = useMutation(UNSTAR_FOLDER_MUTATION);
   const [restoreFileMutation] = useMutation(RESTORE_FILE_MUTATION);
   const [permanentlyDeleteFileMutation] = useMutation(PERMANENTLY_DELETE_FILE_MUTATION);
   const [restoreFolderMutation] = useMutation(RESTORE_FOLDER_MUTATION);
@@ -256,7 +259,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
                 name: file.folder.name || 'Unnamed Folder',
                 user_id: file.user_id,
                 parent_id: file.folder.parent_id || null,
-                is_starred: file.folder.is_starred || false,
+                is_starred: false, // Default value for virtual folders
                 created_at: file.folder.created_at || file.created_at,
                 updated_at: file.folder.updated_at || file.updated_at,
                 children: [], // Required for isFolder type guard
@@ -360,9 +363,17 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         if (folderId) {
           if (file.folder_id !== folderId) return false;
         } else {
-          // If we're in trash root (no folderId), only show files that DON'T belong to any folder
-          // Files that belong to folders should only appear when navigating INTO those folders
-          if (file.folder_id) return false;
+          // In trash root (no folderId), show files that either:
+          // 1. Don't belong to any folder (folder_id is null), OR
+          // 2. Belong to a folder that is not trashed (parent folder is still active)
+          if (file.folder_id) {
+            // Check if the parent folder is trashed
+            const parentFolderTrashed = trashedFoldersData?.myTrashedFolders?.some(
+              (folder: Folder) => folder.id === file.folder_id
+            );
+            if (parentFolderTrashed) return false; // Hide files whose parent folder is trashed
+          }
+          // Show files with no parent folder or whose parent folder is not trashed
         }
       } else {
         // Normal mode folder filtering
@@ -512,36 +523,6 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     }
   }, [unstarFileMutation, refetch]);
 
-  const handleStarFolder = useCallback(async (folder: Folder) => {
-    try {
-      await starFolderMutation({
-        variables: { id: folder.id },
-      });
-      refetchFolders(); // Refresh the data
-      setSnackbarMessage(`Starred "${folder.name}"`);
-      setSnackbarOpen(true);
-    } catch (error) {
-      console.error('Error starring folder:', error);
-      setSnackbarMessage('Failed to star folder');
-      setSnackbarOpen(true);
-    }
-  }, [starFolderMutation, refetchFolders]);
-
-  const handleUnstarFolder = useCallback(async (folder: Folder) => {
-    try {
-      await unstarFolderMutation({
-        variables: { id: folder.id },
-      });
-      refetchFolders(); // Refresh the data
-      setSnackbarMessage(`Unstarred "${folder.name}"`);
-      setSnackbarOpen(true);
-    } catch (error) {
-      console.error('Error unstarring folder:', error);
-      setSnackbarMessage('Failed to unstar folder');
-      setSnackbarOpen(true);
-    }
-  }, [unstarFolderMutation, refetchFolders]);
-
   // Handle file selection
   const handleFileClick = (fileId: string, event: React.MouseEvent) => {
     console.log('DEBUG: handleFileClick called with fileId:', fileId, 'selectedFiles before:', Array.from(selectedFiles));
@@ -585,7 +566,6 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
     const selectedItems = allItems.filter(item => selectedItemIds.includes(item.id));
     const filesToStar = selectedItems.filter(item => isFile(item)) as UserFile[];
-    const foldersToStar = selectedItems.filter(item => isFolder(item)) as Folder[];
 
     try {
       for (const file of filesToStar) {
@@ -595,23 +575,15 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
           });
         }
       }
-      for (const folder of foldersToStar) {
-        if (!folder.is_starred) {
-          await starFolderMutation({
-            variables: { id: folder.id },
-          });
-        }
-      }
       refetch();
-      refetchFolders();
-      setSnackbarMessage(`Starred ${selectedItemIds.length} item(s)`);
+      setSnackbarMessage(`Starred ${filesToStar.length} item(s)`);
       setSnackbarOpen(true);
     } catch (error) {
       console.error('Error starring files:', error);
       setSnackbarMessage('Failed to star files');
       setSnackbarOpen(true);
     }
-  }, [selectedFiles, allItems, starFileMutation, starFolderMutation, refetch, refetchFolders]);
+  }, [selectedFiles, allItems, starFileMutation, refetch]);
 
   // Handle restore selected items
   const handleRestoreSelected = useCallback(async () => {
@@ -627,7 +599,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       for (const file of filesToRestore) {
         await restoreFileMutation({
           variables: { fileID: file.id },
-          refetchQueries: [{ query: GET_MY_FILES }, { query: GET_MY_TRASHED_FILES }],
+          refetchQueries: [{ query: GET_MY_FILES }, { query: GET_MY_TRASHED_FILES }, { query: GET_MY_STATS }],
         });
       }
 
@@ -639,7 +611,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
             { query: GET_MY_FOLDERS },
             { query: GET_MY_TRASHED_FOLDERS },
             { query: GET_MY_FILES },
-            { query: GET_MY_TRASHED_FILES }
+            { query: GET_MY_TRASHED_FILES },
+            { query: GET_MY_STATS }
           ],
         });
       }
@@ -1383,7 +1356,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     try {
       await restoreFileMutation({
         variables: { fileID: fileToRestore.id },
-        refetchQueries: [{ query: GET_MY_FILES }, { query: GET_MY_TRASHED_FILES }],
+        refetchQueries: [{ query: GET_MY_FILES }, { query: GET_MY_TRASHED_FILES }, { query: GET_MY_STATS }],
       });
 
       setRestoreDialogOpen(false);
@@ -1410,7 +1383,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
           { query: GET_MY_FOLDERS },
           { query: GET_MY_TRASHED_FOLDERS },
           { query: GET_MY_FILES },
-          { query: GET_MY_TRASHED_FILES }
+          { query: GET_MY_TRASHED_FILES },
+          { query: GET_MY_STATS }
         ],
       });
 
@@ -1453,51 +1427,29 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
   const handleEmptyTrashConfirm = useCallback(async () => {
     const trashedFiles = data?.myTrashedFiles || [];
-    const trashedFolders = trashedFoldersData?.myTrashedFolders || [];
-    const totalItems = trashedFiles.length + trashedFolders.length;
-
-    console.log('DEBUG: Emptying trash - files:', trashedFiles.length, 'folders:', trashedFolders.length, 'total:', totalItems);
-
-    if (totalItems === 0) return;
+    if (trashedFiles.length === 0) return;
 
     try {
       // Permanently delete all files in trash
-      console.log('DEBUG: Deleting files from trash...');
       for (const file of trashedFiles) {
-        console.log('DEBUG: Deleting file:', file.filename);
         await permanentlyDeleteFileMutation({
           variables: { fileID: file.id },
           refetchQueries: [{ query: GET_MY_TRASHED_FILES }],
         });
       }
 
-      // Permanently delete all folders in trash
-      console.log('DEBUG: Deleting folders from trash...');
-      for (const folder of trashedFolders) {
-        console.log('DEBUG: Deleting folder:', folder.name);
-        await permanentlyDeleteFolderMutation({
-          variables: { folderID: folder.id },
-          refetchQueries: [
-            { query: GET_MY_TRASHED_FOLDERS },
-            { query: GET_MY_TRASHED_FILES }
-          ],
-        });
-      }
-
-      console.log('DEBUG: Empty trash completed successfully');
       setEmptyTrashDialogOpen(false);
       refetch();
-      refetchTrashedFolders();
       if (onFileDeleted) {
         onFileDeleted();
       }
-      setSnackbarMessage(`Permanently deleted ${totalItems} item(s) from trash`);
+      setSnackbarMessage(`Permanently deleted ${trashedFiles.length} file(s) from trash`);
       setSnackbarOpen(true);
     } catch (err: any) {
       console.error('Empty trash error:', err);
       setTrashError(err.graphQLErrors?.[0]?.message || err.message || 'Failed to empty trash');
     }
-  }, [data?.myTrashedFiles, trashedFoldersData?.myTrashedFolders, permanentlyDeleteFileMutation, permanentlyDeleteFolderMutation, refetch, refetchTrashedFolders, onFileDeleted]);
+  }, [data?.myTrashedFiles, permanentlyDeleteFileMutation, refetch, onFileDeleted]);
 
   // Rename handlers
   const handleRenameConfirm = useCallback(async () => {
@@ -1819,7 +1771,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
             canCut={hasSelection}
             canPaste={canPasteValue}
             canDelete={hasSelection}
-            canStar={hasSelection}
+            canStar={hasSelection && hasFiles}
             cutItemsCount={selectedFiles.size}
           />
         );
@@ -1963,12 +1915,6 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
                         } else {
                           handleStarFile(item);
                         }
-                      } else if (isFolder(item)) {
-                        if (item.is_starred) {
-                          handleUnstarFolder(item);
-                        } else {
-                          handleStarFolder(item);
-                        }
                       }
                     }}
                     onFileMove={handleFileMove}
@@ -2044,18 +1990,10 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
                     Share
                   </MenuItem>
                   <MenuItem onClick={() => {
-                    if (isFolder(item)) {
-                      if (item.is_starred) {
-                        handleUnstarFolder(item);
-                      } else {
-                        handleStarFolder(item);
-                      }
-                    } else if (isFile(item)) {
-                      if (item.is_starred) {
-                        handleUnstarFile(item);
-                      } else {
-                        handleStarFile(item);
-                      }
+                    if (item.is_starred) {
+                      handleUnstarFile(item);
+                    } else {
+                      handleStarFile(item);
                     }
                     handleContextMenuClose();
                   }}>
@@ -2404,13 +2342,13 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
             <DialogTitle>Empty Trash</DialogTitle>
             <DialogContent>
               <Typography sx={{ mb: 2 }}>
-                Are you sure you want to permanently delete all items in the trash?
+                Are you sure you want to permanently delete all files in the trash?
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                This will permanently delete {(data?.myTrashedFiles?.length || 0) + (trashedFoldersData?.myTrashedFolders?.length || 0)} item(s) including {(data?.myTrashedFiles?.length || 0)} file(s) and {(trashedFoldersData?.myTrashedFolders?.length || 0)} folder(s).
+                This will permanently delete {data?.myTrashedFiles?.length || 0} file(s).
               </Typography>
               <Alert severity="error">
-                This action cannot be undone. All items in trash will be completely removed from the system.
+                This action cannot be undone. All files in trash will be completely removed from the system.
               </Alert>
             </DialogContent>
             <DialogActions>

@@ -125,12 +125,12 @@ func (s *UserService) GetUserStats(userID uint) (*UserStats, error) {
 	var fileCount int64
 	s.db.GetDB().Model(&models.UserFile{}).Where("user_id = ? AND deleted_at IS NULL", userID).Count(&fileCount)
 
-	// Calculate actual storage used (sum of all file sizes the user has access to, excluding soft-deleted)
+	// Calculate actual storage used (sum of all file sizes the user has access to, including trashed files)
 	var usedStorage int64
 	s.db.GetDB().Table("user_files").
 		Select("COALESCE(SUM(files.size_bytes), 0)").
 		Joins("JOIN files ON user_files.file_id = files.id").
-		Where("user_files.user_id = ? AND user_files.deleted_at IS NULL", userID).
+		Where("user_files.user_id = ?", userID).
 		Scan(&usedStorage)
 
 	// No deduplication - each file upload creates a separate copy
@@ -158,12 +158,12 @@ func (s *UserService) CheckStorageQuota(userID uint, additionalBytes int64) erro
 		return apperrors.Wrap(err, apperrors.ErrCodeNotFound, "user not found")
 	}
 
-	// Calculate current storage usage dynamically (excluding soft-deleted files)
+	// Calculate current storage usage dynamically (including trashed files)
 	var currentUsage int64
 	s.db.GetDB().Table("user_files").
 		Select("COALESCE(SUM(files.size_bytes), 0)").
 		Joins("JOIN files ON user_files.file_id = files.id").
-		Where("user_files.user_id = ? AND user_files.deleted_at IS NULL", userID).
+		Where("user_files.user_id = ?", userID).
 		Scan(&currentUsage)
 
 	if currentUsage+additionalBytes > user.StorageQuota {
