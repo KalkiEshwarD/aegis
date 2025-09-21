@@ -54,6 +54,8 @@ interface FileExplorerProps {
   onUploadComplete?: () => void;
   onFolderClick?: (folderId: string, folderName: string) => void;
   externalSearchTerm?: string;
+  externalViewMode?: 'list' | 'tile';
+  onSelectionChange?: (count: number) => void;
 }
 
 const FileExplorer: React.FC<FileExplorerProps> = ({
@@ -62,6 +64,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   onUploadComplete,
   onFolderClick,
   externalSearchTerm = '',
+  externalViewMode,
+  onSelectionChange,
 }) => {
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<{
@@ -71,6 +75,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<UserFile | null>(null);
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [itemsToDelete, setItemsToDelete] = useState<FileExplorerItem[]>([]);
   const [folderDeleteDialogOpen, setFolderDeleteDialogOpen] = useState(false);
   const [folderToDelete, setFolderToDelete] = useState<Folder | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -89,12 +95,16 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const [cutItems, setCutItems] = useState<Set<string>>(() => {
     // Initialize from localStorage to persist across folder navigation
     const stored = localStorage.getItem('fileExplorerCutItems');
-    return stored ? new Set(JSON.parse(stored)) : new Set();
+    const initialCutItems = stored ? new Set(JSON.parse(stored) as string[]) : new Set<string>();
+    console.log('DEBUG: Initializing cutItems from localStorage:', stored, 'parsed:', Array.from(initialCutItems));
+    return initialCutItems;
   });
   const [copiedItems, setCopiedItems] = useState<Set<string>>(() => {
     // Initialize from localStorage to persist across folder navigation
     const stored = localStorage.getItem('fileExplorerCopiedItems');
-    return stored ? new Set(JSON.parse(stored)) : new Set();
+    const initialCopiedItems = stored ? new Set(JSON.parse(stored) as string[]) : new Set<string>();
+    console.log('DEBUG: Initializing copiedItems from localStorage:', stored, 'parsed:', Array.from(initialCopiedItems));
+    return initialCopiedItems;
   });
   const [snackbarMessage, setSnackbarMessage] = useState<string>('');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -103,9 +113,9 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // New state for view mode, search, and sorting
-  const [viewMode, setViewMode] = useState<'list' | 'tile'>('tile');
+  const viewMode = externalViewMode || 'tile';
   const [searchQuery, setSearchQuery] = useState(externalSearchTerm);
-  const [fileSortBy, setFileSortBy] = useState<'name' | 'date' | 'size'>('name');
+  const [fileSortBy, setFileSortBy] = useState<'name' | 'date' | 'size' | 'type'>('name');
   const [fileSortOrder, setFileSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Sync external search term with internal state
@@ -143,24 +153,58 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const [starFileMutation] = useMutation(STAR_FILE_MUTATION);
   const [unstarFileMutation] = useMutation(UNSTAR_FILE_MUTATION);
 
-  // Filter folders based on current folderId
+  // Filter and sort folders based on current folderId and search query
   const currentFolders = useMemo(() => {
-    return foldersData?.myFolders?.filter((folder: Folder) => {
+    let filtered = foldersData?.myFolders?.filter((folder: Folder) => {
       // First filter out null/undefined items
       if (!folder) return false;
 
       if (folderId) {
         // In a specific folder, show its children
-        return folder.parent_id === folderId;
+        if (folder.parent_id !== folderId) return false;
       } else {
         // In root, show folders with no parent
-        return !folder.parent_id;
+        if (folder.parent_id) return false;
       }
+
+      // Search filter for folders
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        return folder.name.toLowerCase().includes(query);
+      }
+
+      return true;
     }) || [];
-  }, [foldersData?.myFolders, folderId]);
+
+    // Sort folders using the same logic as files
+    filtered.sort((a: Folder, b: Folder) => {
+      let comparison = 0;
+
+      switch (fileSortBy) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'date':
+          comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          break;
+        case 'size':
+          // Use calculated folder size for sorting
+          const aSize = calculateFolderSize(a);
+          const bSize = calculateFolderSize(b);
+          comparison = aSize - bSize;
+          break;
+        default:
+          comparison = 0;
+      }
+
+      return fileSortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return filtered;
+  }, [foldersData?.myFolders, folderId, searchQuery, fileSortBy, fileSortOrder]);
 
   // Client-side filter files by folder_id and search query
-  const filteredAndSortedFiles = useMemo(() => {
+  const filteredFiles = useMemo(() => {
     if (!data?.myFiles) return [];
 
     let filtered = data.myFiles.filter((file: UserFile) => {
@@ -178,25 +222,79 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         return file.filename.toLowerCase().includes(query) ||
-               file.mime_type?.toLowerCase().includes(query);
+                file.mime_type?.toLowerCase().includes(query);
       }
 
       return true;
     });
 
-    // Sort files
-    filtered.sort((a: UserFile, b: UserFile) => {
+    return filtered;
+  }, [data?.myFiles, folderId, searchQuery]);
+
+  // Use custom hooks
+  const { downloadingFile, error, downloadFile, deleteFile } = useFileOperations();
+  const { uploads, handleFiles, removeUpload, clearCompleted } = useFileUpload(onUploadComplete);
+
+  // Helper function to calculate folder size recursively
+  const calculateFolderSize = useCallback((folder: Folder): number => {
+    let totalSize = 0;
+
+    // Add sizes of direct files in this folder
+    if (folder.files) {
+      totalSize += folder.files.reduce((sum, file) => {
+        return sum + (file.file?.size_bytes || 0);
+      }, 0);
+    }
+
+    // Add sizes of files in subfolders recursively
+    if (folder.children) {
+      totalSize += folder.children.reduce((sum, childFolder) => {
+        return sum + calculateFolderSize(childFolder);
+      }, 0);
+    }
+
+    return totalSize;
+  }, []);
+
+  // Combine folders and files for display and sort them together
+  const allItems: FileExplorerItem[] = useMemo(() => {
+    const combined = [...currentFolders, ...filteredFiles];
+
+    // Sort the combined array
+    combined.sort((a: FileExplorerItem, b: FileExplorerItem) => {
       let comparison = 0;
 
       switch (fileSortBy) {
         case 'name':
-          comparison = a.filename.localeCompare(b.filename);
+          const aName = isFolder(a) ? a.name : a.filename;
+          const bName = isFolder(b) ? b.name : b.filename;
+          comparison = aName.localeCompare(bName);
           break;
         case 'date':
           comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
           break;
         case 'size':
-          comparison = (a.file?.size_bytes || 0) - (b.file?.size_bytes || 0);
+          const aSize = isFolder(a) ? calculateFolderSize(a) : (a.file?.size_bytes || 0);
+          const bSize = isFolder(b) ? calculateFolderSize(b) : (b.file?.size_bytes || 0);
+          comparison = aSize - bSize;
+          break;
+        case 'type':
+          // Folders first, then files sorted by extension
+          const aIsFolder = isFolder(a);
+          const bIsFolder = isFolder(b);
+          if (aIsFolder && !bIsFolder) {
+            comparison = -1; // folders come first
+          } else if (!aIsFolder && bIsFolder) {
+            comparison = 1; // folders come first
+          } else if (aIsFolder && bIsFolder) {
+            // both folders, sort by name
+            comparison = a.name.localeCompare(b.name);
+          } else {
+            // both files, sort by extension
+            const aExt = isFile(a) ? a.filename.split('.').pop()?.toLowerCase() || '' : '';
+            const bExt = isFile(b) ? b.filename.split('.').pop()?.toLowerCase() || '' : '';
+            comparison = aExt.localeCompare(bExt);
+          }
           break;
         default:
           comparison = 0;
@@ -205,15 +303,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       return fileSortOrder === 'asc' ? comparison : -comparison;
     });
 
-    return filtered;
-  }, [data?.myFiles, folderId, searchQuery, fileSortBy, fileSortOrder]);
-
-  // Use custom hooks
-  const { downloadingFile, error, downloadFile, deleteFile } = useFileOperations();
-  const { uploads, handleFiles, removeUpload, clearCompleted } = useFileUpload(onUploadComplete);
-
-  // Combine folders and files for display
-  const allItems: FileExplorerItem[] = [...currentFolders, ...filteredAndSortedFiles];
+    return combined;
+  }, [currentFolders, filteredFiles, fileSortBy, fileSortOrder, calculateFolderSize]);
 
   // Helper function to select a range of items
   const selectRange = useCallback((startIndex: number, endIndex: number) => {
@@ -266,8 +357,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
   // Handle file selection
   const handleFileClick = (fileId: string, event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevent bubbling to container
-
+    console.log('DEBUG: handleFileClick called with fileId:', fileId, 'selectedFiles before:', Array.from(selectedFiles));
     if (event.ctrlKey || event.metaKey) {
       setSelectedFiles(prev => {
         const newSet = new Set(prev);
@@ -276,22 +366,60 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         } else {
           newSet.add(fileId);
         }
+        console.log('DEBUG: Multi-select, new selection:', Array.from(newSet));
         return newSet;
       });
     } else {
       // If clicking on an already selected file, deselect it
-      if (selectedFiles.has(fileId) && selectedFiles.size === 1) {
+      if (selectedFiles.has(fileId)) {
+        console.log('DEBUG: Deselecting already selected item');
         setSelectedFiles(new Set());
       } else {
+        console.log('DEBUG: Selecting single item:', fileId);
         setSelectedFiles(new Set([fileId]));
       }
     }
   };
 
+  // Handle delete selected items
+  const handleDeleteSelected = useCallback(() => {
+    const selectedItemIds = Array.from(selectedFiles);
+    if (selectedItemIds.length === 0) return;
+
+    const selectedItems = allItems.filter(item => selectedItemIds.includes(item.id));
+    setItemsToDelete(selectedItems);
+    setBulkDeleteDialogOpen(true);
+  }, [selectedFiles, allItems]);
+
+  // Handle star selected items
+  const handleStarSelected = useCallback(async () => {
+    const selectedItemIds = Array.from(selectedFiles);
+    if (selectedItemIds.length === 0) return;
+
+    const selectedItems = allItems.filter(item => selectedItemIds.includes(item.id));
+    const filesToStar = selectedItems.filter(item => isFile(item)) as UserFile[];
+
+    try {
+      for (const file of filesToStar) {
+        if (!file.is_starred) {
+          await starFileMutation({
+            variables: { id: file.id },
+          });
+        }
+      }
+      refetch();
+      setSnackbarMessage(`Starred ${filesToStar.length} item(s)`);
+      setSnackbarOpen(true);
+    } catch (error) {
+      console.error('Error starring files:', error);
+      setSnackbarMessage('Failed to star files');
+      setSnackbarOpen(true);
+    }
+  }, [selectedFiles, allItems, starFileMutation, refetch]);
+
   // Handle item selection (for both files and folders)
   const handleItemSelect = (itemId: string, event: React.MouseEvent, modifiers?: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => {
-    event.stopPropagation(); // Prevent bubbling to container
-
+    console.log('DEBUG: handleItemSelect called with itemId:', itemId, 'modifiers:', modifiers, 'selectedFiles before:', Array.from(selectedFiles));
     // Use captured modifiers if provided (for folders), otherwise use event properties (for files)
     const ctrlKey = modifiers?.ctrlKey ?? event.ctrlKey;
     const metaKey = modifiers?.metaKey ?? event.metaKey;
@@ -326,9 +454,17 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         return newSet;
       });
     } else {
-      // Regular click - single selection
-      setSelectionAnchor(itemIndex);
-      setSelectedFiles(new Set([itemId]));
+      // Regular click - if already selected, deselect it; otherwise single selection
+      console.log('DEBUG: Regular click - selectedFiles.has(itemId):', selectedFiles.has(itemId));
+      if (selectedFiles.has(itemId)) {
+        console.log('DEBUG: Deselecting item');
+        setSelectedFiles(new Set());
+        setSelectionAnchor(-1);
+      } else {
+        console.log('DEBUG: Selecting single item:', itemId);
+        setSelectionAnchor(itemIndex);
+        setSelectedFiles(new Set([itemId]));
+      }
     }
   };
 
@@ -367,6 +503,47 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     }
   }, [fileToDelete, deleteFile, refetch, refetchFolders, onFileDeleted]);
 
+  const handleBulkDeleteConfirm = useCallback(async () => {
+    if (itemsToDelete.length === 0) return;
+
+    try {
+      const filesToDelete = itemsToDelete.filter(item => isFile(item)) as UserFile[];
+      const foldersToDelete = itemsToDelete.filter(item => isFolder(item)) as Folder[];
+
+      // Delete files
+      for (const file of filesToDelete) {
+        const success = await deleteFile(file);
+        if (!success) {
+          throw new Error(`Failed to delete file: ${file.filename}`);
+        }
+      }
+
+      // Delete folders (if supported)
+      for (const folder of foldersToDelete) {
+        // Note: Folder deletion might need separate handling
+        // For now, skip folders or handle them differently
+        console.warn('Folder deletion not implemented for bulk operations');
+      }
+
+      // Clear selection and refresh
+      setSelectedFiles(new Set());
+      setBulkDeleteDialogOpen(false);
+      setItemsToDelete([]);
+      refetch();
+      refetchFolders();
+      if (onFileDeleted) {
+        onFileDeleted();
+      }
+      setSnackbarMessage(`Deleted ${filesToDelete.length + foldersToDelete.length} item(s)`);
+      setSnackbarOpen(true);
+    } catch (error) {
+      console.error('Error deleting selected items:', error);
+      setSnackbarMessage('Failed to delete selected items');
+      setSnackbarOpen(true);
+      // Don't clear selection on error
+    }
+  }, [itemsToDelete, deleteFile, refetch, refetchFolders, onFileDeleted]);
+
   // Drag and drop handlers
   const handleDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
@@ -389,30 +566,46 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   }, [handleFiles]);
 
   // Box selection handlers
+  const [mouseDownPos, setMouseDownPos] = useState<{ x: number; y: number } | null>(null);
+
   const handleMouseDown = useCallback((event: React.MouseEvent) => {
-    // Only start box selection if clicking on the container itself (empty space)
+    // Only start potential box selection if clicking on the container itself (empty space)
     // Check if we're clicking on the container or empty space
     const isContainer = event.target === event.currentTarget;
     const isEmptySpace = (event.target as HTMLElement).classList.contains('file-explorer-empty-space');
     const hasFileItem = (event.target as HTMLElement).closest('[data-file-item]');
     const hasButton = (event.target as HTMLElement).closest('button');
     const hasIconButton = (event.target as HTMLElement).closest('.MuiIconButton-root');
-    
-    // Only start box selection if we're clicking on truly empty space
+
+    // Only prepare for box selection if we're clicking on truly empty space
     if ((isContainer || isEmptySpace) && !hasFileItem && !hasButton && !hasIconButton) {
       const rect = containerRef.current?.getBoundingClientRect();
       if (rect) {
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
-        setBoxSelectionStart({ x, y });
-        setBoxSelectionEnd({ x, y });
-        setIsBoxSelecting(true);
+        setMouseDownPos({ x, y });
       }
     }
   }, []);
 
   const handleMouseMove = useCallback((event: React.MouseEvent) => {
-    if (isBoxSelecting && boxSelectionStart) {
+    if (mouseDownPos && !isBoxSelecting) {
+      // Start box selection only if mouse has moved significantly
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect) {
+        const currentX = event.clientX - rect.left;
+        const currentY = event.clientY - rect.top;
+        const deltaX = Math.abs(currentX - mouseDownPos.x);
+        const deltaY = Math.abs(currentY - mouseDownPos.y);
+
+        // Only start box selection if moved more than 5 pixels
+        if (deltaX > 5 || deltaY > 5) {
+          setBoxSelectionStart(mouseDownPos);
+          setBoxSelectionEnd({ x: currentX, y: currentY });
+          setIsBoxSelecting(true);
+        }
+      }
+    } else if (isBoxSelecting && boxSelectionStart) {
       const rect = containerRef.current?.getBoundingClientRect();
       if (rect) {
         const x = event.clientX - rect.left;
@@ -420,7 +613,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         setBoxSelectionEnd({ x, y });
       }
     }
-  }, [isBoxSelecting, boxSelectionStart]);
+  }, [mouseDownPos, isBoxSelecting, boxSelectionStart]);
 
   const handleMouseUp = useCallback(() => {
     if (isBoxSelecting && boxSelectionStart && boxSelectionEnd) {
@@ -460,33 +653,53 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     setIsBoxSelecting(false);
     setBoxSelectionStart(null);
     setBoxSelectionEnd(null);
+    setMouseDownPos(null);
   }, [isBoxSelecting, boxSelectionStart, boxSelectionEnd, allItems]);
 
-  // Handle file move via drag and drop
-  const handleFileMove = useCallback(async (fileIds: string[], targetFolderId: string | null) => {
+
+
+  // Handle file/folder move via drag and drop
+  const handleFileMove = useCallback(async (itemIds: string[], targetFolderId: string | null) => {
     try {
-      // Check if any file is already in the target folder
-      const currentFiles = data?.myFiles || [];
-      const filesToMove = currentFiles.filter((file: UserFile) => fileIds.includes(file.id));
+      const allItems = [...(data?.myFiles || []), ...(foldersData?.myFolders || [])];
+      const itemsToMove = allItems.filter((item) => itemIds.includes(item.id));
 
-      // Filter out files that are already in the target folder
-      const filesToActuallyMove = filesToMove.filter((file: UserFile) => file.folder_id !== targetFolderId);
+      // Filter out items that are already in the target folder
+      const itemsToActuallyMove = itemsToMove.filter((item) => {
+        if (isFile(item)) {
+          return item.folder_id !== targetFolderId;
+        } else if (isFolder(item)) {
+          return item.parent_id !== targetFolderId;
+        }
+        return false;
+      });
 
-      if (filesToActuallyMove.length === 0) {
-        console.log('Files are already in the target folder');
+      if (itemsToActuallyMove.length === 0) {
+        console.log('Items are already in the target folder');
         return;
       }
 
-      // Move each file
-      for (const file of filesToActuallyMove) {
-        await moveFileMutation({
-          variables: {
-            input: {
-              id: file.id,
-              folder_id: targetFolderId,
+      // Move each item
+      for (const item of itemsToActuallyMove) {
+        if (isFile(item)) {
+          await moveFileMutation({
+            variables: {
+              input: {
+                id: item.id,
+                folder_id: targetFolderId,
+              },
             },
-          },
-        });
+          });
+        } else if (isFolder(item)) {
+          await moveFolderMutation({
+            variables: {
+              input: {
+                id: item.id,
+                parent_id: targetFolderId,
+              },
+            },
+          });
+        }
       }
 
       // Refetch data to update UI
@@ -497,11 +710,11 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         onUploadComplete();
       }
     } catch (error: any) {
-      console.error('Error moving files:', error);
+      console.error('Error moving items:', error);
       // Note: The error state is managed by useFileOperations hook, but we could add a separate error state here
       // For now, we'll rely on the existing error display mechanism
     }
-  }, [moveFileMutation, data?.myFiles, refetch, refetchFolders, onUploadComplete]);
+  }, [moveFileMutation, moveFolderMutation, data?.myFiles, foldersData?.myFolders, refetch, refetchFolders, onUploadComplete]);
 
   // Folder creation handlers
   const handleCreateFolderClick = useCallback(() => {
@@ -721,12 +934,25 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       localStorage.setItem('fileExplorerCutItems', JSON.stringify(Array.from(newCutItems)));
       setCopiedItems(new Set()); // Clear copied items when cutting
       localStorage.setItem('fileExplorerCopiedItems', JSON.stringify([]));
+      setSelectedFiles(new Set()); // Clear selection after cutting
       setSnackbarMessage(`${selectedItemIds.length} item(s) cut`);
       setSnackbarOpen(true);
+      console.log('DEBUG: After cut - cutItems.size:', newCutItems.size, 'canPaste should be:', newCutItems.size > 0);
     } else {
       console.log('DEBUG: No items selected for cutting');
     }
   }, [selectedFiles]);
+
+  // Handle cut operation
+  const handleCut = useCallback(() => {
+    console.log('DEBUG: handleCut called from toolbar button, selectedFiles.size:', selectedFiles.size, 'selectedFiles:', Array.from(selectedFiles));
+    if (selectedFiles.size > 0) {
+      console.log('DEBUG: About to call handleCutKey from handleCut');
+      handleCutKey();
+    } else {
+      console.log('DEBUG: No files selected, cannot cut');
+    }
+  }, [selectedFiles, handleCutKey]);
 
   const handleCopyKey = useCallback(() => {
     const selectedItemIds = Array.from(selectedFiles);
@@ -747,6 +973,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     console.log('DEBUG: copiedItems size:', copiedItems.size, 'copiedItems:', Array.from(copiedItems));
     console.log('DEBUG: current folderId:', folderId);
     console.log('DEBUG: allAvailableItems count:', allAvailableItems.length);
+    console.log('DEBUG: canPaste calculation:', cutItems.size > 0 || copiedItems.size > 0);
 
     // Handle cut items (move operation)
     if (cutItems.size > 0) {
@@ -945,6 +1172,30 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     }
   }, []);
 
+  // Handle clicks outside the file explorer to clear selection
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setSelectedFiles(new Set());
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, []);
+
+  // Notify parent component of selection changes
+  useEffect(() => {
+    if (onSelectionChange) {
+      onSelectionChange(selectedFiles.size);
+    }
+  }, [selectedFiles.size, onSelectionChange]);
+
+  // Determine if drag and drop should be enabled
+  const isDragDropEnabled = allItems.length > 0 || uploads.length > 0 || !searchQuery;
+
 
 
 
@@ -957,31 +1208,37 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     );
   }
 
-  const files = filteredAndSortedFiles;
+  const files = filteredFiles;
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Toolbar */}
-      <FileToolbar
-        searchQuery={searchQuery}
-        sortBy={fileSortBy}
-        sortDirection={fileSortOrder}
-        viewMode={viewMode}
-        onSearchChange={setSearchQuery}
-        onSortChange={setFileSortBy}
-        onToggleSortDirection={() => setFileSortOrder(fileSortOrder === 'asc' ? 'desc' : 'asc')}
-        onViewModeChange={setViewMode}
-        onCreateFolder={handleCreateFolderClick}
-        onCut={() => {
-          if (selectedFiles.size > 0) {
-            handleCutKey();
-          }
-        }}
-        onPaste={handlePasteKey}
-        canCut={selectedFiles.size > 0}
-        canPaste={cutItems.size > 0}
-        cutItemsCount={selectedFiles.size}
-      />
+      {(() => {
+        const canPasteValue = cutItems.size > 0 || copiedItems.size > 0;
+        const hasSelection = selectedFiles.size > 0;
+        const selectedItems = allItems.filter(item => selectedFiles.has(item.id));
+        const hasFiles = selectedItems.some(item => isFile(item));
+        console.log('DEBUG: Toolbar render - cutItems.size:', cutItems.size, 'copiedItems.size:', copiedItems.size, 'canPaste:', canPasteValue, 'hasSelection:', hasSelection, 'hasFiles:', hasFiles);
+        return (
+          <FileToolbar
+            searchQuery={searchQuery}
+            sortBy={fileSortBy}
+            sortDirection={fileSortOrder}
+            onSearchChange={setSearchQuery}
+            onSortChange={setFileSortBy}
+            onToggleSortDirection={() => setFileSortOrder(fileSortOrder === 'asc' ? 'desc' : 'asc')}
+            onCut={handleCut}
+            onPaste={handlePasteKey}
+            onDelete={handleDeleteSelected}
+            onStar={handleStarSelected}
+            canCut={hasSelection}
+            canPaste={canPasteValue}
+            canDelete={hasSelection}
+            canStar={hasSelection && hasFiles}
+            cutItemsCount={selectedFiles.size}
+          />
+        );
+      })()}
 
 
       {/* File Explorer Area */}
@@ -992,7 +1249,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         sx={{
           flex: 1,
           p: 2,
-          border: '2px dashed',
+          border: isDragDropEnabled ? '2px dashed' : 'none',
           borderColor: isDragOver ? 'primary.main' : 'transparent',
           backgroundColor: isDragOver ? 'action.hover' : 'background.paper',
           cursor: isBoxSelecting ? 'crosshair' : 'default',
@@ -1009,7 +1266,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
           const hasFileItem = (e.target as HTMLElement).closest('[data-file-item]');
           const hasButton = (e.target as HTMLElement).closest('button');
           const hasIconButton = (e.target as HTMLElement).closest('.MuiIconButton-root');
-          
+
           if (!hasFileItem && !hasButton && !hasIconButton) {
             setSelectedFiles(new Set());
           }
@@ -1017,27 +1274,49 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
+        {...(isDragDropEnabled && {
+          onDragOver: handleDragOver,
+          onDragLeave: handleDragLeave,
+          onDrop: handleDrop,
+        })}
       >
         {allItems.length === 0 && uploads.length === 0 ? (
-          <Box
-            className="file-explorer-empty-space"
-            display="flex"
-            flexDirection="column"
-            alignItems="center"
-            justifyContent="center"
-            sx={{ height: '100%', minHeight: 300 }}
-          >
-            <CloudUploadIcon sx={{ fontSize: 64, color: 'primary.main', mb: 2 }} />
-            <Typography variant="h6" gutterBottom>
-              Drop files here to upload
-            </Typography>
-            <Typography variant="body2" color="textSecondary">
-              Your files will appear here once uploaded
-            </Typography>
-          </Box>
+          searchQuery ? (
+            // No search results
+            <Box
+              display="flex"
+              flexDirection="column"
+              alignItems="center"
+              justifyContent="center"
+              sx={{ height: '100%', minHeight: 300 }}
+            >
+              <SearchIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+              <Typography variant="h6" gutterBottom>
+                No files found
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                Try adjusting your search terms
+              </Typography>
+            </Box>
+          ) : (
+            // Normal empty state with drag and drop
+            <Box
+              className="file-explorer-empty-space"
+              display="flex"
+              flexDirection="column"
+              alignItems="center"
+              justifyContent="center"
+              sx={{ height: '100%', minHeight: 300 }}
+            >
+              <CloudUploadIcon sx={{ fontSize: 64, color: 'primary.main', mb: 2 }} />
+              <Typography variant="h6" gutterBottom>
+                Drop files here to upload
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                Your files will appear here once uploaded
+              </Typography>
+            </Box>
+          )
         ) : (
           <div className="file-explorer-grid-container">
             {viewMode === 'tile' ? (
@@ -1062,6 +1341,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
                     item={item}
                     isSelected={selectedFiles.has(item.id)}
                     isDownloading={downloadingFile === item.id}
+                    selectedFileIds={Array.from(selectedFiles)}
                     onClick={(e) => handleFileClick(item.id, e)}
                     onContextMenu={(e) => handleContextMenu(e, item.id)}
                     onDownload={() => isFile(item) ? handleDownload(item) : undefined}
@@ -1076,6 +1356,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
                         }
                       }
                     }}
+                    onFileMove={handleFileMove}
+                    onItemSelect={handleItemSelect}
                   />
                 ))}
               </Box>
@@ -1162,8 +1444,14 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
                     {item.is_starred ? 'Unstar' : 'Star'}
                   </MenuItem>
                   <MenuItem onClick={() => {
-                    setSelectedFiles(new Set([item.id]));
-                    setCutItems(new Set([item.id]));
+                    const itemIds = [item.id];
+                    setCutItems(new Set(itemIds));
+                    localStorage.setItem('fileExplorerCutItems', JSON.stringify(itemIds));
+                    setCopiedItems(new Set());
+                    localStorage.setItem('fileExplorerCopiedItems', JSON.stringify([]));
+                    setSelectedFiles(new Set());
+                    setSnackbarMessage(`1 item(s) cut`);
+                    setSnackbarOpen(true);
                     handleContextMenuClose();
                   }}>
                     <CutIcon sx={{ mr: 1 }} />
@@ -1183,8 +1471,14 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
                     Open Folder
                   </MenuItem>
                   <MenuItem onClick={() => {
-                    setSelectedFiles(new Set([item.id]));
-                    setCutItems(new Set([item.id]));
+                    const itemIds = [item.id];
+                    setCutItems(new Set(itemIds));
+                    localStorage.setItem('fileExplorerCutItems', JSON.stringify(itemIds));
+                    setCopiedItems(new Set());
+                    localStorage.setItem('fileExplorerCopiedItems', JSON.stringify([]));
+                    setSelectedFiles(new Set());
+                    setSnackbarMessage(`1 item(s) cut`);
+                    setSnackbarOpen(true);
                     handleContextMenuClose();
                   }}>
                     <CutIcon sx={{ mr: 1 }} />
@@ -1233,6 +1527,40 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
           <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
           <Button onClick={handleDeleteConfirm} color="error" variant="contained">
             Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <Dialog open={bulkDeleteDialogOpen} onClose={() => setBulkDeleteDialogOpen(false)}>
+        <DialogTitle>Delete Selected Items</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete {itemsToDelete.length} selected item{itemsToDelete.length !== 1 ? 's' : ''}?
+            Files can be restored from trash.
+          </Typography>
+          {itemsToDelete.length > 0 && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                Items to delete:
+              </Typography>
+              {itemsToDelete.slice(0, 5).map((item) => (
+                <Typography key={item.id} variant="body2" sx={{ ml: 2 }}>
+                  • {isFolder(item) ? item.name : (item as UserFile).filename}
+                </Typography>
+              ))}
+              {itemsToDelete.length > 5 && (
+                <Typography variant="body2" sx={{ ml: 2, fontStyle: 'italic' }}>
+                  ... and {itemsToDelete.length - 5} more
+                </Typography>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBulkDeleteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleBulkDeleteConfirm} color="error" variant="contained">
+            Delete {itemsToDelete.length} Item{itemsToDelete.length !== 1 ? 's' : ''}
           </Button>
         </DialogActions>
       </Dialog>

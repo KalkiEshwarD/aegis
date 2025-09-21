@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strings"
 
 	apperrors "github.com/balkanid/aegis-backend/internal/errors"
 	"gorm.io/gorm"
@@ -97,21 +98,20 @@ func (s *FileService) UploadFileFromMap(userID uint, data map[string]interface{}
 func (s *FileService) UploadFile(userID uint, filename, mimeType, contentHash, encryptionKey string, fileData io.Reader, sizeBytes int64, folderID *uint) (*models.UserFile, error) {
 	db := s.db.GetDB()
 
-	var existingUserFile models.UserFile
-	err := db.Joins("JOIN files ON user_files.file_id = files.id").
-		Where("user_files.user_id = ? AND files.content_hash = ? AND user_files.filename = ?",
-			userID, contentHash, filename).
-		Preload("File").
-		First(&existingUserFile).Error
-
-	if err == nil {
-		return &existingUserFile, nil
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "database error checking for existing user file")
+	// Use a transaction to handle concurrent uploads safely
+	tx := db.Begin()
+	if tx.Error != nil {
+		return nil, apperrors.Wrap(tx.Error, apperrors.ErrCodeInternal, "failed to start transaction")
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
 
+	// Check for existing file
 	var existingFile models.File
-	err = db.Where("content_hash = ?", contentHash).First(&existingFile).Error
+	err := tx.Where("content_hash = ?", contentHash).First(&existingFile).Error
 
 	var file *models.File
 	var storagePath string
@@ -122,6 +122,7 @@ func (s *FileService) UploadFile(userID uint, filename, mimeType, contentHash, e
 	} else if errors.Is(err, gorm.ErrRecordNotFound) {
 		storagePath = fmt.Sprintf("%d/%s", userID, contentHash)
 		if err := s.fileStorageService.UploadFile(context.Background(), storagePath, fileData, sizeBytes, mimeType); err != nil {
+			tx.Rollback()
 			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to upload file to storage")
 		}
 
@@ -131,18 +132,32 @@ func (s *FileService) UploadFile(userID uint, filename, mimeType, contentHash, e
 			StoragePath: storagePath,
 		}
 
-		if err := db.Create(file).Error; err != nil {
+		if err := tx.Create(file).Error; err != nil {
 			s.fileStorageService.DeleteFile(context.Background(), storagePath)
+			tx.Rollback()
 			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to create file record")
 		}
 	} else {
-		log.Printf("DEBUG: Database error checking for existing file: %v", err)
+		tx.Rollback()
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "database error checking for existing file")
+	}
+
+	// Now that we have the file ID, check for existing user file with this specific file ID
+	var existingUserFile models.UserFile
+	err = tx.Where("user_id = ? AND file_id = ?", userID, file.ID).Preload("File").First(&existingUserFile).Error
+
+	if err == nil {
+		tx.Commit()
+		return &existingUserFile, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		tx.Rollback()
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "database error checking for existing user file")
 	}
 
 	if folderID != nil {
 		var folder models.Folder
 		if err := s.ValidateOwnership(&folder, *folderID, userID); err != nil {
+			tx.Rollback()
 			return nil, err
 		}
 	}
@@ -156,8 +171,27 @@ func (s *FileService) UploadFile(userID uint, filename, mimeType, contentHash, e
 		EncryptionKey: encryptionKey,
 	}
 
-	if err := db.Create(userFile).Error; err != nil {
+	// Try to create the user file, but handle the case where it might already exist due to concurrent requests
+	if err := tx.Create(userFile).Error; err != nil {
+		// Check if it's a duplicate key error
+		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") ||
+		   strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			// Try to find the existing user file
+			tx.Rollback() // Rollback the transaction since we can't proceed with the duplicate
+			var existingUserFile models.UserFile
+			err := db.Where("user_id = ? AND file_id = ?", userID, file.ID).
+				Preload("File").
+				First(&existingUserFile).Error
+			if err == nil {
+				return &existingUserFile, nil
+			}
+		}
+		tx.Rollback()
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to create user file record")
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to commit transaction")
 	}
 
 	db.Preload("File").First(userFile, userFile.ID)
@@ -400,10 +434,15 @@ func (s *FileService) CheckDuplicateName(tableName, fieldName, parentFieldName s
 		query = query.Where("id != ?", *excludeID)
 	}
 
+	// Exclude soft-deleted records
+	query = query.Where("deleted_at IS NULL")
+
 	var count int64
 	if err := query.Count(&count).Error; err != nil {
 		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "database error")
 	}
+
+	log.Printf("DEBUG: CheckDuplicateName - table: %s, field: %s, name: %s, userID: %d, parentID: %v, excludeID: %v, count: %d", tableName, fieldName, name, userID, parentID, excludeID, count)
 
 	if count > 0 {
 		return apperrors.New(apperrors.ErrCodeConflict, fieldName+" with this name already exists in the specified location")
@@ -425,6 +464,8 @@ func (s *FileService) GetAllFiles() ([]*models.UserFile, error) {
 func (s *FileService) CreateFolder(userID uint, name string, parentID *uint) (*models.Folder, error) {
 	db := s.db.GetDB()
 
+	log.Printf("DEBUG: CreateFolder - userID: %d, name: %s, parentID: %v", userID, name, parentID)
+
 	if parentID != nil {
 		var parentFolder models.Folder
 		if err := s.ValidateOwnership(&parentFolder, *parentID, userID); err != nil {
@@ -433,6 +474,7 @@ func (s *FileService) CreateFolder(userID uint, name string, parentID *uint) (*m
 	}
 
 	if err := s.CheckDuplicateName("folders", "name", "parent_id", userID, name, parentID, nil); err != nil {
+		log.Printf("ERROR: CheckDuplicateName failed for folder creation: %v", err)
 		return nil, err
 	}
 

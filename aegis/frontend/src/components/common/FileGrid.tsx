@@ -190,17 +190,15 @@ const FileGrid: React.FC<FileGridProps> = ({
 
     // Drag and drop handlers
     const handleDragStart = (e: React.DragEvent) => {
-      if (!isFile(item)) return;
-
       setIsDragging(true);
-      // Set drag data with file IDs (selected files or just this file)
-      const draggedFileIds = isItemSelected && selectedFiles.size > 1
+      // Set drag data with item IDs (selected items or just this item)
+      const draggedItemIds = isItemSelected && selectedFiles.size > 1
         ? Array.from(selectedFiles)
         : [item.id];
 
       e.dataTransfer.setData('application/json', JSON.stringify({
-        type: 'files',
-        fileIds: draggedFileIds
+        type: 'items',
+        itemIds: draggedItemIds
       }));
       e.dataTransfer.effectAllowed = 'move';
     };
@@ -229,11 +227,14 @@ const FileGrid: React.FC<FileGridProps> = ({
 
       try {
         const dragData = JSON.parse(e.dataTransfer.getData('application/json'));
-        if (dragData.type === 'files' && dragData.fileIds) {
+        if (dragData.type === 'items' && dragData.itemIds) {
+          await onFileMove(dragData.itemIds, item.id);
+        } else if (dragData.type === 'files' && dragData.fileIds) {
+          // Backward compatibility with old format
           await onFileMove(dragData.fileIds, item.id);
         }
       } catch (error) {
-        console.error('Error handling file drop:', error);
+        console.error('Error handling item drop:', error);
       }
     };
 
@@ -260,7 +261,7 @@ const FileGrid: React.FC<FileGridProps> = ({
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            cursor: isFile(item) ? 'grab' : 'pointer',
+            cursor: 'grab',
             border: isFocused ? '2px solid #f59e0b' :
                     isItemSelected ? '2px solid #e5e7eb' :
                     isDragOver ? '2px solid #10b981' : '1px solid #e5e7eb',
@@ -278,11 +279,11 @@ const FileGrid: React.FC<FileGridProps> = ({
             height: '100%',
             transition: 'all 0.2s ease-in-out',
           }}
-          draggable={isFile(item)}
+          draggable={true}
           onClick={handleClick}
           onContextMenu={handleContextMenu}
-          onDragStart={isFile(item) ? handleDragStart : undefined}
-          onDragEnd={isFile(item) ? handleDragEnd : undefined}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
           onDragOver={isItemFolder ? handleDragOver : undefined}
           onDragLeave={isItemFolder ? handleDragLeave : undefined}
           onDrop={isItemFolder ? handleDrop : undefined}

@@ -20,7 +20,50 @@ export const GET_MY_FOLDERS = gql`
       children {
         id
         name
+        parent_id
         created_at
+        updated_at
+        children {
+          id
+          name
+          parent_id
+          created_at
+          updated_at
+          children {
+            id
+            name
+            parent_id
+            created_at
+            updated_at
+            files {
+              id
+              filename
+              mime_type
+              created_at
+              file {
+                size_bytes
+              }
+            }
+          }
+          files {
+            id
+            filename
+            mime_type
+            created_at
+            file {
+              size_bytes
+            }
+          }
+        }
+        files {
+          id
+          filename
+          mime_type
+          created_at
+          file {
+            size_bytes
+          }
+        }
       }
       files {
         id

@@ -16,17 +16,12 @@ export const useFileUpload = (onUploadComplete?: () => void) => {
   const [uploads, setUploads] = useState<FileUploadProgress[]>([]);
   const [uploadFileMutation] = useMutation(UPLOAD_FILE_FROM_MAP_MUTATION);
   const isMountedRef = useRef(true);
-  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     isMountedRef.current = true;
-    abortControllerRef.current = new AbortController();
 
     return () => {
       isMountedRef.current = false;
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
     };
   }, []);
 
@@ -104,6 +99,9 @@ export const useFileUpload = (onUploadComplete?: () => void) => {
         file_data: encryptedDataBase64,
       };
 
+      // Create a new AbortController for this specific upload
+      const uploadAbortController = new AbortController();
+
       const result = await uploadFileMutation({
         variables: {
           input: {
@@ -113,7 +111,7 @@ export const useFileUpload = (onUploadComplete?: () => void) => {
         refetchQueries: [{ query: GET_MY_STATS }],
         context: {
           fetchOptions: {
-            signal: abortControllerRef.current?.signal,
+            signal: uploadAbortController.signal,
           },
         },
       });

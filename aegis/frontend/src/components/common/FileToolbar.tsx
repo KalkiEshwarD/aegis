@@ -6,12 +6,11 @@ import {
   InputLabel,
   Select,
   SelectChangeEvent,
+  MenuItem,
   IconButton,
   InputAdornment,
   Button,
   Tooltip,
-  ToggleButton,
-  ToggleButtonGroup,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -19,29 +18,29 @@ import {
   CreateNewFolder as CreateNewFolderIcon,
   ContentCut as CutIcon,
   ContentPaste as PasteIcon,
-  ViewList as ListViewIcon,
-  ViewModule as TileViewIcon,
+  Delete as DeleteIcon,
+  Star as StarIcon,
 } from '@mui/icons-material';
-import { FileFilterInput } from '../../types';
 
-type SortOption = 'name' | 'date' | 'size';
+type SortOption = 'name' | 'date' | 'size' | 'type';
 type SortDirection = 'asc' | 'desc';
-type ViewMode = 'list' | 'tile';
 
 interface FileToolbarProps {
   searchQuery: string;
   sortBy: SortOption;
   sortDirection: SortDirection;
-  viewMode: ViewMode;
   onSearchChange: (value: string) => void;
   onSortChange: (value: SortOption) => void;
   onToggleSortDirection: () => void;
-  onViewModeChange: (mode: ViewMode) => void;
   onCreateFolder?: () => void;
   onCut?: () => void;
   onPaste?: () => void;
+  onDelete?: () => void;
+  onStar?: () => void;
   canCut?: boolean;
   canPaste?: boolean;
+  canDelete?: boolean;
+  canStar?: boolean;
   cutItemsCount?: number;
 }
 
@@ -49,16 +48,18 @@ const FileToolbar: React.FC<FileToolbarProps> = ({
   searchQuery,
   sortBy,
   sortDirection,
-  viewMode,
   onSearchChange,
   onSortChange,
   onToggleSortDirection,
-  onViewModeChange,
   onCreateFolder,
   onCut,
   onPaste,
+  onDelete,
+  onStar,
   canCut,
   canPaste,
+  canDelete,
+  canStar,
   cutItemsCount,
 }) => {
   const handleSortChange = (event: SelectChangeEvent) => {
@@ -80,16 +81,17 @@ const FileToolbar: React.FC<FileToolbarProps> = ({
             </InputAdornment>
           ),
         }}
-        sx={{ minWidth: 200 }}
+        sx={{ minWidth: 450 }}
       />
 
       {/* Sort */}
       <FormControl size="small" sx={{ minWidth: 120 }}>
         <InputLabel>Sort by</InputLabel>
         <Select value={sortBy} label="Sort by" onChange={handleSortChange}>
-          <Select value="name">Name</Select>
-          <Select value="date">Date</Select>
-          <Select value="size">Size</Select>
+          <MenuItem value="name">Name</MenuItem>
+          <MenuItem value="date">Date</MenuItem>
+          <MenuItem value="size">Size</MenuItem>
+          <MenuItem value="type">Type</MenuItem>
         </Select>
       </FormControl>
 
@@ -100,47 +102,70 @@ const FileToolbar: React.FC<FileToolbarProps> = ({
         }} />
       </IconButton>
 
-      {/* Cut and Paste Buttons */}
-      <Tooltip title={canCut ? `Cut selected items (${cutItemsCount || 0} selected)` : 'Select items to cut'}>
-        <span>
-          <IconButton 
-            onClick={onCut} 
-            size="small" 
-            disabled={!canCut}
-            color={canCut ? 'primary' : 'default'}
+
+      {/* Spacer to push action buttons to the right */}
+      <Box sx={{ flexGrow: 1 }} />
+
+      {/* Action Buttons - shown only when items are selected */}
+      {canCut && (
+        <Tooltip title={`Cut selected items (${cutItemsCount || 0} selected)`}>
+          <IconButton
+            onClick={(e) => {
+              e.stopPropagation();
+              onCut?.();
+            }}
+            size="small"
+            color="primary"
           >
             <CutIcon />
           </IconButton>
-        </span>
-      </Tooltip>
+        </Tooltip>
+      )}
 
-      <Tooltip title={canPaste ? 'Paste cut items here' : 'No items to paste'}>
-        <span>
-          <IconButton 
-            onClick={onPaste} 
-            size="small" 
-            disabled={!canPaste}
-            color={canPaste ? 'primary' : 'default'}
+      {canDelete && (
+        <Tooltip title="Delete selected items">
+          <IconButton
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete?.();
+            }}
+            size="small"
+            color="primary"
+          >
+            <DeleteIcon />
+          </IconButton>
+        </Tooltip>
+      )}
+
+      {canStar && (
+        <Tooltip title="Star selected items">
+          <IconButton
+            onClick={(e) => {
+              e.stopPropagation();
+              onStar?.();
+            }}
+            size="small"
+            color="primary"
+          >
+            <StarIcon />
+          </IconButton>
+        </Tooltip>
+      )}
+
+      {canPaste && (
+        <Tooltip title="Paste items here">
+          <IconButton
+            onClick={(e) => {
+              e.stopPropagation();
+              onPaste?.();
+            }}
+            size="small"
+            color="primary"
           >
             <PasteIcon />
           </IconButton>
-        </span>
-      </Tooltip>
-
-      {/* View Mode Toggle */}
-      <ToggleButtonGroup
-        value={viewMode}
-        exclusive
-        onChange={(_, newMode) => newMode && onViewModeChange(newMode)}
-        size="small"
-      >
-        <ToggleButton value="list">
-          <ListViewIcon fontSize="small" />
-        </ToggleButton>
-        <ToggleButton value="tile">
-          <TileViewIcon fontSize="small" />
-        </ToggleButton>
-      </ToggleButtonGroup>
+        </Tooltip>
+      )}
 
       {/* New Folder Button */}
       {onCreateFolder && (
@@ -149,7 +174,6 @@ const FileToolbar: React.FC<FileToolbarProps> = ({
           startIcon={<CreateNewFolderIcon />}
           onClick={onCreateFolder}
           size="small"
-          sx={{ ml: 'auto' }}
         >
           New Folder
         </Button>
