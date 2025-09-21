@@ -115,36 +115,38 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		AccessSharedFile      func(childComplexity int, input model.AccessSharedFileInput) int
-		AddRoomMember         func(childComplexity int, input model.AddRoomMemberInput) int
-		CreateFileShare       func(childComplexity int, input model.CreateFileShareInput) int
-		CreateFolder          func(childComplexity int, input model.CreateFolderInput) int
-		CreateRoom            func(childComplexity int, input model.CreateRoomInput) int
-		DeleteFile            func(childComplexity int, id string) int
-		DeleteFileShare       func(childComplexity int, shareID string) int
-		DeleteFolder          func(childComplexity int, id string) int
-		DeleteUserAccount     func(childComplexity int, userID string) int
-		DownloadFile          func(childComplexity int, id string) int
-		Login                 func(childComplexity int, input model.LoginInput) int
-		Logout                func(childComplexity int) int
-		MoveFile              func(childComplexity int, input model.MoveFileInput) int
-		MoveFolder            func(childComplexity int, input model.MoveFolderInput) int
-		PermanentlyDeleteFile func(childComplexity int, fileID string) int
-		PromoteUserToAdmin    func(childComplexity int, userID string) int
-		RefreshToken          func(childComplexity int) int
-		Register              func(childComplexity int, input model.RegisterInput) int
-		RemoveFileFromRoom    func(childComplexity int, userFileID string, roomID string) int
-		RemoveFolderFromRoom  func(childComplexity int, folderID string, roomID string) int
-		RemoveRoomMember      func(childComplexity int, roomID string, userID string) int
-		RenameFolder          func(childComplexity int, input model.RenameFolderInput) int
-		RestoreFile           func(childComplexity int, fileID string) int
-		ShareFileToRoom       func(childComplexity int, userFileID string, roomID string) int
-		ShareFolderToRoom     func(childComplexity int, input model.ShareFolderToRoomInput) int
-		StarFile              func(childComplexity int, id string) int
-		UnstarFile            func(childComplexity int, id string) int
-		UpdateFileShare       func(childComplexity int, input model.UpdateFileShareInput) int
-		UploadFile            func(childComplexity int, input model.UploadFileInput) int
-		UploadFileFromMap     func(childComplexity int, input model.UploadFileFromMapInput) int
+		AccessSharedFile        func(childComplexity int, input model.AccessSharedFileInput) int
+		AddRoomMember           func(childComplexity int, input model.AddRoomMemberInput) int
+		CreateFileShare         func(childComplexity int, input model.CreateFileShareInput) int
+		CreateFolder            func(childComplexity int, input model.CreateFolderInput) int
+		CreateRoom              func(childComplexity int, input model.CreateRoomInput) int
+		DeleteFile              func(childComplexity int, id string) int
+		DeleteFileShare         func(childComplexity int, shareID string) int
+		DeleteFolder            func(childComplexity int, id string) int
+		DeleteUserAccount       func(childComplexity int, userID string) int
+		DownloadFile            func(childComplexity int, id string) int
+		Login                   func(childComplexity int, input model.LoginInput) int
+		Logout                  func(childComplexity int) int
+		MoveFile                func(childComplexity int, input model.MoveFileInput) int
+		MoveFolder              func(childComplexity int, input model.MoveFolderInput) int
+		PermanentlyDeleteFile   func(childComplexity int, fileID string) int
+		PermanentlyDeleteFolder func(childComplexity int, folderID string) int
+		PromoteUserToAdmin      func(childComplexity int, userID string) int
+		RefreshToken            func(childComplexity int) int
+		Register                func(childComplexity int, input model.RegisterInput) int
+		RemoveFileFromRoom      func(childComplexity int, userFileID string, roomID string) int
+		RemoveFolderFromRoom    func(childComplexity int, folderID string, roomID string) int
+		RemoveRoomMember        func(childComplexity int, roomID string, userID string) int
+		RenameFolder            func(childComplexity int, input model.RenameFolderInput) int
+		RestoreFile             func(childComplexity int, fileID string) int
+		RestoreFolder           func(childComplexity int, folderID string) int
+		ShareFileToRoom         func(childComplexity int, userFileID string, roomID string) int
+		ShareFolderToRoom       func(childComplexity int, input model.ShareFolderToRoomInput) int
+		StarFile                func(childComplexity int, id string) int
+		UnstarFile              func(childComplexity int, id string) int
+		UpdateFileShare         func(childComplexity int, input model.UpdateFileShareInput) int
+		UploadFile              func(childComplexity int, input model.UploadFileInput) int
+		UploadFileFromMap       func(childComplexity int, input model.UploadFileFromMapInput) int
 	}
 
 	Query struct {
@@ -161,6 +163,7 @@ type ComplexityRoot struct {
 		MyStarredFiles   func(childComplexity int) int
 		MyStats          func(childComplexity int) int
 		MyTrashedFiles   func(childComplexity int) int
+		MyTrashedFolders func(childComplexity int) int
 		Room             func(childComplexity int, id string) int
 		ShareAccessStats func(childComplexity int, shareID string) int
 		ShareExpiryInfo  func(childComplexity int, token string) int
@@ -294,6 +297,8 @@ type MutationResolver interface {
 	DeleteFile(ctx context.Context, id string) (bool, error)
 	RestoreFile(ctx context.Context, fileID string) (bool, error)
 	PermanentlyDeleteFile(ctx context.Context, fileID string) (bool, error)
+	RestoreFolder(ctx context.Context, folderID string) (bool, error)
+	PermanentlyDeleteFolder(ctx context.Context, folderID string) (bool, error)
 	DownloadFile(ctx context.Context, id string) (string, error)
 	StarFile(ctx context.Context, id string) (bool, error)
 	UnstarFile(ctx context.Context, id string) (bool, error)
@@ -321,6 +326,7 @@ type QueryResolver interface {
 	MyFiles(ctx context.Context, filter *model.FileFilterInput) ([]*models.UserFile, error)
 	MyStarredFiles(ctx context.Context) ([]*models.UserFile, error)
 	MyTrashedFiles(ctx context.Context) ([]*models.UserFile, error)
+	MyTrashedFolders(ctx context.Context) ([]*models.Folder, error)
 	MyStats(ctx context.Context) (*model.UserStats, error)
 	MyRooms(ctx context.Context) ([]*models.Room, error)
 	Room(ctx context.Context, id string) (*models.Room, error)
@@ -790,6 +796,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.PermanentlyDeleteFile(childComplexity, args["fileID"].(string)), true
+	case "Mutation.permanentlyDeleteFolder":
+		if e.complexity.Mutation.PermanentlyDeleteFolder == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_permanentlyDeleteFolder_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.PermanentlyDeleteFolder(childComplexity, args["folderID"].(string)), true
 	case "Mutation.promoteUserToAdmin":
 		if e.complexity.Mutation.PromoteUserToAdmin == nil {
 			break
@@ -873,6 +890,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.RestoreFile(childComplexity, args["fileID"].(string)), true
+	case "Mutation.restoreFolder":
+		if e.complexity.Mutation.RestoreFolder == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_restoreFolder_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.RestoreFolder(childComplexity, args["folderID"].(string)), true
 	case "Mutation.shareFileToRoom":
 		if e.complexity.Mutation.ShareFileToRoom == nil {
 			break
@@ -1039,6 +1067,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.MyTrashedFiles(childComplexity), true
+	case "Query.myTrashedFolders":
+		if e.complexity.Query.MyTrashedFolders == nil {
+			break
+		}
+
+		return e.complexity.Query.MyTrashedFolders(childComplexity), true
 	case "Query.room":
 		if e.complexity.Query.Room == nil {
 			break
@@ -1948,6 +1982,7 @@ type Query {
   myFiles(filter: FileFilterInput): [UserFile!]!
   myStarredFiles: [UserFile!]!
   myTrashedFiles: [UserFile!]!
+  myTrashedFolders: [Folder!]!
   myStats: UserStats!
 
   # Room queries
@@ -1987,6 +2022,8 @@ type Mutation {
   deleteFile(id: ID!): Boolean!
   restoreFile(fileID: ID!): Boolean!
   permanentlyDeleteFile(fileID: ID!): Boolean!
+  restoreFolder(folderID: ID!): Boolean!
+  permanentlyDeleteFolder(folderID: ID!): Boolean!
   downloadFile(id: ID!): String! # Returns download URL
   starFile(id: ID!): Boolean!
   unstarFile(id: ID!): Boolean!
@@ -2179,6 +2216,17 @@ func (ec *executionContext) field_Mutation_permanentlyDeleteFile_args(ctx contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_permanentlyDeleteFolder_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "folderID", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["folderID"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_promoteUserToAdmin_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2268,6 +2316,17 @@ func (ec *executionContext) field_Mutation_restoreFile_args(ctx context.Context,
 		return nil, err
 	}
 	args["fileID"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_restoreFolder_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "folderID", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["folderID"] = arg0
 	return args, nil
 }
 
@@ -2488,9 +2547,7 @@ func (ec *executionContext) _AccessStats_total_attempts(ctx context.Context, fie
 		ec.OperationContext,
 		field,
 		ec.fieldContext_AccessStats_total_attempts,
-		func(ctx context.Context) (any, error) {
-			return obj.TotalAttempts, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.TotalAttempts, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -2517,9 +2574,7 @@ func (ec *executionContext) _AccessStats_successful_attempts(ctx context.Context
 		ec.OperationContext,
 		field,
 		ec.fieldContext_AccessStats_successful_attempts,
-		func(ctx context.Context) (any, error) {
-			return obj.SuccessfulAttempts, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.SuccessfulAttempts, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -2546,9 +2601,7 @@ func (ec *executionContext) _AccessStats_failed_attempts(ctx context.Context, fi
 		ec.OperationContext,
 		field,
 		ec.fieldContext_AccessStats_failed_attempts,
-		func(ctx context.Context) (any, error) {
-			return obj.FailedAttempts, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.FailedAttempts, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -2575,9 +2628,7 @@ func (ec *executionContext) _AccessStats_recent_attempts(ctx context.Context, fi
 		ec.OperationContext,
 		field,
 		ec.fieldContext_AccessStats_recent_attempts,
-		func(ctx context.Context) (any, error) {
-			return obj.RecentAttempts, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.RecentAttempts, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -2604,9 +2655,7 @@ func (ec *executionContext) _AccessStats_unique_ips(ctx context.Context, field g
 		ec.OperationContext,
 		field,
 		ec.fieldContext_AccessStats_unique_ips,
-		func(ctx context.Context) (any, error) {
-			return obj.UniqueIps, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.UniqueIps, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -2633,9 +2682,7 @@ func (ec *executionContext) _AdminDashboard_total_users(ctx context.Context, fie
 		ec.OperationContext,
 		field,
 		ec.fieldContext_AdminDashboard_total_users,
-		func(ctx context.Context) (any, error) {
-			return obj.TotalUsers, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.TotalUsers, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -2662,9 +2709,7 @@ func (ec *executionContext) _AdminDashboard_total_files(ctx context.Context, fie
 		ec.OperationContext,
 		field,
 		ec.fieldContext_AdminDashboard_total_files,
-		func(ctx context.Context) (any, error) {
-			return obj.TotalFiles, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.TotalFiles, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -2691,9 +2736,7 @@ func (ec *executionContext) _AdminDashboard_total_storage_used(ctx context.Conte
 		ec.OperationContext,
 		field,
 		ec.fieldContext_AdminDashboard_total_storage_used,
-		func(ctx context.Context) (any, error) {
-			return obj.TotalStorageUsed, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.TotalStorageUsed, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -2720,9 +2763,7 @@ func (ec *executionContext) _AdminDashboard_recent_uploads(ctx context.Context, 
 		ec.OperationContext,
 		field,
 		ec.fieldContext_AdminDashboard_recent_uploads,
-		func(ctx context.Context) (any, error) {
-			return obj.RecentUploads, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.RecentUploads, nil },
 		nil,
 		ec.marshalNUserFile2ᚕᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUserFileᚄ,
 		true,
@@ -2777,9 +2818,7 @@ func (ec *executionContext) _AuthPayload_token(ctx context.Context, field graphq
 		ec.OperationContext,
 		field,
 		ec.fieldContext_AuthPayload_token,
-		func(ctx context.Context) (any, error) {
-			return obj.Token, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Token, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -2806,9 +2845,7 @@ func (ec *executionContext) _AuthPayload_user(ctx context.Context, field graphql
 		ec.OperationContext,
 		field,
 		ec.fieldContext_AuthPayload_user,
-		func(ctx context.Context) (any, error) {
-			return obj.User, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.User, nil },
 		nil,
 		ec.marshalNUser2ᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUser,
 		true,
@@ -2880,9 +2917,7 @@ func (ec *executionContext) _File_content_hash(ctx context.Context, field graphq
 		ec.OperationContext,
 		field,
 		ec.fieldContext_File_content_hash,
-		func(ctx context.Context) (any, error) {
-			return obj.ContentHash, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.ContentHash, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -2909,9 +2944,7 @@ func (ec *executionContext) _File_size_bytes(ctx context.Context, field graphql.
 		ec.OperationContext,
 		field,
 		ec.fieldContext_File_size_bytes,
-		func(ctx context.Context) (any, error) {
-			return obj.SizeBytes, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.SizeBytes, nil },
 		nil,
 		ec.marshalNInt2int64,
 		true,
@@ -2938,9 +2971,7 @@ func (ec *executionContext) _File_created_at(ctx context.Context, field graphql.
 		ec.OperationContext,
 		field,
 		ec.fieldContext_File_created_at,
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.CreatedAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -3025,9 +3056,7 @@ func (ec *executionContext) _FileShare_share_token(ctx context.Context, field gr
 		ec.OperationContext,
 		field,
 		ec.fieldContext_FileShare_share_token,
-		func(ctx context.Context) (any, error) {
-			return obj.ShareToken, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.ShareToken, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -3054,9 +3083,7 @@ func (ec *executionContext) _FileShare_encrypted_key(ctx context.Context, field 
 		ec.OperationContext,
 		field,
 		ec.fieldContext_FileShare_encrypted_key,
-		func(ctx context.Context) (any, error) {
-			return obj.EncryptedKey, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.EncryptedKey, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -3083,9 +3110,7 @@ func (ec *executionContext) _FileShare_salt(ctx context.Context, field graphql.C
 		ec.OperationContext,
 		field,
 		ec.fieldContext_FileShare_salt,
-		func(ctx context.Context) (any, error) {
-			return obj.Salt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Salt, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -3112,9 +3137,7 @@ func (ec *executionContext) _FileShare_iv(ctx context.Context, field graphql.Col
 		ec.OperationContext,
 		field,
 		ec.fieldContext_FileShare_iv,
-		func(ctx context.Context) (any, error) {
-			return obj.IV, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.IV, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -3141,9 +3164,7 @@ func (ec *executionContext) _FileShare_envelope_key(ctx context.Context, field g
 		ec.OperationContext,
 		field,
 		ec.fieldContext_FileShare_envelope_key,
-		func(ctx context.Context) (any, error) {
-			return obj.EnvelopeKey, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.EnvelopeKey, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -3170,9 +3191,7 @@ func (ec *executionContext) _FileShare_envelope_salt(ctx context.Context, field 
 		ec.OperationContext,
 		field,
 		ec.fieldContext_FileShare_envelope_salt,
-		func(ctx context.Context) (any, error) {
-			return obj.EnvelopeSalt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.EnvelopeSalt, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -3199,9 +3218,7 @@ func (ec *executionContext) _FileShare_envelope_iv(ctx context.Context, field gr
 		ec.OperationContext,
 		field,
 		ec.fieldContext_FileShare_envelope_iv,
-		func(ctx context.Context) (any, error) {
-			return obj.EnvelopeIV, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.EnvelopeIV, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -3228,9 +3245,7 @@ func (ec *executionContext) _FileShare_max_downloads(ctx context.Context, field 
 		ec.OperationContext,
 		field,
 		ec.fieldContext_FileShare_max_downloads,
-		func(ctx context.Context) (any, error) {
-			return obj.MaxDownloads, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.MaxDownloads, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -3257,9 +3272,7 @@ func (ec *executionContext) _FileShare_download_count(ctx context.Context, field
 		ec.OperationContext,
 		field,
 		ec.fieldContext_FileShare_download_count,
-		func(ctx context.Context) (any, error) {
-			return obj.DownloadCount, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.DownloadCount, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -3286,9 +3299,7 @@ func (ec *executionContext) _FileShare_expires_at(ctx context.Context, field gra
 		ec.OperationContext,
 		field,
 		ec.fieldContext_FileShare_expires_at,
-		func(ctx context.Context) (any, error) {
-			return obj.ExpiresAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.ExpiresAt, nil },
 		nil,
 		ec.marshalOTime2ᚖtimeᚐTime,
 		true,
@@ -3315,9 +3326,7 @@ func (ec *executionContext) _FileShare_created_at(ctx context.Context, field gra
 		ec.OperationContext,
 		field,
 		ec.fieldContext_FileShare_created_at,
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.CreatedAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -3344,9 +3353,7 @@ func (ec *executionContext) _FileShare_updated_at(ctx context.Context, field gra
 		ec.OperationContext,
 		field,
 		ec.fieldContext_FileShare_updated_at,
-		func(ctx context.Context) (any, error) {
-			return obj.UpdatedAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.UpdatedAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -3373,9 +3380,7 @@ func (ec *executionContext) _FileShare_user_file(ctx context.Context, field grap
 		ec.OperationContext,
 		field,
 		ec.fieldContext_FileShare_user_file,
-		func(ctx context.Context) (any, error) {
-			return obj.UserFile, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.UserFile, nil },
 		nil,
 		ec.marshalOUserFile2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUserFile,
 		true,
@@ -3488,9 +3493,7 @@ func (ec *executionContext) _Folder_name(ctx context.Context, field graphql.Coll
 		ec.OperationContext,
 		field,
 		ec.fieldContext_Folder_name,
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Name, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -3546,9 +3549,7 @@ func (ec *executionContext) _Folder_created_at(ctx context.Context, field graphq
 		ec.OperationContext,
 		field,
 		ec.fieldContext_Folder_created_at,
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.CreatedAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -3575,9 +3576,7 @@ func (ec *executionContext) _Folder_updated_at(ctx context.Context, field graphq
 		ec.OperationContext,
 		field,
 		ec.fieldContext_Folder_updated_at,
-		func(ctx context.Context) (any, error) {
-			return obj.UpdatedAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.UpdatedAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -3604,9 +3603,7 @@ func (ec *executionContext) _Folder_user(ctx context.Context, field graphql.Coll
 		ec.OperationContext,
 		field,
 		ec.fieldContext_Folder_user,
-		func(ctx context.Context) (any, error) {
-			return obj.User, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.User, nil },
 		nil,
 		ec.marshalOUser2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUser,
 		true,
@@ -3649,9 +3646,7 @@ func (ec *executionContext) _Folder_parent(ctx context.Context, field graphql.Co
 		ec.OperationContext,
 		field,
 		ec.fieldContext_Folder_parent,
-		func(ctx context.Context) (any, error) {
-			return obj.Parent, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Parent, nil },
 		nil,
 		ec.marshalOFolder2ᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐFolder,
 		true,
@@ -3700,9 +3695,7 @@ func (ec *executionContext) _Folder_children(ctx context.Context, field graphql.
 		ec.OperationContext,
 		field,
 		ec.fieldContext_Folder_children,
-		func(ctx context.Context) (any, error) {
-			return obj.Children, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Children, nil },
 		nil,
 		ec.marshalNFolder2ᚕᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐFolderᚄ,
 		true,
@@ -3751,9 +3744,7 @@ func (ec *executionContext) _Folder_files(ctx context.Context, field graphql.Col
 		ec.OperationContext,
 		field,
 		ec.fieldContext_Folder_files,
-		func(ctx context.Context) (any, error) {
-			return obj.Files, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Files, nil },
 		nil,
 		ec.marshalNUserFile2ᚕᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUserFileᚄ,
 		true,
@@ -4215,6 +4206,88 @@ func (ec *executionContext) fieldContext_Mutation_permanentlyDeleteFile(ctx cont
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_permanentlyDeleteFile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_restoreFolder(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_restoreFolder,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().RestoreFolder(ctx, fc.Args["folderID"].(string))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_restoreFolder(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_restoreFolder_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_permanentlyDeleteFolder(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_permanentlyDeleteFolder,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().PermanentlyDeleteFolder(ctx, fc.Args["folderID"].(string))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_permanentlyDeleteFolder(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_permanentlyDeleteFolder_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -5414,6 +5487,57 @@ func (ec *executionContext) fieldContext_Query_myTrashedFiles(_ context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_myTrashedFolders(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_myTrashedFolders,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Query().MyTrashedFolders(ctx)
+		},
+		nil,
+		ec.marshalNFolder2ᚕᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐFolderᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_myTrashedFolders(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Folder_id(ctx, field)
+			case "user_id":
+				return ec.fieldContext_Folder_user_id(ctx, field)
+			case "name":
+				return ec.fieldContext_Folder_name(ctx, field)
+			case "parent_id":
+				return ec.fieldContext_Folder_parent_id(ctx, field)
+			case "created_at":
+				return ec.fieldContext_Folder_created_at(ctx, field)
+			case "updated_at":
+				return ec.fieldContext_Folder_updated_at(ctx, field)
+			case "user":
+				return ec.fieldContext_Folder_user(ctx, field)
+			case "parent":
+				return ec.fieldContext_Folder_parent(ctx, field)
+			case "children":
+				return ec.fieldContext_Folder_children(ctx, field)
+			case "files":
+				return ec.fieldContext_Folder_files(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Folder", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_myStats(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -6267,9 +6391,7 @@ func (ec *executionContext) _Room_name(ctx context.Context, field graphql.Collec
 		ec.OperationContext,
 		field,
 		ec.fieldContext_Room_name,
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Name, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -6325,9 +6447,7 @@ func (ec *executionContext) _Room_created_at(ctx context.Context, field graphql.
 		ec.OperationContext,
 		field,
 		ec.fieldContext_Room_created_at,
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.CreatedAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -6354,9 +6474,7 @@ func (ec *executionContext) _Room_creator(ctx context.Context, field graphql.Col
 		ec.OperationContext,
 		field,
 		ec.fieldContext_Room_creator,
-		func(ctx context.Context) (any, error) {
-			return obj.Creator, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Creator, nil },
 		nil,
 		ec.marshalOUser2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUser,
 		true,
@@ -6399,9 +6517,7 @@ func (ec *executionContext) _Room_members(ctx context.Context, field graphql.Col
 		ec.OperationContext,
 		field,
 		ec.fieldContext_Room_members,
-		func(ctx context.Context) (any, error) {
-			return obj.Members, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Members, nil },
 		nil,
 		ec.marshalNRoomMember2ᚕᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐRoomMemberᚄ,
 		true,
@@ -6444,9 +6560,7 @@ func (ec *executionContext) _Room_files(ctx context.Context, field graphql.Colle
 		ec.OperationContext,
 		field,
 		ec.fieldContext_Room_files,
-		func(ctx context.Context) (any, error) {
-			return obj.Files, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Files, nil },
 		nil,
 		ec.marshalNUserFile2ᚕᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUserFileᚄ,
 		true,
@@ -6639,9 +6753,7 @@ func (ec *executionContext) _RoomMember_role(ctx context.Context, field graphql.
 		ec.OperationContext,
 		field,
 		ec.fieldContext_RoomMember_role,
-		func(ctx context.Context) (any, error) {
-			return obj.Role, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Role, nil },
 		nil,
 		ec.marshalNRoomRole2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐRoomRole,
 		true,
@@ -6668,9 +6780,7 @@ func (ec *executionContext) _RoomMember_created_at(ctx context.Context, field gr
 		ec.OperationContext,
 		field,
 		ec.fieldContext_RoomMember_created_at,
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.CreatedAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -6697,9 +6807,7 @@ func (ec *executionContext) _RoomMember_room(ctx context.Context, field graphql.
 		ec.OperationContext,
 		field,
 		ec.fieldContext_RoomMember_room,
-		func(ctx context.Context) (any, error) {
-			return obj.Room, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Room, nil },
 		nil,
 		ec.marshalORoom2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐRoom,
 		true,
@@ -6744,9 +6852,7 @@ func (ec *executionContext) _RoomMember_user(ctx context.Context, field graphql.
 		ec.OperationContext,
 		field,
 		ec.fieldContext_RoomMember_user,
-		func(ctx context.Context) (any, error) {
-			return obj.User, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.User, nil },
 		nil,
 		ec.marshalOUser2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUser,
 		true,
@@ -6789,9 +6895,7 @@ func (ec *executionContext) _ShareExpiryInfo_expires(ctx context.Context, field 
 		ec.OperationContext,
 		field,
 		ec.fieldContext_ShareExpiryInfo_expires,
-		func(ctx context.Context) (any, error) {
-			return obj.Expires, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Expires, nil },
 		nil,
 		ec.marshalNBoolean2bool,
 		true,
@@ -6818,9 +6922,7 @@ func (ec *executionContext) _ShareExpiryInfo_expired(ctx context.Context, field 
 		ec.OperationContext,
 		field,
 		ec.fieldContext_ShareExpiryInfo_expired,
-		func(ctx context.Context) (any, error) {
-			return obj.Expired, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Expired, nil },
 		nil,
 		ec.marshalNBoolean2bool,
 		true,
@@ -6847,9 +6949,7 @@ func (ec *executionContext) _ShareExpiryInfo_expires_at(ctx context.Context, fie
 		ec.OperationContext,
 		field,
 		ec.fieldContext_ShareExpiryInfo_expires_at,
-		func(ctx context.Context) (any, error) {
-			return obj.ExpiresAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.ExpiresAt, nil },
 		nil,
 		ec.marshalOTime2ᚖtimeᚐTime,
 		true,
@@ -6876,9 +6976,7 @@ func (ec *executionContext) _ShareExpiryInfo_time_until_expiry(ctx context.Conte
 		ec.OperationContext,
 		field,
 		ec.fieldContext_ShareExpiryInfo_time_until_expiry,
-		func(ctx context.Context) (any, error) {
-			return obj.TimeUntilExpiry, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.TimeUntilExpiry, nil },
 		nil,
 		ec.marshalOString2ᚖstring,
 		true,
@@ -6905,9 +7003,7 @@ func (ec *executionContext) _ShareMetadata_token(ctx context.Context, field grap
 		ec.OperationContext,
 		field,
 		ec.fieldContext_ShareMetadata_token,
-		func(ctx context.Context) (any, error) {
-			return obj.Token, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Token, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -6934,9 +7030,7 @@ func (ec *executionContext) _ShareMetadata_filename(ctx context.Context, field g
 		ec.OperationContext,
 		field,
 		ec.fieldContext_ShareMetadata_filename,
-		func(ctx context.Context) (any, error) {
-			return obj.Filename, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Filename, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -6963,9 +7057,7 @@ func (ec *executionContext) _ShareMetadata_mime_type(ctx context.Context, field 
 		ec.OperationContext,
 		field,
 		ec.fieldContext_ShareMetadata_mime_type,
-		func(ctx context.Context) (any, error) {
-			return obj.MimeType, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.MimeType, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -6992,9 +7084,7 @@ func (ec *executionContext) _ShareMetadata_size_bytes(ctx context.Context, field
 		ec.OperationContext,
 		field,
 		ec.fieldContext_ShareMetadata_size_bytes,
-		func(ctx context.Context) (any, error) {
-			return obj.SizeBytes, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.SizeBytes, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -7021,9 +7111,7 @@ func (ec *executionContext) _ShareMetadata_max_downloads(ctx context.Context, fi
 		ec.OperationContext,
 		field,
 		ec.fieldContext_ShareMetadata_max_downloads,
-		func(ctx context.Context) (any, error) {
-			return obj.MaxDownloads, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.MaxDownloads, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -7050,9 +7138,7 @@ func (ec *executionContext) _ShareMetadata_download_count(ctx context.Context, f
 		ec.OperationContext,
 		field,
 		ec.fieldContext_ShareMetadata_download_count,
-		func(ctx context.Context) (any, error) {
-			return obj.DownloadCount, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.DownloadCount, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -7079,9 +7165,7 @@ func (ec *executionContext) _ShareMetadata_expires_at(ctx context.Context, field
 		ec.OperationContext,
 		field,
 		ec.fieldContext_ShareMetadata_expires_at,
-		func(ctx context.Context) (any, error) {
-			return obj.ExpiresAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.ExpiresAt, nil },
 		nil,
 		ec.marshalOTime2ᚖtimeᚐTime,
 		true,
@@ -7108,9 +7192,7 @@ func (ec *executionContext) _ShareMetadata_created_at(ctx context.Context, field
 		ec.OperationContext,
 		field,
 		ec.fieldContext_ShareMetadata_created_at,
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.CreatedAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -7224,9 +7306,7 @@ func (ec *executionContext) _SharedFileAccess_share_token(ctx context.Context, f
 		ec.OperationContext,
 		field,
 		ec.fieldContext_SharedFileAccess_share_token,
-		func(ctx context.Context) (any, error) {
-			return obj.ShareToken, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.ShareToken, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -7253,9 +7333,7 @@ func (ec *executionContext) _SharedFileAccess_first_access_at(ctx context.Contex
 		ec.OperationContext,
 		field,
 		ec.fieldContext_SharedFileAccess_first_access_at,
-		func(ctx context.Context) (any, error) {
-			return obj.FirstAccessAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.FirstAccessAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -7282,9 +7360,7 @@ func (ec *executionContext) _SharedFileAccess_last_access_at(ctx context.Context
 		ec.OperationContext,
 		field,
 		ec.fieldContext_SharedFileAccess_last_access_at,
-		func(ctx context.Context) (any, error) {
-			return obj.LastAccessAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.LastAccessAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -7311,9 +7387,7 @@ func (ec *executionContext) _SharedFileAccess_access_count(ctx context.Context, 
 		ec.OperationContext,
 		field,
 		ec.fieldContext_SharedFileAccess_access_count,
-		func(ctx context.Context) (any, error) {
-			return obj.AccessCount, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.AccessCount, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -7340,9 +7414,7 @@ func (ec *executionContext) _SharedFileAccess_ip_address(ctx context.Context, fi
 		ec.OperationContext,
 		field,
 		ec.fieldContext_SharedFileAccess_ip_address,
-		func(ctx context.Context) (any, error) {
-			return obj.IPAddress, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.IPAddress, nil },
 		nil,
 		ec.marshalOString2string,
 		true,
@@ -7369,9 +7441,7 @@ func (ec *executionContext) _SharedFileAccess_user_agent(ctx context.Context, fi
 		ec.OperationContext,
 		field,
 		ec.fieldContext_SharedFileAccess_user_agent,
-		func(ctx context.Context) (any, error) {
-			return obj.UserAgent, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.UserAgent, nil },
 		nil,
 		ec.marshalOString2string,
 		true,
@@ -7398,9 +7468,7 @@ func (ec *executionContext) _SharedFileAccess_user(ctx context.Context, field gr
 		ec.OperationContext,
 		field,
 		ec.fieldContext_SharedFileAccess_user,
-		func(ctx context.Context) (any, error) {
-			return obj.User, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.User, nil },
 		nil,
 		ec.marshalOUser2ᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUser,
 		true,
@@ -7443,9 +7511,7 @@ func (ec *executionContext) _SharedFileAccess_file_share(ctx context.Context, fi
 		ec.OperationContext,
 		field,
 		ec.fieldContext_SharedFileAccess_file_share,
-		func(ctx context.Context) (any, error) {
-			return obj.FileShare, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.FileShare, nil },
 		nil,
 		ec.marshalOFileShare2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐFileShare,
 		true,
@@ -7504,9 +7570,7 @@ func (ec *executionContext) _SharedWithMeFile_id(ctx context.Context, field grap
 		ec.OperationContext,
 		field,
 		ec.fieldContext_SharedWithMeFile_id,
-		func(ctx context.Context) (any, error) {
-			return obj.ID, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.ID, nil },
 		nil,
 		ec.marshalNID2string,
 		true,
@@ -7533,9 +7597,7 @@ func (ec *executionContext) _SharedWithMeFile_filename(ctx context.Context, fiel
 		ec.OperationContext,
 		field,
 		ec.fieldContext_SharedWithMeFile_filename,
-		func(ctx context.Context) (any, error) {
-			return obj.Filename, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Filename, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -7562,9 +7624,7 @@ func (ec *executionContext) _SharedWithMeFile_mime_type(ctx context.Context, fie
 		ec.OperationContext,
 		field,
 		ec.fieldContext_SharedWithMeFile_mime_type,
-		func(ctx context.Context) (any, error) {
-			return obj.MimeType, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.MimeType, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -7591,9 +7651,7 @@ func (ec *executionContext) _SharedWithMeFile_size_bytes(ctx context.Context, fi
 		ec.OperationContext,
 		field,
 		ec.fieldContext_SharedWithMeFile_size_bytes,
-		func(ctx context.Context) (any, error) {
-			return obj.SizeBytes, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.SizeBytes, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -7620,9 +7678,7 @@ func (ec *executionContext) _SharedWithMeFile_share_token(ctx context.Context, f
 		ec.OperationContext,
 		field,
 		ec.fieldContext_SharedWithMeFile_share_token,
-		func(ctx context.Context) (any, error) {
-			return obj.ShareToken, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.ShareToken, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -7649,9 +7705,7 @@ func (ec *executionContext) _SharedWithMeFile_shared_by(ctx context.Context, fie
 		ec.OperationContext,
 		field,
 		ec.fieldContext_SharedWithMeFile_shared_by,
-		func(ctx context.Context) (any, error) {
-			return obj.SharedBy, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.SharedBy, nil },
 		nil,
 		ec.marshalNUser2ᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUser,
 		true,
@@ -7694,9 +7748,7 @@ func (ec *executionContext) _SharedWithMeFile_first_access_at(ctx context.Contex
 		ec.OperationContext,
 		field,
 		ec.fieldContext_SharedWithMeFile_first_access_at,
-		func(ctx context.Context) (any, error) {
-			return obj.FirstAccessAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.FirstAccessAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -7723,9 +7775,7 @@ func (ec *executionContext) _SharedWithMeFile_last_access_at(ctx context.Context
 		ec.OperationContext,
 		field,
 		ec.fieldContext_SharedWithMeFile_last_access_at,
-		func(ctx context.Context) (any, error) {
-			return obj.LastAccessAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.LastAccessAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -7752,9 +7802,7 @@ func (ec *executionContext) _SharedWithMeFile_access_count(ctx context.Context, 
 		ec.OperationContext,
 		field,
 		ec.fieldContext_SharedWithMeFile_access_count,
-		func(ctx context.Context) (any, error) {
-			return obj.AccessCount, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.AccessCount, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -7781,9 +7829,7 @@ func (ec *executionContext) _SharedWithMeFile_max_downloads(ctx context.Context,
 		ec.OperationContext,
 		field,
 		ec.fieldContext_SharedWithMeFile_max_downloads,
-		func(ctx context.Context) (any, error) {
-			return obj.MaxDownloads, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.MaxDownloads, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -7810,9 +7856,7 @@ func (ec *executionContext) _SharedWithMeFile_download_count(ctx context.Context
 		ec.OperationContext,
 		field,
 		ec.fieldContext_SharedWithMeFile_download_count,
-		func(ctx context.Context) (any, error) {
-			return obj.DownloadCount, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.DownloadCount, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -7839,9 +7883,7 @@ func (ec *executionContext) _SharedWithMeFile_expires_at(ctx context.Context, fi
 		ec.OperationContext,
 		field,
 		ec.fieldContext_SharedWithMeFile_expires_at,
-		func(ctx context.Context) (any, error) {
-			return obj.ExpiresAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.ExpiresAt, nil },
 		nil,
 		ec.marshalOTime2ᚖtimeᚐTime,
 		true,
@@ -7868,9 +7910,7 @@ func (ec *executionContext) _SharedWithMeFile_created_at(ctx context.Context, fi
 		ec.OperationContext,
 		field,
 		ec.fieldContext_SharedWithMeFile_created_at,
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.CreatedAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -7926,9 +7966,7 @@ func (ec *executionContext) _User_username(ctx context.Context, field graphql.Co
 		ec.OperationContext,
 		field,
 		ec.fieldContext_User_username,
-		func(ctx context.Context) (any, error) {
-			return obj.Username, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Username, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -7955,9 +7993,7 @@ func (ec *executionContext) _User_email(ctx context.Context, field graphql.Colle
 		ec.OperationContext,
 		field,
 		ec.fieldContext_User_email,
-		func(ctx context.Context) (any, error) {
-			return obj.Email, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Email, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -7984,9 +8020,7 @@ func (ec *executionContext) _User_storage_quota(ctx context.Context, field graph
 		ec.OperationContext,
 		field,
 		ec.fieldContext_User_storage_quota,
-		func(ctx context.Context) (any, error) {
-			return obj.StorageQuota, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.StorageQuota, nil },
 		nil,
 		ec.marshalNInt2int64,
 		true,
@@ -8013,9 +8047,7 @@ func (ec *executionContext) _User_used_storage(ctx context.Context, field graphq
 		ec.OperationContext,
 		field,
 		ec.fieldContext_User_used_storage,
-		func(ctx context.Context) (any, error) {
-			return obj.UsedStorage, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.UsedStorage, nil },
 		nil,
 		ec.marshalNInt2int64,
 		true,
@@ -8042,9 +8074,7 @@ func (ec *executionContext) _User_is_admin(ctx context.Context, field graphql.Co
 		ec.OperationContext,
 		field,
 		ec.fieldContext_User_is_admin,
-		func(ctx context.Context) (any, error) {
-			return obj.IsAdmin, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.IsAdmin, nil },
 		nil,
 		ec.marshalNBoolean2bool,
 		true,
@@ -8071,9 +8101,7 @@ func (ec *executionContext) _User_created_at(ctx context.Context, field graphql.
 		ec.OperationContext,
 		field,
 		ec.fieldContext_User_created_at,
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.CreatedAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -8187,9 +8215,7 @@ func (ec *executionContext) _UserFile_filename(ctx context.Context, field graphq
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserFile_filename,
-		func(ctx context.Context) (any, error) {
-			return obj.Filename, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Filename, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -8216,9 +8242,7 @@ func (ec *executionContext) _UserFile_mime_type(ctx context.Context, field graph
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserFile_mime_type,
-		func(ctx context.Context) (any, error) {
-			return obj.MimeType, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.MimeType, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -8303,9 +8327,7 @@ func (ec *executionContext) _UserFile_is_starred(ctx context.Context, field grap
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserFile_is_starred,
-		func(ctx context.Context) (any, error) {
-			return obj.IsStarred, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.IsStarred, nil },
 		nil,
 		ec.marshalNBoolean2bool,
 		true,
@@ -8332,9 +8354,7 @@ func (ec *executionContext) _UserFile_created_at(ctx context.Context, field grap
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserFile_created_at,
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.CreatedAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -8361,9 +8381,7 @@ func (ec *executionContext) _UserFile_updated_at(ctx context.Context, field grap
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserFile_updated_at,
-		func(ctx context.Context) (any, error) {
-			return obj.UpdatedAt, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.UpdatedAt, nil },
 		nil,
 		ec.marshalNTime2timeᚐTime,
 		true,
@@ -8390,9 +8408,7 @@ func (ec *executionContext) _UserFile_user(ctx context.Context, field graphql.Co
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserFile_user,
-		func(ctx context.Context) (any, error) {
-			return obj.User, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.User, nil },
 		nil,
 		ec.marshalOUser2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐUser,
 		true,
@@ -8435,9 +8451,7 @@ func (ec *executionContext) _UserFile_file(ctx context.Context, field graphql.Co
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserFile_file,
-		func(ctx context.Context) (any, error) {
-			return obj.File, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.File, nil },
 		nil,
 		ec.marshalOFile2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐFile,
 		true,
@@ -8474,9 +8488,7 @@ func (ec *executionContext) _UserFile_folder(ctx context.Context, field graphql.
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserFile_folder,
-		func(ctx context.Context) (any, error) {
-			return obj.Folder, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Folder, nil },
 		nil,
 		ec.marshalOFolder2ᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐFolder,
 		true,
@@ -8525,9 +8537,7 @@ func (ec *executionContext) _UserStats_total_files(ctx context.Context, field gr
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserStats_total_files,
-		func(ctx context.Context) (any, error) {
-			return obj.TotalFiles, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.TotalFiles, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -8554,9 +8564,7 @@ func (ec *executionContext) _UserStats_used_storage(ctx context.Context, field g
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserStats_used_storage,
-		func(ctx context.Context) (any, error) {
-			return obj.UsedStorage, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.UsedStorage, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -8583,9 +8591,7 @@ func (ec *executionContext) _UserStats_storage_quota(ctx context.Context, field 
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserStats_storage_quota,
-		func(ctx context.Context) (any, error) {
-			return obj.StorageQuota, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.StorageQuota, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -8612,9 +8618,7 @@ func (ec *executionContext) _UserStats_storage_savings(ctx context.Context, fiel
 		ec.OperationContext,
 		field,
 		ec.fieldContext_UserStats_storage_savings,
-		func(ctx context.Context) (any, error) {
-			return obj.StorageSavings, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.StorageSavings, nil },
 		nil,
 		ec.marshalNInt2int,
 		true,
@@ -8641,9 +8645,7 @@ func (ec *executionContext) ___Directive_name(ctx context.Context, field graphql
 		ec.OperationContext,
 		field,
 		ec.fieldContext___Directive_name,
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Name, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -8699,9 +8701,7 @@ func (ec *executionContext) ___Directive_isRepeatable(ctx context.Context, field
 		ec.OperationContext,
 		field,
 		ec.fieldContext___Directive_isRepeatable,
-		func(ctx context.Context) (any, error) {
-			return obj.IsRepeatable, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.IsRepeatable, nil },
 		nil,
 		ec.marshalNBoolean2bool,
 		true,
@@ -8728,9 +8728,7 @@ func (ec *executionContext) ___Directive_locations(ctx context.Context, field gr
 		ec.OperationContext,
 		field,
 		ec.fieldContext___Directive_locations,
-		func(ctx context.Context) (any, error) {
-			return obj.Locations, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Locations, nil },
 		nil,
 		ec.marshalN__DirectiveLocation2ᚕstringᚄ,
 		true,
@@ -8757,9 +8755,7 @@ func (ec *executionContext) ___Directive_args(ctx context.Context, field graphql
 		ec.OperationContext,
 		field,
 		ec.fieldContext___Directive_args,
-		func(ctx context.Context) (any, error) {
-			return obj.Args, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Args, nil },
 		nil,
 		ec.marshalN__InputValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐInputValueᚄ,
 		true,
@@ -8811,9 +8807,7 @@ func (ec *executionContext) ___EnumValue_name(ctx context.Context, field graphql
 		ec.OperationContext,
 		field,
 		ec.fieldContext___EnumValue_name,
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Name, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -8927,9 +8921,7 @@ func (ec *executionContext) ___Field_name(ctx context.Context, field graphql.Col
 		ec.OperationContext,
 		field,
 		ec.fieldContext___Field_name,
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Name, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -8985,9 +8977,7 @@ func (ec *executionContext) ___Field_args(ctx context.Context, field graphql.Col
 		ec.OperationContext,
 		field,
 		ec.fieldContext___Field_args,
-		func(ctx context.Context) (any, error) {
-			return obj.Args, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Args, nil },
 		nil,
 		ec.marshalN__InputValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐInputValueᚄ,
 		true,
@@ -9039,9 +9029,7 @@ func (ec *executionContext) ___Field_type(ctx context.Context, field graphql.Col
 		ec.OperationContext,
 		field,
 		ec.fieldContext___Field_type,
-		func(ctx context.Context) (any, error) {
-			return obj.Type, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Type, nil },
 		nil,
 		ec.marshalN__Type2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐType,
 		true,
@@ -9150,9 +9138,7 @@ func (ec *executionContext) ___InputValue_name(ctx context.Context, field graphq
 		ec.OperationContext,
 		field,
 		ec.fieldContext___InputValue_name,
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Name, nil },
 		nil,
 		ec.marshalNString2string,
 		true,
@@ -9208,9 +9194,7 @@ func (ec *executionContext) ___InputValue_type(ctx context.Context, field graphq
 		ec.OperationContext,
 		field,
 		ec.fieldContext___InputValue_type,
-		func(ctx context.Context) (any, error) {
-			return obj.Type, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.Type, nil },
 		nil,
 		ec.marshalN__Type2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐType,
 		true,
@@ -9261,9 +9245,7 @@ func (ec *executionContext) ___InputValue_defaultValue(ctx context.Context, fiel
 		ec.OperationContext,
 		field,
 		ec.fieldContext___InputValue_defaultValue,
-		func(ctx context.Context) (any, error) {
-			return obj.DefaultValue, nil
-		},
+		func(ctx context.Context) (any, error) { return obj.DefaultValue, nil },
 		nil,
 		ec.marshalOString2ᚖstring,
 		true,
@@ -11361,6 +11343,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "restoreFolder":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_restoreFolder(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "permanentlyDeleteFolder":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_permanentlyDeleteFolder(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "downloadFile":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_downloadFile(ctx, field)
@@ -11626,6 +11622,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_myTrashedFiles(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "myTrashedFolders":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_myTrashedFolders(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}

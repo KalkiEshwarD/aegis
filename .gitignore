@@ -27,5 +27,3 @@ aegis/frontend/.idea
 *.njsproj
 *.sln
 *.sw?
-
-.env

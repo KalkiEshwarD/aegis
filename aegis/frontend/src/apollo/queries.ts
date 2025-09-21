@@ -195,6 +195,31 @@ export const PERMANENTLY_DELETE_FILE_MUTATION = gql`
   }
 `;
 
+// Folder Trash Operations
+export const GET_MY_TRASHED_FOLDERS = gql`
+  query GetMyTrashedFolders {
+    myTrashedFolders {
+      id
+      name
+      parent_id
+      created_at
+      updated_at
+    }
+  }
+`;
+
+export const RESTORE_FOLDER_MUTATION = gql`
+  mutation RestoreFolder($folderID: ID!) {
+    restoreFolder(folderID: $folderID)
+  }
+`;
+
+export const PERMANENTLY_DELETE_FOLDER_MUTATION = gql`
+  mutation PermanentlyDeleteFolder($folderID: ID!) {
+    permanentlyDeleteFolder(folderID: $folderID)
+  }
+`;
+
 // Starred Files Operations
 export const GET_STARRED_FILES_QUERY = gql`
   query GetStarredFiles {

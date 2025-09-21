@@ -17,6 +17,7 @@ import {
   Code as CodeIcon,
   MoreVert as MoreVertIcon,
   Folder as FolderIcon,
+  Restore as RestoreIcon,
 } from '@mui/icons-material';
 import { UserFile, FileExplorerItem, isFolder, isFile } from '../../types';
 import { formatFileSize } from '../../utils/fileUtils';
@@ -30,6 +31,7 @@ interface FileGridProps {
   onContextMenu: (event: React.MouseEvent, fileId: string) => void;
   onDownload: (file: UserFile) => void;
   onDelete: (file: UserFile) => void;
+  onRestore?: (item: FileExplorerItem) => void;
   onFolderClick?: (folderId: string, folderName: string) => void;
   onFileMove?: (fileIds: string[], targetFolderId: string | null) => Promise<void>;
   onItemSelect?: (itemId: string, event: React.MouseEvent, modifiers?: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => void;
@@ -42,6 +44,7 @@ interface FileItemProps {
   isFocused: boolean;
   onFileClick: (fileId: string, event: React.MouseEvent) => void;
   onContextMenu: (event: React.MouseEvent, fileId: string) => void;
+  onRestore?: (item: FileExplorerItem) => void;
   onFolderClick?: (folderId: string, folderName: string) => void;
   onFileMove?: (fileIds: string[], targetFolderId: string | null) => Promise<void>;
   onItemSelect?: (itemId: string, event: React.MouseEvent, modifiers?: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => void;
@@ -58,6 +61,7 @@ const FileGrid: React.FC<FileGridProps> = ({
   onContextMenu,
   onDownload,
   onDelete,
+  onRestore,
   onFolderClick,
   onFileMove,
   onItemSelect,
@@ -85,8 +89,8 @@ const FileGrid: React.FC<FileGridProps> = ({
     }
     
     // For files
-    const mimeType = item.mime_type;
-    const filename = item.filename;
+    const mimeType = item.mime_type || '';
+    const filename = item.filename || '';
     if (mimeType.startsWith('image/')) return <ImageIcon sx={{ fontSize: 48, color: '#10b981' }} />;
     if (mimeType.startsWith('video/')) return <VideoIcon sx={{ fontSize: 48, color: '#f59e0b' }} />;
     if (mimeType.startsWith('audio/')) return <AudioIcon sx={{ fontSize: 48, color: '#8b5cf6' }} />;
@@ -113,6 +117,7 @@ const FileGrid: React.FC<FileGridProps> = ({
     isFocused = false,
     onFileClick,
     onContextMenu,
+    onRestore,
     onFolderClick,
     onFileMove,
     onItemSelect,
@@ -306,26 +311,50 @@ const FileGrid: React.FC<FileGridProps> = ({
             {getItemSize()}
           </Typography>
 
-          {/* Context menu button */}
-          <IconButton
-            size="small"
-            sx={{ position: 'absolute', top: 4, right: 4 }}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleContextMenu(e);
-            }}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            onMouseUp={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-          >
-            <MoreVertIcon fontSize="small" />
-          </IconButton>
+          {/* Action buttons */}
+          <Box sx={{ position: 'absolute', top: 4, right: 4, display: 'flex', gap: 0.5 }}>
+            {onRestore && isFile(item) && (
+              <IconButton
+                size="small"
+                sx={{ backgroundColor: 'rgba(255, 255, 255, 0.8)', '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.9)' } }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onRestore(item);
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onMouseUp={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+              >
+                <RestoreIcon fontSize="small" />
+              </IconButton>
+            )}
+            {/* Context menu button */}
+            <IconButton
+              size="small"
+              sx={{ backgroundColor: 'rgba(255, 255, 255, 0.8)', '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.9)' } }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleContextMenu(e);
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onMouseUp={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            >
+              <MoreVertIcon fontSize="small" />
+            </IconButton>
+          </Box>
         </Paper>
       </div>
     );
@@ -355,6 +384,7 @@ const FileGrid: React.FC<FileGridProps> = ({
             focusedIndex,
             onFileClick,
             onContextMenu,
+            onRestore,
             onFolderClick,
             onFileMove,
             onItemSelect,
@@ -375,6 +405,7 @@ const FileGrid: React.FC<FileGridProps> = ({
                 isFocused={data.focusedIndex === index}
                 onFileClick={data.onFileClick}
                 onContextMenu={data.onContextMenu}
+                onRestore={data.onRestore}
                 onFolderClick={data.onFolderClick}
                 onFileMove={data.onFileMove}
                 onItemSelect={data.onItemSelect}
@@ -405,6 +436,7 @@ const FileGrid: React.FC<FileGridProps> = ({
           isFocused={focusedIndex === index}
           onFileClick={onFileClick}
           onContextMenu={onContextMenu}
+          onRestore={onRestore}
           onFolderClick={onFolderClick}
           onFileMove={onFileMove}
           onItemSelect={onItemSelect}

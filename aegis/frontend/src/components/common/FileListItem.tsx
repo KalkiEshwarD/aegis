@@ -15,6 +15,7 @@ import {
   Star as StarIcon,
   Download as DownloadIcon,
   Delete as DeleteIcon,
+  Restore as RestoreIcon,
 } from '@mui/icons-material';
 
 interface FileListItemProps {
@@ -26,6 +27,7 @@ interface FileListItemProps {
   onContextMenu: (event: React.MouseEvent) => void;
   onDownload?: () => void;
   onDelete?: () => void;
+  onRestore?: () => void;
   onFolderClick?: () => void;
   onStarToggle?: () => void;
   onFileMove?: (fileIds: string[], targetFolderId: string | null) => Promise<void>;
@@ -41,6 +43,7 @@ export const FileListItem: React.FC<FileListItemProps> = ({
   onContextMenu,
   onDownload,
   onDelete,
+  onRestore,
   onFolderClick,
   onStarToggle,
   onFileMove,
@@ -269,8 +272,8 @@ export const FileListItem: React.FC<FileListItemProps> = ({
 
       <Box sx={{ display: 'flex', gap: 0.5 }}>
         {isFile(item) && onDownload && (
-          <IconButton 
-            size="small" 
+          <IconButton
+            size="small"
             onClick={(e) => {
               e.stopPropagation();
               onDownload();
@@ -280,10 +283,10 @@ export const FileListItem: React.FC<FileListItemProps> = ({
             <DownloadIcon fontSize="small" />
           </IconButton>
         )}
-        
+
         {isFile(item) && onStarToggle && (
-          <IconButton 
-            size="small" 
+          <IconButton
+            size="small"
             onClick={(e) => {
               e.stopPropagation();
               onStarToggle();
@@ -296,10 +299,22 @@ export const FileListItem: React.FC<FileListItemProps> = ({
             )}
           </IconButton>
         )}
-        
+
+        {onRestore && (
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRestore();
+            }}
+          >
+            <RestoreIcon fontSize="small" />
+          </IconButton>
+        )}
+
         {onDelete && (
-          <IconButton 
-            size="small" 
+          <IconButton
+            size="small"
             onClick={(e) => {
               e.stopPropagation();
               onDelete();

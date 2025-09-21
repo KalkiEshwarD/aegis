@@ -1,43 +1,49 @@
 import React, { useState, useCallback, useRef, memo, useMemo, useEffect } from 'react';
 import {
-  Box,
-  Typography,
-  Paper,
-  Menu,
-  MenuItem,
-  Alert,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  TextField,
-  Snackbar,
-  IconButton,
-  InputAdornment,
-  Select,
-  FormControl,
-  InputLabel,
+   Box,
+   Typography,
+   Paper,
+   Menu,
+   MenuItem,
+   Alert,
+   Dialog,
+   DialogTitle,
+   DialogContent,
+   DialogActions,
+   Button,
+   TextField,
+   Snackbar,
+   IconButton,
+   Breadcrumbs,
+   Link,
+   ToggleButton,
+   ToggleButtonGroup,
 } from '@mui/material';
 import {
-  Download as DownloadIcon,
-  Delete as DeleteIcon,
-  CloudUpload as CloudUploadIcon,
-  Folder as FolderIcon,
-  Edit as EditIcon,
-  ContentCut as CutIcon,
-  Share as ShareIcon,
-  Star as StarIcon,
-  StarBorder as StarBorderIcon,
-  ViewList as ListIcon,
-  ViewModule as GridIcon,
-  Search as SearchIcon,
-  Sort as SortIcon,
+   Download as DownloadIcon,
+   Delete as DeleteIcon,
+   DeleteForever as DeleteForeverIcon,
+   CloudUpload as CloudUploadIcon,
+   Folder as FolderIcon,
+   Edit as EditIcon,
+   ContentCut as CutIcon,
+   Share as ShareIcon,
+   Star as StarIcon,
+   StarBorder as StarBorderIcon,
+   ViewList as ListIcon,
+   ViewModule as GridIcon,
+   Search as SearchIcon,
+   Sort as SortIcon,
+   ArrowBack as ArrowBackIcon,
+   ChevronRight as ChevronRightIcon,
+   CreateNewFolder as CreateNewFolderIcon,
+   Restore as RestoreIcon,
 } from '@mui/icons-material';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_MY_FILES, MOVE_FILE_MUTATION } from '../../apollo/files';
 import { GET_MY_FOLDERS, CREATE_FOLDER_MUTATION, RENAME_FOLDER_MUTATION, MOVE_FOLDER_MUTATION, DELETE_FOLDER_MUTATION } from '../../apollo/folders';
 import { STAR_FILE_MUTATION, UNSTAR_FILE_MUTATION } from '../../apollo/queries';
+import { GET_MY_TRASHED_FILES, GET_MY_TRASHED_FOLDERS, RESTORE_FILE_MUTATION, PERMANENTLY_DELETE_FILE_MUTATION, RESTORE_FOLDER_MUTATION, PERMANENTLY_DELETE_FOLDER_MUTATION } from '../../apollo/queries';
 import { UserFile, Folder, FileExplorerItem, isFolder, isFile } from '../../types';
 import { useFileOperations } from '../../hooks/useFileOperations';
 import { useFileUpload } from '../../hooks/useFileUpload';
@@ -49,23 +55,53 @@ import UploadProgress from './UploadProgress';
 import { ShareLinkManager } from './ShareLinkManager';
 
 interface FileExplorerProps {
-  folderId?: string | null;
-  onFileDeleted?: () => void;
-  onUploadComplete?: () => void;
-  onFolderClick?: (folderId: string, folderName: string) => void;
-  externalSearchTerm?: string;
-  externalViewMode?: 'list' | 'tile';
-  onSelectionChange?: (count: number) => void;
+    folderId?: string | null;
+    onFileDeleted?: () => void;
+    onUploadComplete?: () => void;
+    onFolderClick?: (folderId: string, folderName: string) => void;
+    externalSearchTerm?: string;
+    externalViewMode?: 'list' | 'tile';
+    onSelectionChange?: (count: number) => void;
+    // New header props
+    showHeader?: boolean;
+    title?: string;
+    description?: string;
+    showBreadcrumbs?: boolean;
+    folderPath?: Array<{ id: string | null; name: string }>;
+    onBreadcrumbClick?: (index: number) => void;
+    canNavigateBack?: boolean;
+    onNavigateBack?: () => void;
+    showNewFolderButton?: boolean;
+    onCreateFolder?: () => void;
+    onViewModeChange?: (mode: 'list' | 'tile') => void;
+    // Trash mode props
+    isTrashMode?: boolean;
+    onFileRestored?: () => void;
 }
 
 const FileExplorer: React.FC<FileExplorerProps> = ({
-  folderId,
-  onFileDeleted,
-  onUploadComplete,
-  onFolderClick,
-  externalSearchTerm = '',
-  externalViewMode,
-  onSelectionChange,
+    folderId,
+    onFileDeleted,
+    onUploadComplete,
+    onFolderClick,
+    externalSearchTerm = '',
+    externalViewMode,
+    onSelectionChange,
+    // Header props with defaults
+    showHeader = true,
+    title,
+    description,
+    showBreadcrumbs = !!folderId,
+    folderPath = [],
+    onBreadcrumbClick,
+    canNavigateBack = false,
+    onNavigateBack,
+    showNewFolderButton = true,
+    onCreateFolder,
+    onViewModeChange,
+    // Trash mode props
+    isTrashMode = false,
+    onFileRestored,
 }) => {
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<{
@@ -110,6 +146,12 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [fileToShare, setFileToShare] = useState<UserFile | null>(null);
+  const [fileToRestore, setFileToRestore] = useState<UserFile | null>(null);
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
+  const [folderToRestore, setFolderToRestore] = useState<Folder | null>(null);
+  const [folderRestoreDialogOpen, setFolderRestoreDialogOpen] = useState(false);
+  const [trashError, setTrashError] = useState<string | null>(null);
+  const [emptyTrashDialogOpen, setEmptyTrashDialogOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // New state for view mode, search, and sorting
@@ -123,8 +165,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     setSearchQuery(externalSearchTerm);
   }, [externalSearchTerm]);
 
-  const { data, error: queryError, refetch } = useQuery(GET_MY_FILES, {
-    variables: {
+  const { data, error: queryError, refetch } = useQuery(isTrashMode ? GET_MY_TRASHED_FILES : GET_MY_FILES, {
+    variables: isTrashMode ? {} : {
       filter: {
         // Temporarily disable folder_id filtering due to GraphQL schema issues
         // folder_id: folderId || undefined,
@@ -138,12 +180,17 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     fetchPolicy: 'cache-and-network',
   });
 
+  const { data: trashedFoldersData, refetch: refetchTrashedFolders } = useQuery(GET_MY_TRASHED_FOLDERS, {
+    fetchPolicy: 'cache-and-network',
+    skip: !isTrashMode, // Only fetch when in trash mode
+  });
+
   // Get all available files and folders for paste operations
   const allAvailableItems = useMemo(() => {
-    const allFiles = data?.myFiles || [];
-    const allFolders = foldersData?.myFolders || [];
+    const allFiles = (isTrashMode ? data?.myTrashedFiles : data?.myFiles) || [];
+    const allFolders = isTrashMode ? [] : (foldersData?.myFolders || []); // No paste operations in trash mode
     return [...allFiles, ...allFolders];
-  }, [data?.myFiles, foldersData?.myFolders]);
+  }, [isTrashMode, data?.myTrashedFiles, data?.myFiles, foldersData?.myFolders]);
 
   const [moveFileMutation] = useMutation(MOVE_FILE_MUTATION);
   const [createFolderMutation] = useMutation(CREATE_FOLDER_MUTATION);
@@ -152,29 +199,119 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const [deleteFolderMutation] = useMutation(DELETE_FOLDER_MUTATION);
   const [starFileMutation] = useMutation(STAR_FILE_MUTATION);
   const [unstarFileMutation] = useMutation(UNSTAR_FILE_MUTATION);
+  const [restoreFileMutation] = useMutation(RESTORE_FILE_MUTATION);
+  const [permanentlyDeleteFileMutation] = useMutation(PERMANENTLY_DELETE_FILE_MUTATION);
+  const [restoreFolderMutation] = useMutation(RESTORE_FOLDER_MUTATION);
+  const [permanentlyDeleteFolderMutation] = useMutation(PERMANENTLY_DELETE_FOLDER_MUTATION);
 
   // Filter and sort folders based on current folderId and search query
   const currentFolders = useMemo(() => {
-    let filtered = foldersData?.myFolders?.filter((folder: Folder) => {
-      // First filter out null/undefined items
-      if (!folder) return false;
+    let filtered;
 
-      if (folderId) {
-        // In a specific folder, show its children
-        if (folder.parent_id !== folderId) return false;
+    if (isTrashMode) {
+      // In trash mode, try to use trashed folders data, but fall back to creating virtual folders
+      if (trashedFoldersData?.myTrashedFolders) {
+        // Normal path: use actual trashed folders data
+        filtered = trashedFoldersData.myTrashedFolders.filter((folder: Folder) => {
+          // First filter out null/undefined items
+          if (!folder) return false;
+
+          if (folderId) {
+            // In a specific trashed folder, show its children that are also trashed
+            if (folder.parent_id !== folderId) return false;
+          } else {
+            // In trash root, show trashed folders with no parent or whose parent is not trashed
+            // This allows top-level deleted folders to appear in trash
+            if (folder.parent_id) {
+              // Check if parent is also in trash - if not, this folder should appear at root level
+              const parentInTrash = trashedFoldersData.myTrashedFolders.find(
+                (f: Folder) => f.id === folder.parent_id
+              );
+              if (parentInTrash) return false;
+            }
+          }
+
+          // Search filter for folders
+          if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            return folder.name.toLowerCase().includes(query);
+          }
+
+          return true;
+        });
       } else {
-        // In root, show folders with no parent
-        if (folder.parent_id) return false;
-      }
+        // Fallback: Create virtual folders from trashed files' folder information
+        const trashedFiles = data?.myTrashedFiles || [];
+        const folderMap = new Map<string, Folder>();
 
-      // Search filter for folders
+        // Extract unique folders from trashed files and count their files
+        trashedFiles.forEach((file: UserFile) => {
+          if (file.folder && file.folder.id && file.folder.name) {
+            if (!folderMap.has(file.folder.id)) {
+              // Create a virtual folder entity with proper defaults
+              folderMap.set(file.folder.id, {
+                id: file.folder.id,
+                name: file.folder.name || 'Unnamed Folder',
+                user_id: file.user_id,
+                parent_id: file.folder.parent_id || null,
+                created_at: file.folder.created_at || file.created_at,
+                updated_at: file.folder.updated_at || file.updated_at,
+                children: [], // Required for isFolder type guard
+                files: [], // Will be populated with files belonging to this folder
+              } as Folder);
+            }
+
+            // Add this file to the virtual folder's files array
+            const virtualFolder = folderMap.get(file.folder.id);
+            if (virtualFolder) {
+              virtualFolder.files!.push(file);
+            }
+          }
+        });
+
+        // Convert to array and filter
+        const virtualFolders = Array.from(folderMap.values());
+        filtered = virtualFolders.filter((folder: Folder) => {
+          if (folderId) {
+            // In a specific folder, show its children
+            return folder.parent_id === folderId;
+          } else {
+            // In trash root, show top-level folders (those without parents in the folderMap)
+            return !folder.parent_id || !folderMap.has(folder.parent_id);
+          }
+        });
+      }
+      
+      // Apply search filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
-        return folder.name.toLowerCase().includes(query);
+        filtered = filtered.filter((folder: Folder) => 
+          folder.name.toLowerCase().includes(query)
+        );
       }
+    } else {
+      // Regular mode - show active folders
+      filtered = foldersData?.myFolders?.filter((folder: Folder) => {
+        // First filter out null/undefined items
+        if (!folder) return false;
 
-      return true;
-    }) || [];
+        if (folderId) {
+          // In a specific folder, show its children
+          if (folder.parent_id !== folderId) return false;
+        } else {
+          // In root, show folders with no parent
+          if (folder.parent_id) return false;
+        }
+
+        // Search filter for folders
+        if (searchQuery) {
+          const query = searchQuery.toLowerCase();
+          return folder.name.toLowerCase().includes(query);
+        }
+
+        return true;
+      }) || [];
+    }
 
     // Sort folders using the same logic as files
     filtered.sort((a: Folder, b: Folder) => {
@@ -182,7 +319,9 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
       switch (fileSortBy) {
         case 'name':
-          comparison = a.name.localeCompare(b.name);
+          const aName = a.name || 'Unnamed Folder';
+          const bName = b.name || 'Unnamed Folder';
+          comparison = aName.localeCompare(bName);
           break;
         case 'date':
           comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
@@ -201,21 +340,34 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     });
 
     return filtered;
-  }, [foldersData?.myFolders, folderId, searchQuery, fileSortBy, fileSortOrder]);
+  }, [isTrashMode, foldersData?.myFolders, trashedFoldersData?.myTrashedFolders, data?.myTrashedFiles, folderId, searchQuery, fileSortBy, fileSortOrder]);
 
   // Client-side filter files by folder_id and search query
   const filteredFiles = useMemo(() => {
-    if (!data?.myFiles) return [];
+    const files = isTrashMode ? data?.myTrashedFiles : data?.myFiles;
+    if (!files) return [];
 
-    let filtered = data.myFiles.filter((file: UserFile) => {
+    let filtered = files.filter((file: UserFile) => {
       // Filter out null/undefined items for data integrity
       if (!file || !file.id) return false;
 
       // Folder filter
-      if (folderId) {
-        if (file.folder_id !== folderId) return false;
+      if (isTrashMode) {
+        // In trash mode, if we're browsing into a specific folder, show only files from that folder
+        if (folderId) {
+          if (file.folder_id !== folderId) return false;
+        } else {
+          // If we're in trash root (no folderId), only show files that DON'T belong to any folder
+          // Files that belong to folders should only appear when navigating INTO those folders
+          if (file.folder_id) return false;
+        }
       } else {
-        if (file.folder_id) return false;
+        // Normal mode folder filtering
+        if (folderId) {
+          if (file.folder_id !== folderId) return false;
+        } else {
+          if (file.folder_id) return false;
+        }
       }
 
       // Search filter
@@ -229,7 +381,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     });
 
     return filtered;
-  }, [data?.myFiles, folderId, searchQuery]);
+  }, [isTrashMode, data?.myTrashedFiles, data?.myFiles, folderId, searchQuery]);
 
   // Use custom hooks
   const { downloadingFile, error, downloadFile, deleteFile } = useFileOperations();
@@ -266,8 +418,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
       switch (fileSortBy) {
         case 'name':
-          const aName = isFolder(a) ? a.name : a.filename;
-          const bName = isFolder(b) ? b.name : b.filename;
+          const aName = isFolder(a) ? (a.name || 'Unnamed Folder') : (a.filename || 'Unnamed File');
+          const bName = isFolder(b) ? (b.name || 'Unnamed Folder') : (b.filename || 'Unnamed File');
           comparison = aName.localeCompare(bName);
           break;
         case 'date':
@@ -288,7 +440,9 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
             comparison = 1; // folders come first
           } else if (aIsFolder && bIsFolder) {
             // both folders, sort by name
-            comparison = a.name.localeCompare(b.name);
+            const aFolderName = a.name || 'Unnamed Folder';
+            const bFolderName = b.name || 'Unnamed Folder';
+            comparison = aFolderName.localeCompare(bFolderName);
           } else {
             // both files, sort by extension
             const aExt = isFile(a) ? a.filename.split('.').pop()?.toLowerCase() || '' : '';
@@ -416,6 +570,52 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       setSnackbarOpen(true);
     }
   }, [selectedFiles, allItems, starFileMutation, refetch]);
+
+  // Handle restore selected items
+  const handleRestoreSelected = useCallback(async () => {
+    const selectedItemIds = Array.from(selectedFiles);
+    if (selectedItemIds.length === 0) return;
+
+    const selectedItems = allItems.filter(item => selectedItemIds.includes(item.id));
+    const filesToRestore = selectedItems.filter(item => isFile(item)) as UserFile[];
+    const foldersToRestore = selectedItems.filter(item => !isFile(item)) as Folder[];
+
+    try {
+      // Restore files
+      for (const file of filesToRestore) {
+        await restoreFileMutation({
+          variables: { fileID: file.id },
+          refetchQueries: [{ query: GET_MY_FILES }, { query: GET_MY_TRASHED_FILES }],
+        });
+      }
+
+      // Restore folders
+      for (const folder of foldersToRestore) {
+        await restoreFolderMutation({
+          variables: { folderID: folder.id },
+          refetchQueries: [
+            { query: GET_MY_FOLDERS },
+            { query: GET_MY_TRASHED_FOLDERS },
+            { query: GET_MY_FILES },
+            { query: GET_MY_TRASHED_FILES }
+          ],
+        });
+      }
+
+      setSelectedFiles(new Set());
+      refetch();
+      if (onFileRestored) {
+        onFileRestored();
+      }
+      const totalItems = filesToRestore.length + foldersToRestore.length;
+      setSnackbarMessage(`Restored ${totalItems} item(s)`);
+      setSnackbarOpen(true);
+    } catch (error) {
+      console.error('Error restoring items:', error);
+      setSnackbarMessage('Failed to restore items');
+      setSnackbarOpen(true);
+    }
+  }, [selectedFiles, allItems, restoreFileMutation, restoreFolderMutation, refetch, onFileRestored]);
 
   // Handle item selection (for both files and folders)
   const handleItemSelect = (itemId: string, event: React.MouseEvent, modifiers?: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => {
@@ -775,13 +975,18 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
   // Keyboard navigation and shortcuts
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
+    console.log('DEBUG: handleKeyDown called with key:', event.key, 'ctrlKey:', event.ctrlKey, 'metaKey:', event.metaKey);
+    
     const { key, ctrlKey, metaKey, shiftKey } = event;
     const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-    const cmdOrCtrl = isMac ? metaKey : ctrlKey;
+    const cmdOrCtrl = (isMac ? metaKey : ctrlKey) || (ctrlKey || metaKey); // Support both Ctrl and Cmd on all platforms
+    
+    console.log('DEBUG: isMac:', isMac, 'cmdOrCtrl:', cmdOrCtrl);
 
     // Prevent default browser shortcuts
     if (cmdOrCtrl && (key === 'n' || key === 'x' || key === 'v')) {
       event.preventDefault();
+      console.log('DEBUG: Prevented default for shortcut:', key);
     }
 
     switch (key) {
@@ -803,6 +1008,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       case 'Delete':
       case 'Backspace':
         event.preventDefault();
+        console.log('DEBUG: Delete shortcut triggered');
         handleDeleteKey();
         break;
       case 'n':
@@ -818,6 +1024,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       case 'X':
         if (cmdOrCtrl) {
           event.preventDefault();
+          console.log('DEBUG: Cut shortcut triggered');
           handleCutKey();
         }
         break;
@@ -825,12 +1032,14 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       case 'C':
         if (cmdOrCtrl) {
           event.preventDefault();
+          console.log('DEBUG: Copy shortcut triggered');
           handleCopyKey();
         }
         break;
       case 'v':
       case 'V':
         if (cmdOrCtrl) {
+          console.log('DEBUG: Paste shortcut triggered');
           // Don't prevent default for paste - let the browser handle it naturally
           // This allows handlePasteEvent to receive actual files from clipboardData
           // Only handle our internal cut/copy operations manually
@@ -1069,11 +1278,24 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     if (!folderToDelete) return;
 
     try {
-      await deleteFolderMutation({
-        variables: { id: folderToDelete.id },
-      });
+      if (isTrashMode) {
+        // In trash mode, permanently delete the folder
+        await permanentlyDeleteFolderMutation({
+          variables: { folderID: folderToDelete.id },
+          refetchQueries: [
+            { query: GET_MY_TRASHED_FOLDERS },
+            { query: GET_MY_TRASHED_FILES }
+          ],
+        });
+      } else {
+        // In regular mode, move folder to trash
+        await deleteFolderMutation({
+          variables: { id: folderToDelete.id },
+        });
+        refetchFolders();
+      }
+      
       refetch();
-      refetchFolders();
       setSelectedFiles(prev => {
         const newSet = new Set(prev);
         newSet.delete(folderToDelete.id);
@@ -1089,7 +1311,129 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       setSnackbarMessage('Error deleting folder');
       setSnackbarOpen(true);
     }
-  }, [folderToDelete, deleteFolderMutation, refetch, refetchFolders, onFileDeleted]);
+  }, [folderToDelete, deleteFolderMutation, permanentlyDeleteFolderMutation, isTrashMode, refetch, refetchFolders, onFileDeleted]);
+
+  // Trash-specific handlers
+  const handleRestoreClick = useCallback((item: FileExplorerItem) => {
+    if (isFile(item)) {
+      setFileToRestore(item as UserFile);
+      setRestoreDialogOpen(true);
+    } else {
+      setFolderToRestore(item as Folder);
+      setFolderRestoreDialogOpen(true);
+    }
+  }, []);
+
+  const handlePermanentDeleteClick = useCallback((item: FileExplorerItem) => {
+    if (isFile(item)) {
+      setFileToDelete(item as UserFile);
+      setDeleteDialogOpen(true);
+    } else {
+      // For folders in trash mode, we want permanent deletion
+      setFolderToDelete(item as Folder);
+      setFolderDeleteDialogOpen(true);
+    }
+  }, []);
+
+  const handleRestoreConfirm = useCallback(async () => {
+    if (!fileToRestore) return;
+
+    try {
+      await restoreFileMutation({
+        variables: { fileID: fileToRestore.id },
+        refetchQueries: [{ query: GET_MY_FILES }, { query: GET_MY_TRASHED_FILES }],
+      });
+
+      setRestoreDialogOpen(false);
+      setFileToRestore(null);
+
+      // Refetch files or call callback
+      refetch();
+      if (onFileRestored) {
+        onFileRestored();
+      }
+    } catch (err: any) {
+      console.error('Restore error:', err);
+      setTrashError(err.graphQLErrors?.[0]?.message || err.message || 'Restore failed');
+    }
+  }, [fileToRestore, restoreFileMutation, refetch, onFileRestored]);
+
+  const handleFolderRestoreConfirm = useCallback(async () => {
+    if (!folderToRestore) return;
+
+    try {
+      await restoreFolderMutation({
+        variables: { folderID: folderToRestore.id },
+        refetchQueries: [
+          { query: GET_MY_FOLDERS },
+          { query: GET_MY_TRASHED_FOLDERS },
+          { query: GET_MY_FILES },
+          { query: GET_MY_TRASHED_FILES }
+        ],
+      });
+
+      setFolderRestoreDialogOpen(false);
+      setFolderToRestore(null);
+
+      // Refetch files or call callback
+      refetch();
+      if (onFileRestored) {
+        onFileRestored();
+      }
+    } catch (err: any) {
+      console.error('Folder restore error:', err);
+      setTrashError(err.graphQLErrors?.[0]?.message || err.message || 'Folder restore failed');
+    }
+  }, [folderToRestore, restoreFolderMutation, refetch, onFileRestored]);
+
+  const handlePermanentDeleteConfirm = useCallback(async () => {
+    if (!fileToDelete) return;
+
+    try {
+      await permanentlyDeleteFileMutation({
+        variables: { fileID: fileToDelete.id },
+        refetchQueries: [{ query: GET_MY_TRASHED_FILES }],
+      });
+
+      setDeleteDialogOpen(false);
+      setFileToDelete(null);
+
+      // Refetch files or call callback
+      refetch();
+      if (onFileDeleted) {
+        onFileDeleted();
+      }
+    } catch (err: any) {
+      console.error('Permanent delete error:', err);
+      setTrashError(err.graphQLErrors?.[0]?.message || err.message || 'Permanent delete failed');
+    }
+  }, [fileToDelete, permanentlyDeleteFileMutation, refetch, onFileDeleted]);
+
+  const handleEmptyTrashConfirm = useCallback(async () => {
+    const trashedFiles = data?.myTrashedFiles || [];
+    if (trashedFiles.length === 0) return;
+
+    try {
+      // Permanently delete all files in trash
+      for (const file of trashedFiles) {
+        await permanentlyDeleteFileMutation({
+          variables: { fileID: file.id },
+          refetchQueries: [{ query: GET_MY_TRASHED_FILES }],
+        });
+      }
+
+      setEmptyTrashDialogOpen(false);
+      refetch();
+      if (onFileDeleted) {
+        onFileDeleted();
+      }
+      setSnackbarMessage(`Permanently deleted ${trashedFiles.length} file(s) from trash`);
+      setSnackbarOpen(true);
+    } catch (err: any) {
+      console.error('Empty trash error:', err);
+      setTrashError(err.graphQLErrors?.[0]?.message || err.message || 'Failed to empty trash');
+    }
+  }, [data?.myTrashedFiles, permanentlyDeleteFileMutation, refetch, onFileDeleted]);
 
   // Rename handlers
   const handleRenameConfirm = useCallback(async () => {
@@ -1154,16 +1498,39 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
   // Add keyboard and paste event listeners
   useEffect(() => {
-    const container = containerRef.current;
-    if (container) {
-      container.addEventListener('keydown', handleKeyDown);
-      container.addEventListener('paste', handlePasteEvent);
-      return () => {
-        container.removeEventListener('keydown', handleKeyDown);
-        container.removeEventListener('paste', handlePasteEvent);
-      };
-    }
-  }, [handleKeyDown, handlePasteEvent]);
+    const handleGlobalKeyDown = (event: KeyboardEvent) => {
+      // Only handle keyboard shortcuts if the file explorer is focused or has selection
+      const container = containerRef.current;
+      const hasSelection = selectedFiles.size > 0;
+      const isFocused = container && document.activeElement === container;
+      const isInFileExplorer = container && container.contains(document.activeElement);
+      
+      // Handle keyboard shortcuts if file explorer is active
+      if (hasSelection || isFocused || isInFileExplorer) {
+        handleKeyDown(event);
+      }
+    };
+
+    const handleGlobalPaste = (event: ClipboardEvent) => {
+      // Only handle paste if the file explorer is focused
+      const container = containerRef.current;
+      const isFocused = container && document.activeElement === container;
+      const isInFileExplorer = container && container.contains(document.activeElement);
+      
+      if (isFocused || isInFileExplorer) {
+        handlePasteEvent(event);
+      }
+    };
+
+    // Attach to document to catch all keyboard events
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    document.addEventListener('paste', handleGlobalPaste);
+    
+    return () => {
+      document.removeEventListener('keydown', handleGlobalKeyDown);
+      document.removeEventListener('paste', handleGlobalPaste);
+    };
+  }, [handleKeyDown, handlePasteEvent, selectedFiles]);
 
   // Focus container when component mounts
   useEffect(() => {
@@ -1171,6 +1538,13 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       containerRef.current.focus();
     }
   }, []);
+
+  // Focus container when navigating to a different folder
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.focus();
+    }
+  }, [folderId]);
 
   // Handle clicks outside the file explorer to clear selection
   useEffect(() => {
@@ -1194,7 +1568,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   }, [selectedFiles.size, onSelectionChange]);
 
   // Determine if drag and drop should be enabled
-  const isDragDropEnabled = allItems.length > 0 || uploads.length > 0 || !searchQuery;
+  const isDragDropEnabled = !isTrashMode && (allItems.length > 0 || uploads.length > 0 || !searchQuery);
 
 
 
@@ -1210,8 +1584,135 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
   const files = filteredFiles;
 
+  // Determine default title if not provided
+  const defaultTitle = folderId ? 'Folder Files' : 'My Files';
+  const displayTitle = title || defaultTitle;
+  const displayDescription = description || (folderId ? 'Files in selected folder' : 'Manage your secure encrypted files');
+
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Header Section */}
+      {showHeader && (
+        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 600, color: '#1f2937' }}>
+              {displayTitle}
+            </Typography>
+            <Typography variant="body2" color="#6b7280">
+              {displayDescription}
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            {isTrashMode && allItems.length > 0 && (
+              <Button
+                variant="outlined"
+                color="error"
+                size="small"
+                onClick={() => setEmptyTrashDialogOpen(true)}
+                startIcon={<DeleteForeverIcon />}
+              >
+                Empty Trash
+              </Button>
+            )}
+            {selectedFiles.size > 0 && (
+              <Typography variant="body2" sx={{ color: '#3b82f6', fontWeight: 500 }}>
+                {selectedFiles.size} item{selectedFiles.size !== 1 ? 's' : ''} selected
+              </Typography>
+            )}
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(_, newMode) => {
+                if (newMode && onViewModeChange) {
+                  onViewModeChange(newMode);
+                }
+              }}
+              size="small"
+            >
+              <ToggleButton value="list">
+                <ListIcon fontSize="small" />
+              </ToggleButton>
+              <ToggleButton value="tile">
+                <GridIcon fontSize="small" />
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+        </Box>
+      )}
+
+      {/* Navigation and Actions Row */}
+      {(showBreadcrumbs && folderPath.length > 0) || showNewFolderButton ? (
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+          {/* Back Navigation and Breadcrumbs */}
+          {showBreadcrumbs && folderPath.length > 0 ? (
+            <>
+              {canNavigateBack && onNavigateBack && (
+                <IconButton
+                  onClick={onNavigateBack}
+                  disabled={!canNavigateBack}
+                  sx={{ mr: 1 }}
+                  size="small"
+                >
+                  <ArrowBackIcon />
+                </IconButton>
+              )}
+              <Breadcrumbs
+                separator={<ChevronRightIcon fontSize="small" />}
+                sx={{ flexGrow: 1 }}
+              >
+                {folderPath.map((pathItem, index) => (
+                  <Link
+                    key={pathItem.id || 'root'}
+                    color={index === folderPath.length - 1 ? 'text.primary' : 'primary'}
+                    component="button"
+                    variant="body2"
+                    onClick={() => onBreadcrumbClick?.(index)}
+                    sx={{
+                      textDecoration: 'none',
+                      '&:hover': {
+                        textDecoration: index === folderPath.length - 1 ? 'none' : 'underline',
+                      },
+                      cursor: index === folderPath.length - 1 ? 'default' : 'pointer',
+                      border: 'none',
+                      background: 'none',
+                      padding: 0,
+                      font: 'inherit',
+                    }}
+                  >
+                    {pathItem.name}
+                  </Link>
+                ))}
+              </Breadcrumbs>
+            </>
+          ) : (
+            showBreadcrumbs && (
+              <Breadcrumbs sx={{ flexGrow: 1 }}>
+                <Typography
+                  color="primary"
+                  variant="body1"
+                  sx={{
+                    fontWeight: 500,
+                  }}
+                >
+                  Home
+                </Typography>
+              </Breadcrumbs>
+            )
+          )}
+          {showNewFolderButton && onCreateFolder && !isTrashMode && (
+            <Button
+              variant="contained"
+              startIcon={<CreateNewFolderIcon />}
+              onClick={onCreateFolder}
+              size="small"
+              sx={{ ml: 2 }}
+            >
+              New Folder
+            </Button>
+          )}
+        </Box>
+      ) : null}
+
       {/* Toolbar */}
       {(() => {
         const canPasteValue = cutItems.size > 0 || copiedItems.size > 0;
@@ -1219,6 +1720,26 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         const selectedItems = allItems.filter(item => selectedFiles.has(item.id));
         const hasFiles = selectedItems.some(item => isFile(item));
         console.log('DEBUG: Toolbar render - cutItems.size:', cutItems.size, 'copiedItems.size:', copiedItems.size, 'canPaste:', canPasteValue, 'hasSelection:', hasSelection, 'hasFiles:', hasFiles);
+
+        if (isTrashMode) {
+          // Trash mode toolbar - simplified with restore and permanent delete
+          return (
+            <FileToolbar
+              searchQuery={searchQuery}
+              sortBy={fileSortBy}
+              sortDirection={fileSortOrder}
+              onSearchChange={setSearchQuery}
+              onSortChange={setFileSortBy}
+              onToggleSortDirection={() => setFileSortOrder(fileSortOrder === 'asc' ? 'desc' : 'asc')}
+              onDelete={handleDeleteSelected} // This will be permanent delete in trash mode
+              onRestore={handleRestoreSelected}
+              canDelete={hasSelection}
+              canRestore={hasSelection && hasFiles}
+              cutItemsCount={selectedFiles.size}
+            />
+          );
+        }
+
         return (
           <FileToolbar
             searchQuery={searchQuery}
@@ -1262,6 +1783,11 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
           userSelect: 'none', // Prevent text selection during box selection
         }}
         onClick={(e) => {
+          // Focus the container when clicked
+          if (containerRef.current) {
+            containerRef.current.focus();
+          }
+          
           // Only clear selection if clicking on empty space
           const hasFileItem = (e.target as HTMLElement).closest('[data-file-item]');
           const hasButton = (e.target as HTMLElement).closest('button');
@@ -1298,6 +1824,23 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
                 Try adjusting your search terms
               </Typography>
             </Box>
+          ) : isTrashMode ? (
+            // Trash empty state
+            <Box
+              display="flex"
+              flexDirection="column"
+              alignItems="center"
+              justifyContent="center"
+              sx={{ height: '100%', minHeight: 300 }}
+            >
+              <DeleteForeverIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+              <Typography variant="h6" gutterBottom>
+                Trash is empty
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                Deleted files will appear here
+              </Typography>
+            </Box>
           ) : (
             // Normal empty state with drag and drop
             <Box
@@ -1329,6 +1872,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
                 onContextMenu={handleContextMenu}
                 onDownload={handleDownload}
                 onDelete={handleDeleteClick}
+                onRestore={isTrashMode ? handleRestoreClick : undefined}
                 onFolderClick={onFolderClick}
                 onFileMove={handleFileMove}
                 onItemSelect={handleItemSelect}
@@ -1346,6 +1890,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
                     onContextMenu={(e) => handleContextMenu(e, item.id)}
                     onDownload={() => isFile(item) ? handleDownload(item) : undefined}
                     onDelete={() => isFile(item) ? handleDeleteClick(item) : undefined}
+                    onRestore={() => isTrashMode && isFile(item) ? handleRestoreClick(item) : undefined}
                     onFolderClick={() => isFolder(item) ? onFolderClick?.(item.id, item.name) : undefined}
                     onStarToggle={() => {
                       if (isFile(item)) {
@@ -1488,27 +2033,48 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
               )}
 
               {/* Common options for both files and folders */}
-              <MenuItem onClick={() => {
-                setRenameItem(item);
-                setNewItemName(isItemFolder ? item.name : item.filename);
-                setRenameDialogOpen(true);
-                handleContextMenuClose();
-              }}>
-                <EditIcon sx={{ mr: 1 }} />
-                Rename
-              </MenuItem>
-              
-              <MenuItem onClick={() => {
-                if (isItemFile) {
-                  handleDeleteClick(item);
-                } else if (isItemFolder) {
-                  handleDeleteFolder(item);
-                }
-                handleContextMenuClose();
-              }}>
-                <DeleteIcon sx={{ mr: 1 }} />
-                Delete
-              </MenuItem>
+              {isTrashMode ? (
+                <>
+                  <MenuItem onClick={() => {
+                    handleRestoreClick(item);
+                    handleContextMenuClose();
+                  }}>
+                    <RestoreIcon sx={{ mr: 1 }} />
+                    Restore
+                  </MenuItem>
+                  <MenuItem onClick={() => {
+                    handlePermanentDeleteClick(item);
+                    handleContextMenuClose();
+                  }}>
+                    <DeleteForeverIcon sx={{ mr: 1 }} />
+                    Delete Permanently
+                  </MenuItem>
+                </>
+              ) : (
+                <>
+                  <MenuItem onClick={() => {
+                    setRenameItem(item);
+                    setNewItemName(isItemFolder ? item.name : item.filename);
+                    setRenameDialogOpen(true);
+                    handleContextMenuClose();
+                  }}>
+                    <EditIcon sx={{ mr: 1 }} />
+                    Rename
+                  </MenuItem>
+
+                  <MenuItem onClick={() => {
+                    if (isItemFile) {
+                      handleDeleteClick(item);
+                    } else if (isItemFolder) {
+                      handleDeleteFolder(item);
+                    }
+                    handleContextMenuClose();
+                  }}>
+                    <DeleteIcon sx={{ mr: 1 }} />
+                    Delete
+                  </MenuItem>
+                </>
+              )}
             </>
           );
         })()}
@@ -1567,17 +2133,28 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
       {/* Folder Delete Confirmation Dialog */}
       <Dialog open={folderDeleteDialogOpen} onClose={() => setFolderDeleteDialogOpen(false)}>
-        <DialogTitle>Delete Folder</DialogTitle>
+        <DialogTitle>{isTrashMode ? 'Permanently Delete Folder' : 'Delete Folder'}</DialogTitle>
         <DialogContent>
-          <Typography>
-            Are you sure you want to delete the folder "{folderToDelete?.name}" and all its contents?
-            Files can be restored from trash.
-          </Typography>
+          {isTrashMode ? (
+            <>
+              <Typography sx={{ mb: 2 }}>
+                Are you sure you want to permanently delete the folder "{folderToDelete?.name}" and all its contents?
+              </Typography>
+              <Alert severity="warning">
+                This action cannot be undone. The folder and all its contents will be completely removed from the system.
+              </Alert>
+            </>
+          ) : (
+            <Typography>
+              Are you sure you want to delete the folder "{folderToDelete?.name}" and all its contents?
+              Files can be restored from trash.
+            </Typography>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setFolderDeleteDialogOpen(false)}>Cancel</Button>
           <Button onClick={handleDeleteFolderConfirm} color="error" variant="contained">
-            Delete
+            {isTrashMode ? 'Permanently Delete' : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1686,6 +2263,93 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         <Alert severity="error" sx={{ mt: 2 }}>
           {error}
         </Alert>
+      )}
+
+      {/* Trash-specific dialogs */}
+      {isTrashMode && (
+        <>
+          {/* Restore Confirmation Dialog */}
+          <Dialog open={restoreDialogOpen} onClose={() => setRestoreDialogOpen(false)}>
+            <DialogTitle>Restore File</DialogTitle>
+            <DialogContent>
+              <Typography>
+                Are you sure you want to restore "{fileToRestore?.filename}"?
+                The file will be moved back to your main files.
+              </Typography>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setRestoreDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleRestoreConfirm} color="success" variant="contained">
+                Restore
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* Folder Restore Confirmation Dialog */}
+          <Dialog open={folderRestoreDialogOpen} onClose={() => setFolderRestoreDialogOpen(false)}>
+            <DialogTitle>Restore Folder</DialogTitle>
+            <DialogContent>
+              <Typography>
+                Are you sure you want to restore the folder "{folderToRestore?.name}" and all its contents?
+                The folder and its contents will be moved back to your main files.
+              </Typography>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setFolderRestoreDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleFolderRestoreConfirm} color="success" variant="contained">
+                Restore
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* Permanent Delete Confirmation Dialog */}
+          <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+            <DialogTitle>Permanently Delete File</DialogTitle>
+            <DialogContent>
+              <Typography sx={{ mb: 2 }}>
+                Are you sure you want to permanently delete "{fileToDelete?.filename}"?
+              </Typography>
+              <Alert severity="warning">
+                This action cannot be undone. The file will be completely removed from the system.
+              </Alert>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handlePermanentDeleteConfirm} color="error" variant="contained">
+                Delete Permanently
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* Empty Trash Confirmation Dialog */}
+          <Dialog open={emptyTrashDialogOpen} onClose={() => setEmptyTrashDialogOpen(false)}>
+            <DialogTitle>Empty Trash</DialogTitle>
+            <DialogContent>
+              <Typography sx={{ mb: 2 }}>
+                Are you sure you want to permanently delete all files in the trash?
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                This will permanently delete {data?.myTrashedFiles?.length || 0} file(s).
+              </Typography>
+              <Alert severity="error">
+                This action cannot be undone. All files in trash will be completely removed from the system.
+              </Alert>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setEmptyTrashDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleEmptyTrashConfirm} color="error" variant="contained">
+                Empty Trash
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* Trash Error Display */}
+          {trashError && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {trashError}
+            </Alert>
+          )}
+        </>
       )}
     </Box>
   );

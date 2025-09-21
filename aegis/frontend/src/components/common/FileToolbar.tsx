@@ -20,6 +20,7 @@ import {
   ContentPaste as PasteIcon,
   Delete as DeleteIcon,
   Star as StarIcon,
+  Restore as RestoreIcon,
 } from '@mui/icons-material';
 
 type SortOption = 'name' | 'date' | 'size' | 'type';
@@ -37,10 +38,12 @@ interface FileToolbarProps {
   onPaste?: () => void;
   onDelete?: () => void;
   onStar?: () => void;
+  onRestore?: () => void;
   canCut?: boolean;
   canPaste?: boolean;
   canDelete?: boolean;
   canStar?: boolean;
+  canRestore?: boolean;
   cutItemsCount?: number;
 }
 
@@ -56,10 +59,12 @@ const FileToolbar: React.FC<FileToolbarProps> = ({
   onPaste,
   onDelete,
   onStar,
+  onRestore,
   canCut,
   canPaste,
   canDelete,
   canStar,
+  canRestore,
   cutItemsCount,
 }) => {
   const handleSortChange = (event: SelectChangeEvent) => {
@@ -148,6 +153,21 @@ const FileToolbar: React.FC<FileToolbarProps> = ({
             color="primary"
           >
             <StarIcon />
+          </IconButton>
+        </Tooltip>
+      )}
+
+      {canRestore && (
+        <Tooltip title="Restore selected items">
+          <IconButton
+            onClick={(e) => {
+              e.stopPropagation();
+              onRestore?.();
+            }}
+            size="small"
+            color="primary"
+          >
+            <RestoreIcon />
           </IconButton>
         </Tooltip>
       )}

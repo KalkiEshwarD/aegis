@@ -175,7 +175,7 @@ func (s *FileService) UploadFile(userID uint, filename, mimeType, contentHash, e
 	if err := tx.Create(userFile).Error; err != nil {
 		// Check if it's a duplicate key error
 		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") ||
-		   strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			// Try to find the existing user file
 			tx.Rollback() // Rollback the transaction since we can't proceed with the duplicate
 			var existingUserFile models.UserFile
@@ -712,4 +712,167 @@ type FileFilter struct {
 	DateTo         *interface{}
 	IncludeTrashed *bool
 	FolderID       *string
+}
+
+//================================================================================
+// Folder Trash Operations
+//================================================================================
+
+func (s *FileService) GetTrashedFolders(userID uint) ([]*models.Folder, error) {
+	db := s.db.GetDB()
+
+	var folders []*models.Folder
+	// Using Unscoped() to include soft-deleted records, then filter for only trashed ones
+	if err := db.Unscoped().Where("user_id = ? AND deleted_at IS NOT NULL", userID).Find(&folders).Error; err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to get trashed folders")
+	}
+
+	return folders, nil
+}
+
+func (s *FileService) RestoreFolder(userID, folderID uint) error {
+	db := s.db.GetDB()
+
+	// Validate ownership using unscoped query to check trashed folders
+	var folder models.Folder
+	if err := db.Unscoped().Where("id = ? AND user_id = ?", folderID, userID).First(&folder).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperrors.Wrap(nil, apperrors.ErrCodeNotFound, "folder not found")
+		}
+		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to query folder")
+	}
+
+	// Check if folder is actually trashed
+	if !folder.DeletedAt.Valid {
+		return apperrors.Wrap(nil, apperrors.ErrCodeInvalidArgument, "folder is not in trash")
+	}
+
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.Wrap(tx.Error, apperrors.ErrCodeInternal, "failed to start transaction")
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Restore the folder
+	if err := tx.Unscoped().Model(&folder).Update("deleted_at", nil).Error; err != nil {
+		tx.Rollback()
+		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to restore folder")
+	}
+
+	// Get all descendant folders and restore them too
+	folderIDsToRestore, err := s.collectDescendantFolders(tx.Unscoped(), folderID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if len(folderIDsToRestore) > 0 {
+		if err := tx.Unscoped().Model(&models.Folder{}).Where("id IN (?) AND user_id = ?", folderIDsToRestore, userID).Update("deleted_at", nil).Error; err != nil {
+			tx.Rollback()
+			return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to restore descendant folders")
+		}
+	}
+
+	// Restore all files in the restored folders
+	allFolderIDs := append(folderIDsToRestore, folderID)
+	if err := tx.Unscoped().Model(&models.UserFile{}).Where("folder_id IN (?) AND user_id = ?", allFolderIDs, userID).Update("deleted_at", nil).Error; err != nil {
+		tx.Rollback()
+		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to restore files in folders")
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to commit transaction")
+	}
+
+	return nil
+}
+
+func (s *FileService) PermanentlyDeleteFolder(userID, folderID uint) error {
+	db := s.db.GetDB()
+
+	// Validate ownership using unscoped query to check trashed folders
+	var folder models.Folder
+	if err := db.Unscoped().Where("id = ? AND user_id = ?", folderID, userID).First(&folder).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperrors.Wrap(nil, apperrors.ErrCodeNotFound, "folder not found")
+		}
+		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to query folder")
+	}
+
+	// Check if folder is actually trashed
+	if !folder.DeletedAt.Valid {
+		return apperrors.Wrap(nil, apperrors.ErrCodeInvalidArgument, "folder is not in trash")
+	}
+
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.Wrap(tx.Error, apperrors.ErrCodeInternal, "failed to start transaction")
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Get all descendant folders
+	folderIDsToDelete, err := s.collectDescendantFolders(tx.Unscoped(), folderID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	folderIDsToDelete = append(folderIDsToDelete, folderID)
+
+	if len(folderIDsToDelete) > 0 {
+		// Get all user files in the folders to be permanently deleted
+		var userFiles []models.UserFile
+		if err := tx.Unscoped().Where("folder_id IN (?) AND user_id = ?", folderIDsToDelete, userID).Find(&userFiles).Error; err != nil {
+			tx.Rollback()
+			return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to get files in folders")
+		}
+
+		// Permanently delete all user files in the folders
+		for _, userFile := range userFiles {
+			// Validate ownership
+			if userFile.UserID != userID {
+				tx.Rollback()
+				return apperrors.Wrap(nil, apperrors.ErrCodeUnauthorized, "unauthorized access to file")
+			}
+
+			// Remove file from rooms
+			if err := tx.Where("user_file_id = ?", userFile.ID).Delete(&models.RoomFile{}).Error; err != nil {
+				tx.Rollback()
+				return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to remove file from rooms")
+			}
+
+			// Permanently delete user file record
+			if err := tx.Unscoped().Delete(&userFile).Error; err != nil {
+				tx.Rollback()
+				return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to permanently delete user file record")
+			}
+		}
+
+		// Remove folders from rooms
+		if err := tx.Where("folder_id IN (?)", folderIDsToDelete).Delete(&models.RoomFolder{}).Error; err != nil {
+			tx.Rollback()
+			return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to remove folders from rooms")
+		}
+
+		// Permanently delete folders in reverse order (children first)
+		for i := len(folderIDsToDelete) - 1; i >= 0; i-- {
+			if err := tx.Unscoped().Where("id = ? AND user_id = ?", folderIDsToDelete[i], userID).Delete(&models.Folder{}).Error; err != nil {
+				tx.Rollback()
+				return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to permanently delete folder")
+			}
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to commit transaction")
+	}
+
+	return nil
 }

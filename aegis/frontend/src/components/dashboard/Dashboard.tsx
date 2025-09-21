@@ -1,29 +1,15 @@
 import React, { memo, useState } from 'react';
 import {
-  Box,
-  Toolbar,
-  Typography,
-  Paper,
-  Chip,
-  Breadcrumbs,
-  IconButton,
-  Link,
-  ToggleButton,
-  ToggleButtonGroup,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
+   Box,
+   Toolbar,
+   Paper,
+   Button,
+   Dialog,
+   DialogTitle,
+   DialogContent,
+   DialogActions,
+   TextField,
 } from '@mui/material';
-import {
-  ArrowBack as ArrowBackIcon,
-  ChevronRight as ChevronRightIcon,
-  ViewList as ListViewIcon,
-  ViewModule as TileViewIcon,
-  CreateNewFolder as CreateNewFolderIcon,
-} from '@mui/icons-material';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_MY_STATS } from '../../apollo/files';
 import { CREATE_FOLDER_MUTATION } from '../../apollo/folders';
@@ -38,8 +24,6 @@ import { useDashboardNavigation } from '../../hooks/useDashboardNavigation';
 import { useUserMenu } from '../../hooks/useUserMenu';
 import withAuth from '../hocs/withAuth';
 import withErrorBoundary from '../hocs/withErrorBoundary';
-import withDataFetching from '../hocs/withDataFetching';
-
 const drawerWidth = 240;
 
 const Dashboard: React.FC = () => {
@@ -48,7 +32,6 @@ const Dashboard: React.FC = () => {
   const [createFolderDialogOpen, setCreateFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [folderCreationError, setFolderCreationError] = useState<string | null>(null);
-  const [selectedCount, setSelectedCount] = useState(0);
 
   const { data: statsData, loading: statsLoading } = useQuery(GET_MY_STATS, {
     fetchPolicy: 'cache-and-network',
@@ -74,8 +57,6 @@ const Dashboard: React.FC = () => {
     anchorEl,
     handleMenuOpen,
     handleMenuClose,
-    handleLogout,
-    handleAdminPanel,
   } = useUserMenu();
 
   const handleUploadComplete = () => {
@@ -163,27 +144,6 @@ const Dashboard: React.FC = () => {
       <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
         <Toolbar />
         
-        {/* Header */}
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="h4" sx={{ fontWeight: 600, color: '#1f2937', mb: 1 }}>
-            {selectedNav === 'trash' ? 'Trash' :
-             selectedNav === 'shared' ? 'Shared Files' :
-             selectedNav === 'starred' ? 'Starred Files' :
-             selectedFolderId ? 'Folder Files' : 'My Files'}
-          </Typography>
-          <Typography variant="body1" sx={{ color: '#6b7280' }}>
-            {selectedNav === 'trash'
-              ? 'Manage your deleted files - restore or permanently delete'
-              : selectedNav === 'shared'
-                ? 'View and manage your shared files'
-              : selectedNav === 'starred'
-                ? 'Your starred files for quick access'
-              : selectedFolderId
-                ? 'Files in selected folder'
-                : 'Manage your secure encrypted files'
-            }
-          </Typography>
-        </Box>
 
         {/* Stats Cards - Only show for home view */}
         {selectedNav === 'home' && (
@@ -236,103 +196,6 @@ const Dashboard: React.FC = () => {
             boxShadow: 'none',
             borderRadius: 3
           }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-              <Box>
-                <Typography variant="h6" sx={{ fontWeight: 600, color: '#1f2937' }}>
-                  Your Files
-                </Typography>
-                <Typography variant="body2" color="#6b7280">
-                  Manage your encrypted files. Click download to decrypt and save locally.
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                {selectedCount > 0 && (
-                  <Typography variant="body2" sx={{ color: '#3b82f6', fontWeight: 500 }}>
-                    {selectedCount} item{selectedCount !== 1 ? 's' : ''} selected
-                  </Typography>
-                )}
-                <ToggleButtonGroup
-                  value={viewMode}
-                  exclusive
-                  onChange={(_, newMode) => newMode && setViewMode(newMode)}
-                  size="small"
-                >
-                  <ToggleButton value="list">
-                    <ListViewIcon fontSize="small" />
-                  </ToggleButton>
-                  <ToggleButton value="tile">
-                    <TileViewIcon fontSize="small" />
-                  </ToggleButton>
-                </ToggleButtonGroup>
-              </Box>
-            </Box>
-
-            {/* Navigation and Actions Row - Show for home view */}
-            {selectedNav === 'home' && (
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                {/* Back Navigation and Breadcrumbs */}
-                {selectedFolderId ? (
-                  <>
-                    <IconButton
-                      onClick={handleNavigateBack}
-                      disabled={!canNavigateBack}
-                      sx={{ mr: 1 }}
-                      size="small"
-                    >
-                      <ArrowBackIcon />
-                    </IconButton>
-                    <Breadcrumbs
-                      separator={<ChevronRightIcon fontSize="small" />}
-                      sx={{ flexGrow: 1 }}
-                    >
-                      {folderPath.map((pathItem, index) => (
-                        <Link
-                          key={pathItem.id || 'root'}
-                          color={index === folderPath.length - 1 ? 'text.primary' : 'primary'}
-                          component="button"
-                          variant="body2"
-                          onClick={() => handleBreadcrumbClick(index)}
-                          sx={{
-                            textDecoration: 'none',
-                            '&:hover': {
-                              textDecoration: index === folderPath.length - 1 ? 'none' : 'underline',
-                            },
-                            cursor: index === folderPath.length - 1 ? 'default' : 'pointer',
-                            border: 'none',
-                            background: 'none',
-                            padding: 0,
-                            font: 'inherit',
-                          }}
-                        >
-                          {pathItem.name}
-                        </Link>
-                      ))}
-                    </Breadcrumbs>
-                  </>
-                ) : (
-                  <Breadcrumbs sx={{ flexGrow: 1 }}>
-                    <Typography
-                      color="primary"
-                      variant="body1"
-                      sx={{
-                        fontWeight: 500,
-                      }}
-                    >
-                      Home
-                    </Typography>
-                  </Breadcrumbs>
-                )}
-                <Button
-                  variant="contained"
-                  startIcon={<CreateNewFolderIcon />}
-                  onClick={handleCreateFolderClick}
-                  size="small"
-                  sx={{ ml: 2 }}
-                >
-                  New Folder
-                </Button>
-              </Box>
-            )}
 
 
             <FileExplorer
@@ -342,8 +205,19 @@ const Dashboard: React.FC = () => {
               onFolderClick={(folderId, folderName) => handleFolderSelect(folderId, folderName)}
               externalSearchTerm={searchTerm}
               externalViewMode={viewMode}
-              onSelectionChange={setSelectedCount}
               key={refreshTrigger}
+              // Header props
+              showHeader={true}
+              title={selectedFolderId ? 'Folder Files' : 'My Files'}
+              description={selectedFolderId ? 'Files in selected folder' : 'Manage your secure encrypted files'}
+              showBreadcrumbs={true}
+              folderPath={folderPath}
+              onBreadcrumbClick={handleBreadcrumbClick}
+              canNavigateBack={canNavigateBack}
+              onNavigateBack={handleNavigateBack}
+              showNewFolderButton={true}
+              onCreateFolder={handleCreateFolderClick}
+              onViewModeChange={setViewMode}
             />
           </Paper>
         )}

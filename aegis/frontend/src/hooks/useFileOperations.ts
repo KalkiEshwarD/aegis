@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useMutation } from '@apollo/client';
-import { DELETE_FILE_MUTATION, DOWNLOAD_FILE_MUTATION, GET_MY_STATS, CREATE_FILE_SHARE_MUTATION, ACCESS_SHARED_FILE_MUTATION } from '../apollo/queries';
+import { DELETE_FILE_MUTATION, DOWNLOAD_FILE_MUTATION, GET_MY_STATS, GET_MY_FILES, GET_MY_TRASHED_FILES, CREATE_FILE_SHARE_MUTATION, ACCESS_SHARED_FILE_MUTATION } from '../apollo/queries';
 import {
   decryptFile,
   base64ToEncryptionKey,
@@ -99,7 +99,11 @@ export const useFileOperations = () => {
     try {
       await deleteFileMutation({
         variables: { id: file.id },
-        refetchQueries: [{ query: GET_MY_STATS }],
+        refetchQueries: [
+          { query: GET_MY_STATS },
+          { query: GET_MY_FILES },
+          { query: GET_MY_TRASHED_FILES }
+        ],
       });
       return true;
     } catch (err: any) {

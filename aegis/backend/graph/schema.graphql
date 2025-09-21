@@ -277,6 +277,7 @@ type Query {
   myFiles(filter: FileFilterInput): [UserFile!]!
   myStarredFiles: [UserFile!]!
   myTrashedFiles: [UserFile!]!
+  myTrashedFolders: [Folder!]!
   myStats: UserStats!
 
   # Room queries
@@ -316,6 +317,8 @@ type Mutation {
   deleteFile(id: ID!): Boolean!
   restoreFile(fileID: ID!): Boolean!
   permanentlyDeleteFile(fileID: ID!): Boolean!
+  restoreFolder(folderID: ID!): Boolean!
+  permanentlyDeleteFolder(folderID: ID!): Boolean!
   downloadFile(id: ID!): String! # Returns download URL
   starFile(id: ID!): Boolean!
   unstarFile(id: ID!): Boolean!
