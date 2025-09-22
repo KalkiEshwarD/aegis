@@ -2,7 +2,18 @@
 
 A production-ready, end-to-end encrypted file vault system built with React.js frontend and Go backend, following enterprise security practices.
 
-## 🏗️ Architecture
+## NOTE
+
+* Environment variables must set in the ./aegis/ directory
+* Please create user and password for each of the volumes of the backend to start running the application. 
+* This is the primary commit but an older one with less features
+* The newer commits are listed in branch (buggy-main-branch-before-reset)
+* This is end to end encrypted application
+* Supports keyboard shortcuts
+* BUG: File Explorere toolbar cut, copy paste fail to work in this commit.
+* Supports end-to-end encrypted password-based permissioned file sharinggit
+
+## Architecture
 
 ```
 aegis/
@@ -19,7 +30,7 @@ aegis/
 - **Storage**: MinIO S3-compatible (encrypted file blobs)
 - **Security**: End-to-End Encryption (TweetNaCl) + JWT Authentication
 
-## 🔒 Security Features
+## Security Features
 
 ### End-to-End Encryption (E2EE)
 - **Client-side encryption**: Files encrypted in browser before upload
@@ -38,34 +49,34 @@ aegis/
 - **SQL injection prevention** via parameterized queries
 - **Input validation** at API and service layers
 
-## 🚀 Features Implemented
+## Features Implemented
 
-### ✅ Core Infrastructure
+### Core Infrastructure
 - [x] **Multi-service Docker setup** (PostgreSQL, MinIO, Go, React)
 - [x] **Database schema with migrations** (users, files, rooms, permissions)
 - [x] **GraphQL API layer** with type-safe code generation
 - [x] **Apollo Client integration** with error handling and caching
 - [x] **Material-UI component library** for rapid UI development
 
-### ✅ Authentication System
+### Authentication System
 - [x] **User registration and login** with form validation
 - [x] **JWT token management** with localStorage persistence
 - [x] **Protected route handling** with role-based access
 - [x] **Admin panel access control** for privileged users
 
-### ✅ File Management Core
+### File Management Core
 - [x] **End-to-end encryption utilities** (encrypt/decrypt/hash)
 - [x] **File upload service layer** with encryption and validation
 - [x] **MinIO integration** for scalable object storage
 - [x] **Database models** for file relationships and metadata
 
-### ✅ Collaboration Framework
+### Collaboration Framework
 - [x] **Room-based sharing system** with granular permissions
 - [x] **Role management** (Admin, Creator, Editor, Viewer)
 - [x] **File sharing within rooms** with access control
 - [x] **User invitation system** for collaborative workflows
 
-### ✅ Administration Features
+### Administration Features
 - [x] **Admin dashboard** with system statistics
 - [x] **User management capabilities** (promote, delete)
 - [x] **System monitoring endpoints** for health checks
@@ -164,11 +175,11 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com
 ## 📋 Next Implementation Phase
 
 ### File Operations UI
-- [ ] Drag-and-drop file upload component
-- [ ] File listing with search/filter capabilities
-- [ ] Download/decrypt file functionality
-- [ ] File deletion with confirmation dialogs
-- [ ] Storage usage visualization
+- [x] Drag-and-drop file upload component
+- [x] File listing with search/filter capabilities
+- [x] Download/decrypt file functionality
+- [x] File deletion with confirmation dialogs
+- [x] Storage usage visualization
 
 ### Collaboration Features
 - [ ] Room creation and management UI
@@ -194,9 +205,9 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com
 ## 🧪 Testing Strategy
 
 ### Automated Testing
-- [ ] Unit tests for crypto utilities
-- [ ] GraphQL resolver integration tests
-- [ ] End-to-end user flow tests (Playwright)
+- [x] Unit tests for crypto utilities
+- [x] GraphQL resolver integration tests
+- [c] End-to-end user flow tests (Playwright)
 - [ ] Performance tests for file operations
 - [ ] Security penetration testing
 
@@ -207,23 +218,15 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com
 - [ ] Container security scanning
 - [ ] API contract testing
 
-## 📚 API Documentation
 
-The GraphQL API is self-documenting and available at `/graphql` in development mode. Key operations include:
-
-- **Authentication**: `login`, `register`
-- **File Management**: `uploadFile`, `downloadFile`, `deleteFile`
-- **Room Operations**: `createRoom`, `addRoomMember`, `shareFileToRoom`
-- **Admin Functions**: `promoteUserToAdmin`, `adminDashboard`
-
-## 🚀 Deployment
+## Deployment
 
 ### Docker Production
 ```bash
 docker-compose -f docker-compose.prod.yml up -d
 ```
 
-### CI/CD Pipeline
+### CI/CD Pipeline (Not yet fully implemented refer buggy-main-branch-before-reset branch)
 - GitHub Actions workflow for automated builds
 - Container registry integration
 - Automated security scanning
@@ -231,6 +234,4 @@ docker-compose -f docker-compose.prod.yml up -d
 
 ---
 
-**Built with ❤️ for BalkanID University Capstone Program**
-
-*This project demonstrates production-grade software development practices including security-first design, scalable architecture, comprehensive testing, and enterprise-ready deployment strategies.*
+Copyright Kalki Eshwar D 2025
