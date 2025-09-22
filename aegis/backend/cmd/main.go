@@ -16,8 +16,6 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/crypto/nacl/secretbox"
-
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gin-contrib/cors"
@@ -102,29 +100,30 @@ func main() {
 
 	fileStorageService := services.NewFileStorageService(minioClient, bucketName)
 
-	// Initialize new services
-	keyManagementService := services.NewKeyManagementService()
-	encryptionService := services.NewEncryptionService(keyManagementService)
+	// Initialize centralized crypto manager
+	cryptoManager, err := services.NewCryptoManager()
+	if err != nil {
+		log.Fatalf("Failed to initialize crypto manager: %v", err)
+	}
 
 	authService := services.NewAuthService(cfg)
 	fileService := services.NewFileService(cfg, db, fileStorageService, authService)
 	userService := services.NewUserService(authService, db)
 	roomService := services.NewRoomService(db)
 	adminService := services.NewAdminService(db)
-	shareService := services.NewShareService(db, cfg.BaseURL, encryptionService)
+	shareService := services.NewShareService(db, cfg.BaseURL, cryptoManager)
 
 	// Initialize handlers
 	fileHandler := handlers.NewFileHandler(fileService, authService)
 
 	// Initialize GraphQL resolver
 	resolver := &graph.Resolver{
-		FileService:          fileService,
-		UserService:          userService,
-		RoomService:          roomService,
-		AdminService:         adminService,
-		ShareService:         shareService,
-		EncryptionService:    encryptionService,
-		KeyManagementService: keyManagementService,
+		FileService:   fileService,
+		UserService:   userService,
+		RoomService:   roomService,
+		AdminService:  adminService,
+		ShareService:  shareService,
+		CryptoManager: cryptoManager,
 	}
 
 	// Create GraphQL server with custom error handling
@@ -379,22 +378,9 @@ func main() {
 				return
 			}
 
-			// Decrypt the file content using NaCl secretbox (compatible with TweetNaCl)
-			// Extract nonce from the first 24 bytes (TweetNaCl secretbox nonce length)
-			if len(encryptedData) < 24 {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid encrypted file format"})
-				return
-			}
-
-			var nonce [24]byte
-			var secretboxKey [32]byte
-			copy(nonce[:], encryptedData[:24])
-			copy(secretboxKey[:], fileKey[:32]) // Ensure we have exactly 32 bytes for the key
-
-			ciphertext := encryptedData[24:]
-
-			decryptedData, ok := secretbox.Open(nil, ciphertext, &nonce, &secretboxKey)
-			if !ok {
+			// Decrypt the file content using the centralized crypto manager
+			decryptedData, err := cryptoManager.DecryptFileWithNoncePrefix(encryptedData, fileKey)
+			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decrypt file"})
 				return
 			}

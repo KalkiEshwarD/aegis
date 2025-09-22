@@ -39,7 +39,7 @@ func NewTestGraphQLServer(cfg *config.Config) *TestGraphQLServer {
 	gin.SetMode(gin.TestMode)
 
 	// Initialize test database
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{}) 
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create test database: %v", err))
 	}
@@ -72,8 +72,12 @@ func NewTestGraphQLServer(cfg *config.Config) *TestGraphQLServer {
 	r := gin.Default()
 
 	// Add CORS middleware
+	corsOrigins := cfg.CORSAllowedOrigins
+	if corsOrigins == "" {
+		corsOrigins = "*" // Default for tests
+	}
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     strings.Split(cfg.CORSAllowedOrigins, ","),
+		AllowOrigins:     strings.Split(corsOrigins, ","),
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},

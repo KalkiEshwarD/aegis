@@ -20,14 +20,16 @@ func (suite *ShareIntegrationTestSuite) SetupTest() {
 	// Call parent setup
 	suite.BaseIntegrationTestSuite.SetupTest()
 
-	// Create encryption service for testing
-	keyManagementService := services.NewKeyManagementService()
-	encryptionService := services.NewEncryptionService(keyManagementService)
+	// Create crypto manager for testing
+	cryptoManager, err := services.NewCryptoManager()
+	if err != nil {
+		suite.T().Fatalf("Failed to create crypto manager: %v", err)
+	}
 
 	// Create database service wrapper
 	dbService := database.NewDB(suite.TestDB)
 
-	suite.shareService = services.NewShareService(dbService, "http://localhost:8080", encryptionService)
+	suite.shareService = services.NewShareService(dbService, "http://localhost:8080", cryptoManager)
 }
 
 func (suite *ShareIntegrationTestSuite) TestCreateShareWithUsernameRestrictions() {

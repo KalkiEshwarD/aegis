@@ -2,11 +2,16 @@ import { useState, useCallback } from 'react';
 import { useMutation } from '@apollo/client';
 import { DELETE_FILE_MUTATION, DOWNLOAD_FILE_MUTATION, GET_MY_STATS, GET_MY_FILES, GET_MY_TRASHED_FILES, CREATE_FILE_SHARE_MUTATION, ACCESS_SHARED_FILE_MUTATION } from '../apollo/queries';
 import {
+  cryptoManager,
   decryptFile,
   base64ToEncryptionKey,
+  decryptFileKeyWithPassword,
+} from '../utils/cryptoManager';
+import { 
+  uint8ArrayToBase64,
+  extractNonceAndData,
   createDownloadBlob,
   downloadFile,
-  extractNonceAndData,
 } from '../utils/crypto';
 import { UserFile, CreateFileShareInput } from '../types';
 import { useAuth } from '../contexts/AuthContext';

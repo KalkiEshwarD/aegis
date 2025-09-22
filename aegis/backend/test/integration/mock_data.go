@@ -155,7 +155,7 @@ func GenerateTestContentHash(content string) string {
 // SetupBasicTestData creates a basic set of test data for integration tests
 func SetupBasicTestData(db *gorm.DB) (*TestData, error) {
 	// Create test users
-	adminUser, err := CreateTestUser(db, "admin@test.com", "password123", true)
+	adminUser, err := CreateTestUser(db, "testadmin@test.com", "password123", true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create admin user: %w", err)
 	}
@@ -185,12 +185,12 @@ func SetupBasicTestData(db *gorm.DB) (*TestData, error) {
 	}
 
 	// Create user files
-	userFile1, err := CreateTestUserFile(db, regularUser.ID, file1.ID, "testfile.txt", "text/plain", "encrypted_key_1")
+	userFile1, err := CreateTestUserFile(db, regularUser.ID, file1.ID, "testfile.txt", "text/plain", "dGVzdGVuY3J5cHRpb25rZXkxMjM0NTY3ODkwYWJjZGVm") // base64 for "testencryptionkey1234567890abcdef"
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user file 1: %w", err)
 	}
 
-	userFile2, err := CreateTestUserFile(db, regularUser.ID, file2.ID, "document.pdf", "application/pdf", "encrypted_key_2")
+	userFile2, err := CreateTestUserFile(db, regularUser.ID, file2.ID, "document.pdf", "application/pdf", "dGVzdGVuY3J5cHRpb25rZXkwOTg3NjU0MzIxZGNiYWZl") // base64 for "testencryptionkey0987654321dcbafe"
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user file 2: %w", err)
 	}

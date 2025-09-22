@@ -15,7 +15,6 @@ import (
 	"github.com/balkanid/aegis-backend/internal/database"
 	apperrors "github.com/balkanid/aegis-backend/internal/errors"
 	"github.com/balkanid/aegis-backend/internal/models"
-	"github.com/balkanid/aegis-backend/internal/utils"
 	"gorm.io/gorm"
 )
 
@@ -25,25 +24,17 @@ import (
 
 type ShareService struct {
 	*BaseService
-	baseURL           string
-	cryptoConfig      *utils.CryptoConfig
-	rateLimiter       *RateLimiter
-	encryptionService *EncryptionService
-	sharePasswordKey  []byte // Service-wide key for encrypting share passwords
+	baseURL       string
+	rateLimiter   *RateLimiter
+	cryptoManager *CryptoManager
 }
 
-func NewShareService(db *database.DB, baseURL string, encryptionService *EncryptionService) *ShareService {
-	// Generate a service-wide key for encrypting share passwords
-	// In production, this should be loaded from a secure key store
-	sharePasswordKey, _ := utils.GenerateRandomKey(32)
-
+func NewShareService(db *database.DB, baseURL string, cryptoManager *CryptoManager) *ShareService {
 	return &ShareService{
-		BaseService:       NewBaseService(db),
-		baseURL:           strings.TrimSuffix(baseURL, "/"),
-		cryptoConfig:      utils.DefaultCryptoConfig(),
-		rateLimiter:       NewRateLimiter(),
-		encryptionService: encryptionService,
-		sharePasswordKey:  sharePasswordKey,
+		BaseService:   NewBaseService(db),
+		baseURL:       strings.TrimSuffix(baseURL, "/"),
+		rateLimiter:   NewRateLimiter(),
+		cryptoManager: cryptoManager,
 	}
 }
 
@@ -52,7 +43,7 @@ func NewShareService(db *database.DB, baseURL string, encryptionService *Encrypt
 //================================================================================
 
 func (s *ShareService) CreateShare(userFileID uint, masterPassword string, maxDownloads int, expiresAt *time.Time, allowedUsernames []string) (*models.FileShare, error) {
-	if err := utils.ValidatePasswordStrength(masterPassword); err != nil {
+	if err := s.cryptoManager.ValidatePasswordStrength(masterPassword); err != nil {
 		return nil, err
 	}
 
@@ -70,19 +61,19 @@ func (s *ShareService) CreateShare(userFileID uint, masterPassword string, maxDo
 	}
 
 	// Generate envelope key
-	envelopeKey, err := s.encryptionService.keyManager.GenerateEnvelopeKey()
+	envelopeKey, err := s.cryptoManager.GenerateEnvelopeKey()
 	if err != nil {
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to generate envelope key")
 	}
 
 	// Encrypt envelope key with password using PBKDF2+AES-GCM
-	encryptedEnvelopeKey, envelopeSalt, envelopeIV, err := s.encryptionService.EncryptEnvelopeKey(envelopeKey, masterPassword)
+	encryptedEnvelopeKey, envelopeSalt, envelopeIV, err := s.cryptoManager.EncryptEnvelopeKey(envelopeKey, masterPassword)
 	if err != nil {
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to encrypt envelope key")
 	}
 
 	// Encrypt file key with envelope key
-	encryptedFileKey, fileKeyIV, err := s.encryptionService.EncryptFileKey(fileKey, envelopeKey)
+	encryptedFileKey, fileKeyIV, err := s.cryptoManager.EncryptFileKey(fileKey, envelopeKey)
 	if err != nil {
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to encrypt file key with envelope key")
 	}
@@ -154,7 +145,7 @@ func (s *ShareService) UpdateShare(userID uint, shareID uint, masterPassword *st
 
 	// Update password if provided
 	if masterPassword != nil {
-		if err := utils.ValidatePasswordStrength(*masterPassword); err != nil {
+		if err := s.cryptoManager.ValidatePasswordStrength(*masterPassword); err != nil {
 			return nil, err
 		}
 
@@ -163,7 +154,7 @@ func (s *ShareService) UpdateShare(userID uint, shareID uint, masterPassword *st
 			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "invalid file encryption key")
 		}
 
-		encryptedKeyData, err := utils.EncryptFileKeyWithPassword(fileKey, *masterPassword, s.cryptoConfig)
+		encryptedKeyData, err := s.cryptoManager.EncryptFileKeyWithPassword(fileKey, *masterPassword)
 		if err != nil {
 			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to encrypt file key")
 		}
@@ -241,13 +232,13 @@ func (s *ShareService) DecryptFileKey(fileShare *models.FileShare, masterPasswor
 	// Use envelope key decryption for new shares
 	if fileShare.EnvelopeKey != "" && fileShare.EnvelopeSalt != "" && fileShare.EnvelopeIV != "" {
 		// Decrypt envelope key with password
-		envelopeKey, err := s.encryptionService.DecryptEnvelopeKey(fileShare.EnvelopeKey, fileShare.EnvelopeSalt, fileShare.EnvelopeIV, masterPassword)
+		envelopeKey, err := s.cryptoManager.DecryptEnvelopeKey(fileShare.EnvelopeKey, fileShare.EnvelopeSalt, fileShare.EnvelopeIV, masterPassword)
 		if err != nil {
 			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to decrypt envelope key")
 		}
 
 		// Decrypt file key with envelope key
-		fileKey, err := s.encryptionService.DecryptFileKey(fileShare.EncryptedKey, fileShare.IV, envelopeKey)
+		fileKey, err := s.cryptoManager.DecryptFileKey(fileShare.EncryptedKey, fileShare.IV, envelopeKey)
 		if err != nil {
 			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to decrypt file key")
 		}
@@ -256,13 +247,13 @@ func (s *ShareService) DecryptFileKey(fileShare *models.FileShare, masterPasswor
 	}
 
 	// Fallback to legacy decryption for backward compatibility
-	encryptedKeyData := &utils.EncryptedKeyData{
+	encryptedKeyData := &EncryptedKeyData{
 		EncryptedKey: fileShare.EncryptedKey,
 		Salt:         fileShare.Salt,
 		IV:           fileShare.IV,
 	}
 
-	fileKey, err := utils.DecryptFileKeyWithPassword(encryptedKeyData, masterPassword, s.cryptoConfig)
+	fileKey, err := s.cryptoManager.DecryptFileKeyWithPassword(encryptedKeyData, masterPassword)
 	if err != nil {
 		return nil, err
 	}
@@ -324,11 +315,11 @@ func (s *ShareService) GetUserShares(userID uint) ([]*models.FileShare, error) {
 }
 
 func (s *ShareService) encryptSharePassword(password string) (encryptedPassword string, iv string, err error) {
-	return utils.EncryptSharePassword(password, s.sharePasswordKey)
+	return s.cryptoManager.EncryptSharePassword(password)
 }
 
 func (s *ShareService) decryptSharePassword(encryptedPassword, iv string) (string, error) {
-	return utils.DecryptSharePassword(encryptedPassword, iv, s.sharePasswordKey)
+	return s.cryptoManager.DecryptSharePassword(encryptedPassword, iv)
 }
 
 func (s *ShareService) generateShareToken() (string, error) {
