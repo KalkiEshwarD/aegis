@@ -29,3 +29,8 @@ aegis/frontend/.idea
 *.sw?
 
 .env
+
+aegis/google-cloud-sdk
+aegis/backend/test
+aegis/frontend/playwright-report
+aegis/frontend/test-results

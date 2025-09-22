@@ -1,2 +1,0 @@
-This is another test file for testing individual file deletion.
-Content: Testing individual file deletion and restore behavior.
