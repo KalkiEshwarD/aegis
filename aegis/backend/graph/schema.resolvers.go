@@ -6,6 +6,7 @@ package graph
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -880,7 +881,8 @@ func (r *mutationResolver) AccessSharedFile(ctx context.Context, input model.Acc
 	}
 
 	// Add decrypted key as query parameter for frontend decryption
-	downloadURL += "?key=" + string(decryptedKey)
+	// Base64 encode the raw key bytes for safe URL transmission
+	downloadURL += "?key=" + base64.StdEncoding.EncodeToString(decryptedKey)
 
 	return downloadURL, nil
 }

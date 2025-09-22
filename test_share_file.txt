@@ -1,0 +1,5 @@
+Hello World! This is a test file for sharing functionality.
+The contents should be exactly this after downloading and decryption.
+Let's add some special characters: !@#$%^&*()
+And some numbers: 1234567890
+Testing complete file integrity.
