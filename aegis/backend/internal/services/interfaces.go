@@ -32,7 +32,7 @@ type RoomServiceInterface interface {
 	CreateRoom(creatorID uint, name string) (*models.Room, error)
 	GetUserRooms(userID uint) ([]*models.Room, error)
 	GetRoom(roomID, userID uint) (*models.Room, error)
-	AddRoomMember(roomID, userID, requesterID uint, role models.RoomRole) error
+	AddRoomMember(roomID uint, username string, requesterID uint, role models.RoomRole) error
 	RemoveRoomMember(roomID, userID, requesterID uint) error
 	ShareFileToRoom(userFileID, roomID, userID uint) error
 	RemoveFileFromRoom(userFileID, roomID, userID uint) error

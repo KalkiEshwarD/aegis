@@ -8,16 +8,22 @@ import (
 
 // User represents a user in the system
 type User struct {
-	ID           uint           `gorm:"primaryKey" json:"id"`
-	Username     string         `gorm:"uniqueIndex;not null" json:"username"`
-	Email        string         `gorm:"uniqueIndex;not null" json:"email"`
-	PasswordHash string         `gorm:"not null" json:"-"`
-	StorageQuota int64          `gorm:"default:10485760" json:"storage_quota"` // 10MB default
-	UsedStorage  int64          `gorm:"default:0" json:"used_storage"`
-	IsAdmin      bool           `json:"is_admin"`
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
-	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
+	ID                   uint           `gorm:"primaryKey" json:"id"`
+	Username             string         `gorm:"uniqueIndex;not null" json:"username"`
+	Email                string         `gorm:"uniqueIndex;not null" json:"email"`
+	PasswordHash         string         `gorm:"not null" json:"-"`
+	StorageQuota         int64          `gorm:"default:10485760" json:"storage_quota"` // 10MB default
+	UsedStorage          int64          `gorm:"default:0" json:"used_storage"`
+	IsAdmin              bool           `json:"is_admin"`
+	EnvelopeKey          string         `gorm:"not null;default:''" json:"-"` // Encrypted envelope key
+	EnvelopeKeyVersion   int            `gorm:"not null;default:1;index" json:"envelope_key_version"`
+	EnvelopeKeySalt      string         `gorm:"not null;default:''" json:"-"` // Salt for envelope key encryption
+	EnvelopeKeyIV        string         `gorm:"not null;default:''" json:"-"` // IV for envelope key encryption
+	EnvelopeKeyCreatedAt time.Time      `json:"envelope_key_created_at"`
+	EnvelopeKeyUpdatedAt time.Time      `json:"envelope_key_updated_at"`
+	CreatedAt            time.Time      `json:"created_at"`
+	UpdatedAt            time.Time      `json:"updated_at"`
+	DeletedAt            gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
 // File represents a unique file content (by hash)
@@ -271,4 +277,48 @@ func (SharedFileAccess) TableName() string {
 
 func (ShareRateLimit) TableName() string {
 	return "share_rate_limits"
+}
+
+// KeyRotation represents an envelope key rotation operation
+type KeyRotation struct {
+	ID                   uint      `gorm:"primaryKey" json:"id"`
+	UserID               uint      `gorm:"not null;index" json:"user_id"`
+	RotationID           string    `gorm:"uniqueIndex;not null" json:"rotation_id"` // UUID for tracking
+	Status               string    `gorm:"not null" json:"status"`                  // PENDING, IN_PROGRESS, COMPLETED, FAILED, ROLLED_BACK
+	OldEnvelopeKeyVersion int      `gorm:"not null" json:"old_envelope_key_version"`
+	NewEnvelopeKeyVersion int      `gorm:"not null" json:"new_envelope_key_version"`
+	TotalFilesAffected   int       `gorm:"not null;default:0" json:"total_files_affected"`
+	FilesProcessed       int       `gorm:"not null;default:0" json:"files_processed"`
+	StartedAt            time.Time `json:"started_at"`
+	CompletedAt          *time.Time `json:"completed_at"`
+	FailedAt             *time.Time `json:"failed_at"`
+	ErrorMessage         string    `json:"error_message"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
+
+	// Associations
+	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`
+}
+
+// KeyRotationBackup stores backup data for rollback operations
+type KeyRotationBackup struct {
+	ID              uint      `gorm:"primaryKey" json:"id"`
+	RotationID      string    `gorm:"not null;index" json:"rotation_id"`
+	UserFileID      uint      `gorm:"not null;index" json:"user_file_id"`
+	OldEncryptionKey string   `gorm:"not null" json:"old_encryption_key"` // Backup of old encrypted file key
+	OldKeyIV        string    `gorm:"not null" json:"old_key_iv"`         // Backup of old IV
+	BackupCreatedAt time.Time `json:"backup_created_at"`
+	CreatedAt       time.Time `json:"created_at"`
+
+	// Associations
+	UserFile UserFile `gorm:"foreignKey:UserFileID" json:"user_file,omitempty"`
+}
+
+// TableName overrides for GORM
+func (KeyRotation) TableName() string {
+	return "key_rotations"
+}
+
+func (KeyRotationBackup) TableName() string {
+	return "key_rotation_backups"
 }

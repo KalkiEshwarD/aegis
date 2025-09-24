@@ -1,4 +1,6 @@
 
+// Module export to satisfy isolatedModules requirement
+export {};
 
 // Mock the entire Apollo Client module to avoid instantiation issues
 jest.mock('@apollo/client', () => ({

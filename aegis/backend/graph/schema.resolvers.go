@@ -420,6 +420,11 @@ func (r *mutationResolver) CreateRoom(ctx context.Context, input model.CreateRoo
 
 // AddRoomMember is the resolver for the addRoomMember field.
 func (r *mutationResolver) AddRoomMember(ctx context.Context, input model.AddRoomMemberInput) (bool, error) {
+	_, err := middleware.RequireAdmin(ctx)
+	if err != nil {
+		return false, fmt.Errorf("admin access required: %w", err)
+	}
+
 	user, err := middleware.GetUserFromContext(ctx)
 	if err != nil {
 		return false, fmt.Errorf("unauthenticated: %w", err)
@@ -428,11 +433,6 @@ func (r *mutationResolver) AddRoomMember(ctx context.Context, input model.AddRoo
 	roomID, err := strconv.ParseUint(input.RoomID, 10, 32)
 	if err != nil {
 		return false, fmt.Errorf("invalid room ID: %w", err)
-	}
-
-	userID, err := strconv.ParseUint(input.UserID, 10, 32)
-	if err != nil {
-		return false, fmt.Errorf("invalid user ID: %w", err)
 	}
 
 	var role models.RoomRole
@@ -449,7 +449,70 @@ func (r *mutationResolver) AddRoomMember(ctx context.Context, input model.AddRoo
 		return false, fmt.Errorf("invalid role: %s", input.Role)
 	}
 
-	err = r.Resolver.RoomService.AddRoomMember(uint(roomID), uint(userID), user.ID, role)
+	err = r.Resolver.RoomService.AddRoomMember(uint(roomID), input.Username, user.ID, role)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// UpdateRoom is the resolver for the updateRoom field.
+func (r *mutationResolver) UpdateRoom(ctx context.Context, input model.UpdateRoomInput) (*models.Room, error) {
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("unauthenticated: %w", err)
+	}
+
+	roomID, err := strconv.ParseUint(input.RoomID, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid room ID: %w", err)
+	}
+
+	// Check if user is the creator of the room
+	var room models.Room
+	db := database.GetDB()
+	if err := db.Where("id = ?", roomID).First(&room).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("room not found")
+		}
+		return nil, fmt.Errorf("database error: %w", err)
+	}
+
+	if room.CreatorID != user.ID {
+		return nil, fmt.Errorf("access denied: only room creator can update the room")
+	}
+
+	return r.Resolver.RoomService.UpdateRoom(uint(roomID), user.ID, input.Name)
+}
+
+// DeleteRoom is the resolver for the deleteRoom field.
+func (r *mutationResolver) DeleteRoom(ctx context.Context, input model.DeleteRoomInput) (bool, error) {
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return false, fmt.Errorf("unauthenticated: %w", err)
+	}
+
+	roomID, err := strconv.ParseUint(input.RoomID, 10, 32)
+	if err != nil {
+		return false, fmt.Errorf("invalid room ID: %w", err)
+	}
+
+	// Check if user is the creator of the room
+	var room models.Room
+	db := database.GetDB()
+	if err := db.Where("id = ?", roomID).First(&room).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, fmt.Errorf("room not found")
+		}
+		return false, fmt.Errorf("database error: %w", err)
+	}
+
+	if room.CreatorID != user.ID {
+		return false, fmt.Errorf("access denied: only room creator can delete the room")
+	}
+
+	err = r.Resolver.RoomService.DeleteRoom(uint(roomID), user.ID)
 	if err != nil {
 		return false, err
 	}
@@ -967,6 +1030,101 @@ func (r *mutationResolver) UpdateProfile(ctx context.Context, input model.Update
 	}
 
 	return updatedUser, nil
+}
+
+// RotateUserEnvelopeKey is the resolver for the rotateUserEnvelopeKey field.
+func (r *mutationResolver) RotateUserEnvelopeKey(ctx context.Context) (*model.KeyRotationResult, error) {
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("unauthenticated: %w", err)
+	}
+
+	result, err := r.Resolver.KeyRotationService.RotateEnvelopeKey(user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	var errorMessage *string
+	if result.ErrorMessage != "" {
+		errorMessage = &result.ErrorMessage
+	}
+
+	return &model.KeyRotationResult{
+		RotationID:         result.RotationID,
+		Status:             model.KeyRotationStatus(result.Status),
+		TotalFilesAffected: result.TotalFilesAffected,
+		FilesProcessed:     result.FilesProcessed,
+		ErrorMessage:       errorMessage,
+	}, nil
+}
+
+// RotateEnvelopeKeys is the resolver for the rotateEnvelopeKeys field.
+func (r *mutationResolver) RotateEnvelopeKeys(ctx context.Context) (*model.KeyRotationResult, error) {
+	// This could be an admin operation to rotate keys for all users
+	// For now, just rotate for the current user
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("unauthenticated: %w", err)
+	}
+
+	result, err := r.Resolver.KeyRotationService.RotateEnvelopeKey(user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	var errorMessage *string
+	if result.ErrorMessage != "" {
+		errorMessage = &result.ErrorMessage
+	}
+
+	return &model.KeyRotationResult{
+		RotationID:         result.RotationID,
+		Status:             model.KeyRotationStatus(result.Status),
+		TotalFilesAffected: result.TotalFilesAffected,
+		FilesProcessed:     result.FilesProcessed,
+		ErrorMessage:       errorMessage,
+	}, nil
+}
+
+// RollbackKeyRotation is the resolver for the rollbackKeyRotation field.
+func (r *mutationResolver) RollbackKeyRotation(ctx context.Context, rotationID string) (bool, error) {
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return false, fmt.Errorf("unauthenticated: %w", err)
+	}
+
+	err = r.Resolver.KeyRotationService.RollbackRotation(rotationID, user.ID)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// GetRotationStatus is the resolver for the getRotationStatus field.
+func (r *mutationResolver) GetRotationStatus(ctx context.Context, rotationID string) (*model.KeyRotationResult, error) {
+	user, err := middleware.GetUserFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("unauthenticated: %w", err)
+	}
+
+	result, err := r.Resolver.KeyRotationService.GetRotationStatus(rotationID, user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	var errorMessage *string
+	if result.ErrorMessage != "" {
+		errorMessage = &result.ErrorMessage
+	}
+
+	return &model.KeyRotationResult{
+		RotationID:         result.RotationID,
+		Status:             model.KeyRotationStatus(result.Status),
+		TotalFilesAffected: result.TotalFilesAffected,
+		FilesProcessed:     result.FilesProcessed,
+		ErrorMessage:       errorMessage,
+	}, nil
 }
 
 // Me is the resolver for the me field.

@@ -30,6 +30,7 @@ import {
   Star as StarredIcon,
   Delete as TrashIcon,
   CreateNewFolder as NewFolderIcon,
+  Group as RoomsIcon,
 } from '@mui/icons-material';
 import { useMutation } from '@apollo/client';
 import { CREATE_FOLDER_MUTATION } from '../../apollo/queries';
@@ -133,6 +134,7 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
     { id: 'home', label: 'Home', icon: <HomeIcon /> },
     { id: 'recent', label: 'Recent', icon: <RecentIcon /> },
     { id: 'shared', label: 'Shared', icon: <SharedIcon /> },
+    { id: 'rooms', label: 'Rooms', icon: <RoomsIcon /> },
     { id: 'starred', label: 'Starred', icon: <StarredIcon /> },
     { id: 'trash', label: 'Trash', icon: <TrashIcon /> },
   ];

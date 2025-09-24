@@ -101,6 +101,23 @@ export const ADD_ROOM_MEMBER_MUTATION = gql`
   }
 `;
 
+export const UPDATE_ROOM_MUTATION = gql`
+  mutation UpdateRoom($input: UpdateRoomInput!) {
+    updateRoom(input: $input) {
+      id
+      name
+      creator_id
+      created_at
+    }
+  }
+`;
+
+export const DELETE_ROOM_MUTATION = gql`
+  mutation DeleteRoom($input: DeleteRoomInput!) {
+    deleteRoom(input: $input)
+  }
+`;
+
 export const REMOVE_ROOM_MEMBER_MUTATION = gql`
   mutation RemoveRoomMember($room_id: ID!, $user_id: ID!) {
     removeRoomMember(room_id: $room_id, user_id: $user_id)

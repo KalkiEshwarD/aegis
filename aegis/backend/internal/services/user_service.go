@@ -271,6 +271,18 @@ func (s *UserService) UpdateProfile(userID uint, username, email, currentPasswor
 	return &user, nil
 }
 
+// GetUserByUsername returns a user by their username
+func (s *UserService) GetUserByUsername(username string) (*models.User, error) {
+	var user models.User
+	if err := s.db.GetDB().Where("username = ?", username).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.New(apperrors.ErrCodeNotFound, "user not found")
+		}
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "database error")
+	}
+	return &user, nil
+}
+
 // UserStats represents user storage statistics
 type UserStats struct {
 	TotalFiles     int `json:"total_files"`

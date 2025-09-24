@@ -131,8 +131,17 @@ export interface CreateRoomInput {
 
 export interface AddRoomMemberInput {
   room_id: string;
-  user_id: string;
+  username: string;
   role: RoomRole;
+}
+
+export interface UpdateRoomInput {
+  room_id: string;
+  name: string;
+}
+
+export interface DeleteRoomInput {
+  room_id: string;
 }
 
 // Folder input types

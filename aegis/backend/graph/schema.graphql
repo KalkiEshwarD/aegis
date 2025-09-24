@@ -130,9 +130,18 @@ input CreateRoomInput {
 }
 
 input AddRoomMemberInput {
-  room_id: ID!
-  user_id: ID!
-  role: RoomRole!
+   room_id: ID!
+   username: String!
+   role: RoomRole!
+}
+
+input UpdateRoomInput {
+   room_id: ID!
+   name: String!
+}
+
+input DeleteRoomInput {
+   room_id: ID!
 }
 
 # Folder input types
@@ -284,6 +293,23 @@ type AccessStats {
   unique_ips: Int!
 }
 
+# Key rotation types
+type KeyRotationResult {
+  rotation_id: String!
+  status: KeyRotationStatus!
+  total_files_affected: Int!
+  files_processed: Int!
+  error_message: String
+}
+
+enum KeyRotationStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  ROLLED_BACK
+}
+
 # Root types
 type Query {
   # User queries
@@ -344,6 +370,8 @@ type Mutation {
   # Room operations
   createRoom(input: CreateRoomInput!): Room!
   addRoomMember(input: AddRoomMemberInput!): Boolean!
+  updateRoom(input: UpdateRoomInput!): Room!
+  deleteRoom(input: DeleteRoomInput!): Boolean!
   removeRoomMember(room_id: ID!, user_id: ID!): Boolean!
   shareFileToRoom(user_file_id: ID!, room_id: ID!): Boolean!
   removeFileFromRoom(user_file_id: ID!, room_id: ID!): Boolean!
@@ -369,4 +397,10 @@ type Mutation {
 
   # Profile operations
   updateProfile(input: UpdateProfileInput!): User!
+
+  # Key rotation operations
+  rotateUserEnvelopeKey: KeyRotationResult!
+  rotateEnvelopeKeys: KeyRotationResult!
+  rollbackKeyRotation(rotation_id: String!): Boolean!
+  getRotationStatus(rotation_id: String!): KeyRotationResult!
 }

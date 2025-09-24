@@ -3,6 +3,10 @@
 package model
 
 import (
+	"bytes"
+	"fmt"
+	"io"
+	"strconv"
 	"time"
 
 	"github.com/99designs/gqlgen/graphql"
@@ -23,9 +27,9 @@ type AccessStats struct {
 }
 
 type AddRoomMemberInput struct {
-	RoomID string          `json:"room_id"`
-	UserID string          `json:"user_id"`
-	Role   models.RoomRole `json:"role"`
+	RoomID   string          `json:"room_id"`
+	Username string          `json:"username"`
+	Role     models.RoomRole `json:"role"`
 }
 
 type AdminDashboard struct {
@@ -57,6 +61,10 @@ type CreateRoomInput struct {
 	Name string `json:"name"`
 }
 
+type DeleteRoomInput struct {
+	RoomID string `json:"room_id"`
+}
+
 type FileFilterInput struct {
 	Filename       *string    `json:"filename,omitempty"`
 	MimeType       *string    `json:"mime_type,omitempty"`
@@ -66,6 +74,14 @@ type FileFilterInput struct {
 	DateTo         *time.Time `json:"date_to,omitempty"`
 	IncludeTrashed *bool      `json:"includeTrashed,omitempty"`
 	FolderID       *string    `json:"folder_id,omitempty"`
+}
+
+type KeyRotationResult struct {
+	RotationID         string            `json:"rotation_id"`
+	Status             KeyRotationStatus `json:"status"`
+	TotalFilesAffected int               `json:"total_files_affected"`
+	FilesProcessed     int               `json:"files_processed"`
+	ErrorMessage       *string           `json:"error_message,omitempty"`
 }
 
 type LoginInput struct {
@@ -154,6 +170,11 @@ type UpdateProfileInput struct {
 	NewPassword     *string `json:"newPassword,omitempty"`
 }
 
+type UpdateRoomInput struct {
+	RoomID string `json:"room_id"`
+	Name   string `json:"name"`
+}
+
 type UploadFileFromMapInput struct {
 	Data string `json:"data"`
 }
@@ -173,4 +194,65 @@ type UserStats struct {
 	UsedStorage    int `json:"used_storage"`
 	StorageQuota   int `json:"storage_quota"`
 	StorageSavings int `json:"storage_savings"`
+}
+
+type KeyRotationStatus string
+
+const (
+	KeyRotationStatusPending    KeyRotationStatus = "PENDING"
+	KeyRotationStatusInProgress KeyRotationStatus = "IN_PROGRESS"
+	KeyRotationStatusCompleted  KeyRotationStatus = "COMPLETED"
+	KeyRotationStatusFailed     KeyRotationStatus = "FAILED"
+	KeyRotationStatusRolledBack KeyRotationStatus = "ROLLED_BACK"
+)
+
+var AllKeyRotationStatus = []KeyRotationStatus{
+	KeyRotationStatusPending,
+	KeyRotationStatusInProgress,
+	KeyRotationStatusCompleted,
+	KeyRotationStatusFailed,
+	KeyRotationStatusRolledBack,
+}
+
+func (e KeyRotationStatus) IsValid() bool {
+	switch e {
+	case KeyRotationStatusPending, KeyRotationStatusInProgress, KeyRotationStatusCompleted, KeyRotationStatusFailed, KeyRotationStatusRolledBack:
+		return true
+	}
+	return false
+}
+
+func (e KeyRotationStatus) String() string {
+	return string(e)
+}
+
+func (e *KeyRotationStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = KeyRotationStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid KeyRotationStatus", str)
+	}
+	return nil
+}
+
+func (e KeyRotationStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *KeyRotationStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e KeyRotationStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }

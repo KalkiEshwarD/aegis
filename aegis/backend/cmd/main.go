@@ -109,21 +109,23 @@ func main() {
 	authService := services.NewAuthService(cfg)
 	fileService := services.NewFileService(cfg, db, fileStorageService, authService)
 	userService := services.NewUserService(authService, db)
-	roomService := services.NewRoomService(db)
+	roomService := services.NewRoomService(db, userService)
 	adminService := services.NewAdminService(db)
 	shareService := services.NewShareService(db, cfg.BaseURL, cryptoManager)
+	keyRotationService := services.NewKeyRotationService(db, cryptoManager)
 
 	// Initialize handlers
 	fileHandler := handlers.NewFileHandler(fileService, authService)
 
 	// Initialize GraphQL resolver
 	resolver := &graph.Resolver{
-		FileService:   fileService,
-		UserService:   userService,
-		RoomService:   roomService,
-		AdminService:  adminService,
-		ShareService:  shareService,
-		CryptoManager: cryptoManager,
+		FileService:        fileService,
+		UserService:        userService,
+		RoomService:        roomService,
+		AdminService:       adminService,
+		ShareService:       shareService,
+		CryptoManager:      cryptoManager,
+		KeyRotationService: keyRotationService,
 	}
 
 	// Create GraphQL server with custom error handling

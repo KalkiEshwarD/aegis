@@ -18,6 +18,7 @@ import FileExplorer from '../common/FileExplorer';
 import TrashView from './TrashView';
 import SharedView from './SharedView';
 import StarredView from './StarredView';
+import RoomView from './RoomView';
 import StarredSidebar from '../common/StarredSidebar';
 import DashboardAppBar from './DashboardAppBar';
 import DashboardSidebar from './DashboardSidebar';
@@ -223,6 +224,15 @@ const Dashboard: React.FC = () => {
             borderRadius: 3
           }}>
             <StarredView />
+          </Paper>
+        ) : selectedNav === 'rooms' ? (
+          <Paper sx={{
+            p: 4,
+            border: '1px solid #e5e7eb',
+            boxShadow: 'none',
+            borderRadius: 3
+          }}>
+            <RoomView />
           </Paper>
         ) : (
           <Paper sx={{

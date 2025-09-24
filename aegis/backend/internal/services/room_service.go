@@ -18,13 +18,15 @@ import (
 
 type RoomService struct {
 	*BaseService
-	roomRepo *repositories.RoomRepository
+	roomRepo    *repositories.RoomRepository
+	userService *UserService
 }
 
-func NewRoomService(db *database.DB) *RoomService {
+func NewRoomService(db *database.DB, userService *UserService) *RoomService {
 	return &RoomService{
 		BaseService: NewBaseService(db),
 		roomRepo:    repositories.NewRoomRepository(db),
+		userService: userService,
 	}
 }
 
@@ -66,21 +68,27 @@ func (s *RoomService) GetRoom(roomID, userID uint) (*models.Room, error) {
 	return s.roomRepo.GetRoomByID(roomID, userID, "Creator", "Members.User", "Files.User", "Files.File")
 }
 
-func (s *RoomService) AddRoomMember(roomID, userID, requesterID uint, role models.RoomRole) error {
+func (s *RoomService) AddRoomMember(roomID uint, username string, requesterID uint, role models.RoomRole) error {
 	db := s.db.GetDB()
 
 	if err := s.requireRoomAdmin(roomID, requesterID); err != nil {
 		return err
 	}
 
+	// Lookup user by username
+	user, err := s.userService.GetUserByUsername(username)
+	if err != nil {
+		return err
+	}
+
 	var existingMember models.RoomMember
-	if err := db.Where("room_id = ? AND user_id = ?", roomID, userID).First(&existingMember).Error; err == nil {
+	if err := db.Where("room_id = ? AND user_id = ?", roomID, user.ID).First(&existingMember).Error; err == nil {
 		return apperrors.New(apperrors.ErrCodeConflict, "user is already a member of this room")
 	}
 
 	member := &models.RoomMember{
 		RoomID: roomID,
-		UserID: userID,
+		UserID: user.ID,
 		Role:   role,
 	}
 
@@ -108,6 +116,59 @@ func (s *RoomService) RemoveRoomMember(roomID, userID, requesterID uint) error {
 
 func (s *RoomService) GetRoomFiles(roomID, userID uint) ([]*models.UserFile, error) {
 	return s.roomRepo.GetRoomFiles(roomID, userID, "User", "File")
+}
+
+func (s *RoomService) UpdateRoom(roomID, userID uint, name string) (*models.Room, error) {
+	db := s.db.GetDB()
+
+	// Check if user is the creator of the room
+	var room models.Room
+	if err := db.First(&room, roomID).Error; err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeNotFound, "room not found")
+	}
+
+	if room.CreatorID != userID {
+		return nil, apperrors.New(apperrors.ErrCodeForbidden, "only room creator can update room")
+	}
+
+	// Update room name
+	room.Name = name
+	if err := db.Save(&room).Error; err != nil {
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to update room")
+	}
+
+	return &room, nil
+}
+
+func (s *RoomService) DeleteRoom(roomID, userID uint) error {
+	db := s.db.GetDB()
+
+	// Check if user is the creator of the room
+	var room models.Room
+	if err := db.First(&room, roomID).Error; err != nil {
+		return apperrors.Wrap(err, apperrors.ErrCodeNotFound, "room not found")
+	}
+
+	if room.CreatorID != userID {
+		return apperrors.New(apperrors.ErrCodeForbidden, "only room creator can delete room")
+	}
+
+	// Check if room has other members besides creator
+	var memberCount int64
+	if err := db.Model(&models.RoomMember{}).Where("room_id = ?", roomID).Count(&memberCount).Error; err != nil {
+		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to check room members")
+	}
+
+	if memberCount > 1 {
+		return apperrors.New(apperrors.ErrCodeForbidden, "cannot delete room with other members")
+	}
+
+	// Delete room (cascade will handle members and associations)
+	if err := db.Delete(&room).Error; err != nil {
+		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to delete room")
+	}
+
+	return nil
 }
 
 //================================================================================

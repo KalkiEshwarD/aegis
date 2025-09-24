@@ -31,7 +31,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } else {
       setLoading(false);
     }
-  }, [checkAuth]);
+  }, []); // checkAuth is defined below, so we can't include it in deps
 
   const checkAuth = async () => {
     try {

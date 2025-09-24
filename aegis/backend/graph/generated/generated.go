@@ -119,6 +119,14 @@ type ComplexityRoot struct {
 		UserID    func(childComplexity int) int
 	}
 
+	KeyRotationResult struct {
+		ErrorMessage       func(childComplexity int) int
+		FilesProcessed     func(childComplexity int) int
+		RotationID         func(childComplexity int) int
+		Status             func(childComplexity int) int
+		TotalFilesAffected func(childComplexity int) int
+	}
+
 	Mutation struct {
 		AccessSharedFile        func(childComplexity int, input model.AccessSharedFileInput) int
 		AddRoomMember           func(childComplexity int, input model.AddRoomMemberInput) int
@@ -128,8 +136,10 @@ type ComplexityRoot struct {
 		DeleteFile              func(childComplexity int, id string) int
 		DeleteFileShare         func(childComplexity int, shareID string) int
 		DeleteFolder            func(childComplexity int, id string) int
+		DeleteRoom              func(childComplexity int, input model.DeleteRoomInput) int
 		DeleteUserAccount       func(childComplexity int, userID string) int
 		DownloadFile            func(childComplexity int, id string) int
+		GetRotationStatus       func(childComplexity int, rotationID string) int
 		Login                   func(childComplexity int, input model.LoginInput) int
 		Logout                  func(childComplexity int) int
 		MoveFile                func(childComplexity int, input model.MoveFileInput) int
@@ -145,6 +155,9 @@ type ComplexityRoot struct {
 		RenameFolder            func(childComplexity int, input model.RenameFolderInput) int
 		RestoreFile             func(childComplexity int, fileID string) int
 		RestoreFolder           func(childComplexity int, folderID string) int
+		RollbackKeyRotation     func(childComplexity int, rotationID string) int
+		RotateEnvelopeKeys      func(childComplexity int) int
+		RotateUserEnvelopeKey   func(childComplexity int) int
 		ShareFileToRoom         func(childComplexity int, userFileID string, roomID string) int
 		ShareFolderToRoom       func(childComplexity int, input model.ShareFolderToRoomInput) int
 		StarFile                func(childComplexity int, id string) int
@@ -153,6 +166,7 @@ type ComplexityRoot struct {
 		UnstarFolder            func(childComplexity int, id string) int
 		UpdateFileShare         func(childComplexity int, input model.UpdateFileShareInput) int
 		UpdateProfile           func(childComplexity int, input model.UpdateProfileInput) int
+		UpdateRoom              func(childComplexity int, input model.UpdateRoomInput) int
 		UploadFile              func(childComplexity int, input model.UploadFileInput) int
 		UploadFileFromMap       func(childComplexity int, input model.UploadFileFromMapInput) int
 	}
@@ -316,6 +330,8 @@ type MutationResolver interface {
 	UnstarFolder(ctx context.Context, id string) (bool, error)
 	CreateRoom(ctx context.Context, input model.CreateRoomInput) (*models.Room, error)
 	AddRoomMember(ctx context.Context, input model.AddRoomMemberInput) (bool, error)
+	UpdateRoom(ctx context.Context, input model.UpdateRoomInput) (*models.Room, error)
+	DeleteRoom(ctx context.Context, input model.DeleteRoomInput) (bool, error)
 	RemoveRoomMember(ctx context.Context, roomID string, userID string) (bool, error)
 	ShareFileToRoom(ctx context.Context, userFileID string, roomID string) (bool, error)
 	RemoveFileFromRoom(ctx context.Context, userFileID string, roomID string) (bool, error)
@@ -333,6 +349,10 @@ type MutationResolver interface {
 	PromoteUserToAdmin(ctx context.Context, userID string) (bool, error)
 	DeleteUserAccount(ctx context.Context, userID string) (bool, error)
 	UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (*models.User, error)
+	RotateUserEnvelopeKey(ctx context.Context) (*model.KeyRotationResult, error)
+	RotateEnvelopeKeys(ctx context.Context) (*model.KeyRotationResult, error)
+	RollbackKeyRotation(ctx context.Context, rotationID string) (bool, error)
+	GetRotationStatus(ctx context.Context, rotationID string) (*model.KeyRotationResult, error)
 }
 type QueryResolver interface {
 	Me(ctx context.Context) (*models.User, error)
@@ -681,6 +701,37 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Folder.UserID(childComplexity), true
 
+	case "KeyRotationResult.error_message":
+		if e.complexity.KeyRotationResult.ErrorMessage == nil {
+			break
+		}
+
+		return e.complexity.KeyRotationResult.ErrorMessage(childComplexity), true
+	case "KeyRotationResult.files_processed":
+		if e.complexity.KeyRotationResult.FilesProcessed == nil {
+			break
+		}
+
+		return e.complexity.KeyRotationResult.FilesProcessed(childComplexity), true
+	case "KeyRotationResult.rotation_id":
+		if e.complexity.KeyRotationResult.RotationID == nil {
+			break
+		}
+
+		return e.complexity.KeyRotationResult.RotationID(childComplexity), true
+	case "KeyRotationResult.status":
+		if e.complexity.KeyRotationResult.Status == nil {
+			break
+		}
+
+		return e.complexity.KeyRotationResult.Status(childComplexity), true
+	case "KeyRotationResult.total_files_affected":
+		if e.complexity.KeyRotationResult.TotalFilesAffected == nil {
+			break
+		}
+
+		return e.complexity.KeyRotationResult.TotalFilesAffected(childComplexity), true
+
 	case "Mutation.accessSharedFile":
 		if e.complexity.Mutation.AccessSharedFile == nil {
 			break
@@ -769,6 +820,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.DeleteFolder(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteRoom":
+		if e.complexity.Mutation.DeleteRoom == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteRoom_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DeleteRoom(childComplexity, args["input"].(model.DeleteRoomInput)), true
 	case "Mutation.deleteUserAccount":
 		if e.complexity.Mutation.DeleteUserAccount == nil {
 			break
@@ -791,6 +853,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.DownloadFile(childComplexity, args["id"].(string)), true
+	case "Mutation.getRotationStatus":
+		if e.complexity.Mutation.GetRotationStatus == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_getRotationStatus_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.GetRotationStatus(childComplexity, args["rotation_id"].(string)), true
 	case "Mutation.login":
 		if e.complexity.Mutation.Login == nil {
 			break
@@ -946,6 +1019,29 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.RestoreFolder(childComplexity, args["folderID"].(string)), true
+	case "Mutation.rollbackKeyRotation":
+		if e.complexity.Mutation.RollbackKeyRotation == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_rollbackKeyRotation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.RollbackKeyRotation(childComplexity, args["rotation_id"].(string)), true
+	case "Mutation.rotateEnvelopeKeys":
+		if e.complexity.Mutation.RotateEnvelopeKeys == nil {
+			break
+		}
+
+		return e.complexity.Mutation.RotateEnvelopeKeys(childComplexity), true
+	case "Mutation.rotateUserEnvelopeKey":
+		if e.complexity.Mutation.RotateUserEnvelopeKey == nil {
+			break
+		}
+
+		return e.complexity.Mutation.RotateUserEnvelopeKey(childComplexity), true
 	case "Mutation.shareFileToRoom":
 		if e.complexity.Mutation.ShareFileToRoom == nil {
 			break
@@ -1034,6 +1130,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.UpdateProfile(childComplexity, args["input"].(model.UpdateProfileInput)), true
+	case "Mutation.updateRoom":
+		if e.complexity.Mutation.UpdateRoom == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateRoom_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpdateRoom(childComplexity, args["input"].(model.UpdateRoomInput)), true
 	case "Mutation.uploadFile":
 		if e.complexity.Mutation.UploadFile == nil {
 			break
@@ -1691,6 +1798,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateFileShareInput,
 		ec.unmarshalInputCreateFolderInput,
 		ec.unmarshalInputCreateRoomInput,
+		ec.unmarshalInputDeleteRoomInput,
 		ec.unmarshalInputFileFilterInput,
 		ec.unmarshalInputLoginInput,
 		ec.unmarshalInputMoveFileInput,
@@ -1700,6 +1808,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputShareFolderToRoomInput,
 		ec.unmarshalInputUpdateFileShareInput,
 		ec.unmarshalInputUpdateProfileInput,
+		ec.unmarshalInputUpdateRoomInput,
 		ec.unmarshalInputUploadFileFromMapInput,
 		ec.unmarshalInputUploadFileInput,
 	)
@@ -1931,9 +2040,18 @@ input CreateRoomInput {
 }
 
 input AddRoomMemberInput {
-  room_id: ID!
-  user_id: ID!
-  role: RoomRole!
+   room_id: ID!
+   username: String!
+   role: RoomRole!
+}
+
+input UpdateRoomInput {
+   room_id: ID!
+   name: String!
+}
+
+input DeleteRoomInput {
+   room_id: ID!
 }
 
 # Folder input types
@@ -2085,6 +2203,23 @@ type AccessStats {
   unique_ips: Int!
 }
 
+# Key rotation types
+type KeyRotationResult {
+  rotation_id: String!
+  status: KeyRotationStatus!
+  total_files_affected: Int!
+  files_processed: Int!
+  error_message: String
+}
+
+enum KeyRotationStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  ROLLED_BACK
+}
+
 # Root types
 type Query {
   # User queries
@@ -2145,6 +2280,8 @@ type Mutation {
   # Room operations
   createRoom(input: CreateRoomInput!): Room!
   addRoomMember(input: AddRoomMemberInput!): Boolean!
+  updateRoom(input: UpdateRoomInput!): Room!
+  deleteRoom(input: DeleteRoomInput!): Boolean!
   removeRoomMember(room_id: ID!, user_id: ID!): Boolean!
   shareFileToRoom(user_file_id: ID!, room_id: ID!): Boolean!
   removeFileFromRoom(user_file_id: ID!, room_id: ID!): Boolean!
@@ -2170,6 +2307,12 @@ type Mutation {
 
   # Profile operations
   updateProfile(input: UpdateProfileInput!): User!
+
+  # Key rotation operations
+  rotateUserEnvelopeKey: KeyRotationResult!
+  rotateEnvelopeKeys: KeyRotationResult!
+  rollbackKeyRotation(rotation_id: String!): Boolean!
+  getRotationStatus(rotation_id: String!): KeyRotationResult!
 }
 `, BuiltIn: false},
 }
@@ -2267,6 +2410,17 @@ func (ec *executionContext) field_Mutation_deleteFolder_args(ctx context.Context
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_deleteRoom_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNDeleteRoomInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐDeleteRoomInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteUserAccount_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2286,6 +2440,17 @@ func (ec *executionContext) field_Mutation_downloadFile_args(ctx context.Context
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_getRotationStatus_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "rotation_id", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["rotation_id"] = arg0
 	return args, nil
 }
 
@@ -2447,6 +2612,17 @@ func (ec *executionContext) field_Mutation_restoreFolder_args(ctx context.Contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_rollbackKeyRotation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "rotation_id", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["rotation_id"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_shareFileToRoom_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2533,6 +2709,17 @@ func (ec *executionContext) field_Mutation_updateProfile_args(ctx context.Contex
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateProfileInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐUpdateProfileInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateRoom_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateRoomInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐUpdateRoomInput)
 	if err != nil {
 		return nil, err
 	}
@@ -4171,6 +4358,151 @@ func (ec *executionContext) fieldContext_Folder_files(_ context.Context, field g
 	return fc, nil
 }
 
+func (ec *executionContext) _KeyRotationResult_rotation_id(ctx context.Context, field graphql.CollectedField, obj *model.KeyRotationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_KeyRotationResult_rotation_id,
+		func(ctx context.Context) (any, error) {
+			return obj.RotationID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_KeyRotationResult_rotation_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "KeyRotationResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _KeyRotationResult_status(ctx context.Context, field graphql.CollectedField, obj *model.KeyRotationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_KeyRotationResult_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNKeyRotationStatus2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐKeyRotationStatus,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_KeyRotationResult_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "KeyRotationResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type KeyRotationStatus does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _KeyRotationResult_total_files_affected(ctx context.Context, field graphql.CollectedField, obj *model.KeyRotationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_KeyRotationResult_total_files_affected,
+		func(ctx context.Context) (any, error) {
+			return obj.TotalFilesAffected, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_KeyRotationResult_total_files_affected(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "KeyRotationResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _KeyRotationResult_files_processed(ctx context.Context, field graphql.CollectedField, obj *model.KeyRotationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_KeyRotationResult_files_processed,
+		func(ctx context.Context) (any, error) {
+			return obj.FilesProcessed, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_KeyRotationResult_files_processed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "KeyRotationResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _KeyRotationResult_error_message(ctx context.Context, field graphql.CollectedField, obj *model.KeyRotationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_KeyRotationResult_error_message,
+		func(ctx context.Context) (any, error) {
+			return obj.ErrorMessage, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_KeyRotationResult_error_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "KeyRotationResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_register(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -4971,6 +5303,106 @@ func (ec *executionContext) fieldContext_Mutation_addRoomMember(ctx context.Cont
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_addRoomMember_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateRoom(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_updateRoom,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().UpdateRoom(ctx, fc.Args["input"].(model.UpdateRoomInput))
+		},
+		nil,
+		ec.marshalNRoom2ᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐRoom,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updateRoom(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Room_id(ctx, field)
+			case "name":
+				return ec.fieldContext_Room_name(ctx, field)
+			case "creator_id":
+				return ec.fieldContext_Room_creator_id(ctx, field)
+			case "created_at":
+				return ec.fieldContext_Room_created_at(ctx, field)
+			case "creator":
+				return ec.fieldContext_Room_creator(ctx, field)
+			case "members":
+				return ec.fieldContext_Room_members(ctx, field)
+			case "files":
+				return ec.fieldContext_Room_files(ctx, field)
+			case "folders":
+				return ec.fieldContext_Room_folders(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Room", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateRoom_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteRoom(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_deleteRoom,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().DeleteRoom(ctx, fc.Args["input"].(model.DeleteRoomInput))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteRoom(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteRoom_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -5788,6 +6220,182 @@ func (ec *executionContext) fieldContext_Mutation_updateProfile(ctx context.Cont
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateProfile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_rotateUserEnvelopeKey(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_rotateUserEnvelopeKey,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Mutation().RotateUserEnvelopeKey(ctx)
+		},
+		nil,
+		ec.marshalNKeyRotationResult2ᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐKeyRotationResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_rotateUserEnvelopeKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "rotation_id":
+				return ec.fieldContext_KeyRotationResult_rotation_id(ctx, field)
+			case "status":
+				return ec.fieldContext_KeyRotationResult_status(ctx, field)
+			case "total_files_affected":
+				return ec.fieldContext_KeyRotationResult_total_files_affected(ctx, field)
+			case "files_processed":
+				return ec.fieldContext_KeyRotationResult_files_processed(ctx, field)
+			case "error_message":
+				return ec.fieldContext_KeyRotationResult_error_message(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type KeyRotationResult", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_rotateEnvelopeKeys(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_rotateEnvelopeKeys,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Mutation().RotateEnvelopeKeys(ctx)
+		},
+		nil,
+		ec.marshalNKeyRotationResult2ᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐKeyRotationResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_rotateEnvelopeKeys(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "rotation_id":
+				return ec.fieldContext_KeyRotationResult_rotation_id(ctx, field)
+			case "status":
+				return ec.fieldContext_KeyRotationResult_status(ctx, field)
+			case "total_files_affected":
+				return ec.fieldContext_KeyRotationResult_total_files_affected(ctx, field)
+			case "files_processed":
+				return ec.fieldContext_KeyRotationResult_files_processed(ctx, field)
+			case "error_message":
+				return ec.fieldContext_KeyRotationResult_error_message(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type KeyRotationResult", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_rollbackKeyRotation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_rollbackKeyRotation,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().RollbackKeyRotation(ctx, fc.Args["rotation_id"].(string))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_rollbackKeyRotation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_rollbackKeyRotation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_getRotationStatus(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_getRotationStatus,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().GetRotationStatus(ctx, fc.Args["rotation_id"].(string))
+		},
+		nil,
+		ec.marshalNKeyRotationResult2ᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐKeyRotationResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_getRotationStatus(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "rotation_id":
+				return ec.fieldContext_KeyRotationResult_rotation_id(ctx, field)
+			case "status":
+				return ec.fieldContext_KeyRotationResult_status(ctx, field)
+			case "total_files_affected":
+				return ec.fieldContext_KeyRotationResult_total_files_affected(ctx, field)
+			case "files_processed":
+				return ec.fieldContext_KeyRotationResult_files_processed(ctx, field)
+			case "error_message":
+				return ec.fieldContext_KeyRotationResult_error_message(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type KeyRotationResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_getRotationStatus_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -10917,7 +11525,7 @@ func (ec *executionContext) unmarshalInputAddRoomMemberInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"room_id", "user_id", "role"}
+	fieldsInOrder := [...]string{"room_id", "username", "role"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -10931,13 +11539,13 @@ func (ec *executionContext) unmarshalInputAddRoomMemberInput(ctx context.Context
 				return it, err
 			}
 			it.RoomID = data
-		case "user_id":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("user_id"))
-			data, err := ec.unmarshalNID2string(ctx, v)
+		case "username":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("username"))
+			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.UserID = data
+			it.Username = data
 		case "role":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("role"))
 			data, err := ec.unmarshalNRoomRole2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐRoomRole(ctx, v)
@@ -11061,6 +11669,33 @@ func (ec *executionContext) unmarshalInputCreateRoomInput(ctx context.Context, o
 				return it, err
 			}
 			it.Name = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputDeleteRoomInput(ctx context.Context, obj any) (model.DeleteRoomInput, error) {
+	var it model.DeleteRoomInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"room_id"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "room_id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("room_id"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RoomID = data
 		}
 	}
 
@@ -11451,6 +12086,40 @@ func (ec *executionContext) unmarshalInputUpdateProfileInput(ctx context.Context
 				return it, err
 			}
 			it.NewPassword = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateRoomInput(ctx context.Context, obj any) (model.UpdateRoomInput, error) {
+	var it model.UpdateRoomInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"room_id", "name"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "room_id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("room_id"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RoomID = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
 		}
 	}
 
@@ -12152,6 +12821,62 @@ func (ec *executionContext) _Folder(ctx context.Context, sel ast.SelectionSet, o
 	return out
 }
 
+var keyRotationResultImplementors = []string{"KeyRotationResult"}
+
+func (ec *executionContext) _KeyRotationResult(ctx context.Context, sel ast.SelectionSet, obj *model.KeyRotationResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, keyRotationResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("KeyRotationResult")
+		case "rotation_id":
+			out.Values[i] = ec._KeyRotationResult_rotation_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._KeyRotationResult_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "total_files_affected":
+			out.Values[i] = ec._KeyRotationResult_total_files_affected(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "files_processed":
+			out.Values[i] = ec._KeyRotationResult_files_processed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "error_message":
+			out.Values[i] = ec._KeyRotationResult_error_message(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var mutationImplementors = []string{"Mutation"}
 
 func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -12297,6 +13022,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "updateRoom":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateRoom(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteRoom":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteRoom(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "removeRoomMember":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_removeRoomMember(ctx, field)
@@ -12412,6 +13151,34 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "updateProfile":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateProfile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rotateUserEnvelopeKey":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_rotateUserEnvelopeKey(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rotateEnvelopeKeys":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_rotateEnvelopeKeys(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rollbackKeyRotation":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_rollbackKeyRotation(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "getRotationStatus":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_getRotationStatus(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -14461,6 +15228,11 @@ func (ec *executionContext) unmarshalNCreateRoomInput2githubᚗcomᚋbalkanidᚋ
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNDeleteRoomInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐDeleteRoomInput(ctx context.Context, v any) (model.DeleteRoomInput, error) {
+	res, err := ec.unmarshalInputDeleteRoomInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNFileShare2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋinternalᚋmodelsᚐFileShare(ctx context.Context, sel ast.SelectionSet, v models.FileShare) graphql.Marshaler {
 	return ec._FileShare(ctx, sel, &v)
 }
@@ -14623,6 +15395,30 @@ func (ec *executionContext) marshalNInt2int64(ctx context.Context, sel ast.Selec
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) marshalNKeyRotationResult2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐKeyRotationResult(ctx context.Context, sel ast.SelectionSet, v model.KeyRotationResult) graphql.Marshaler {
+	return ec._KeyRotationResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNKeyRotationResult2ᚖgithubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐKeyRotationResult(ctx context.Context, sel ast.SelectionSet, v *model.KeyRotationResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._KeyRotationResult(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNKeyRotationStatus2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐKeyRotationStatus(ctx context.Context, v any) (model.KeyRotationStatus, error) {
+	var res model.KeyRotationStatus
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNKeyRotationStatus2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐKeyRotationStatus(ctx context.Context, sel ast.SelectionSet, v model.KeyRotationStatus) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) unmarshalNLoginInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐLoginInput(ctx context.Context, v any) (model.LoginInput, error) {
@@ -14935,6 +15731,11 @@ func (ec *executionContext) unmarshalNUpdateFileShareInput2githubᚗcomᚋbalkan
 
 func (ec *executionContext) unmarshalNUpdateProfileInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐUpdateProfileInput(ctx context.Context, v any) (model.UpdateProfileInput, error) {
 	res, err := ec.unmarshalInputUpdateProfileInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateRoomInput2githubᚗcomᚋbalkanidᚋaegisᚑbackendᚋgraphᚋmodelᚐUpdateRoomInput(ctx context.Context, v any) (model.UpdateRoomInput, error) {
+	res, err := ec.unmarshalInputUpdateRoomInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
