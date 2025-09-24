@@ -4,6 +4,10 @@ import '@testing-library/jest-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { BrowserRouter } from 'react-router-dom';
 
+// Import the component after mocks
+import App from '../App';
+import { useAuth } from '../contexts/AuthContext';
+
 // Mock data
 const getMockUser = () => ({
   id: '1',
@@ -56,10 +60,6 @@ jest.mock('../components/common/LoadingSpinner', () => ({ message }: { message?:
   <div data-testid="loading-spinner">{message || 'Loading...'}</div>
 ));
 
-// Import the component after mocks
-import App from '../App';
-import { useAuth } from '../contexts/AuthContext';
-
 const theme = createTheme();
 
 const renderApp = () => {
@@ -96,7 +96,7 @@ describe('App Component', () => {
     renderApp();
 
     // CssBaseline doesn't render visible content, but we can check the structure
-    expect(document.querySelector('div')).toBeInTheDocument();
+    expect(screen.getByTestId('auth-provider')).toBeInTheDocument();
   });
 
   it('includes theme in ThemeProvider', () => {

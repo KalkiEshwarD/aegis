@@ -22,7 +22,6 @@ import {
   Search as SearchIcon,
   InsertDriveFile as FileIcon,
   Share as ShareIcon,
-  Link as LinkIcon,
 } from '@mui/icons-material';
 import { GET_MY_FILES } from '../../apollo/files';
 import { formatFileSize } from '../../shared/utils';

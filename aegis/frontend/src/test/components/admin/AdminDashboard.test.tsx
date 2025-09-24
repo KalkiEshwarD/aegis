@@ -3,6 +3,9 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 
+// Import the component after mocks
+import AdminDashboard from '../../../components/admin/AdminDashboard';
+
 // Mock the dependencies first
 const mockUser = {
   id: '1',
@@ -27,10 +30,8 @@ jest.mock('../../../contexts/AuthContext', () => ({
   }),
 }));
 
-// Import the component after mocks
-import AdminDashboard from '../../../components/admin/AdminDashboard';
-
 const theme = createTheme();
+
 
 const renderAdminDashboard = () => {
   return render(
@@ -39,6 +40,7 @@ const renderAdminDashboard = () => {
     </ThemeProvider>
   );
 };
+
 
 /*
 describe('AdminDashboard Component', () => {

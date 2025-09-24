@@ -2,6 +2,8 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ApolloProvider, ApolloClient, InMemoryCache } from '@apollo/client';
 
+import { SharePasswordDialog, AccessSharedFileDialog } from '../../../shared/components/SharePasswordDialog';
+
 // Mock Apollo Client
 const mockSearchUsers = jest.fn();
 
@@ -24,8 +26,6 @@ jest.mock('../../../apollo/queries', () => ({
     definitions: [],
   },
 }));
-
-import { SharePasswordDialog, AccessSharedFileDialog } from '../../../shared/components/SharePasswordDialog';
 
 // Create a mock Apollo Client
 const mockClient = new ApolloClient({

@@ -1,4 +1,21 @@
 // Mock File and FileReader for file utilities before any imports
+import { randomBytes } from 'tweetnacl';
+
+import {
+  generateEncryptionKey,
+  encryptFile,
+  decryptFile,
+  encryptionKeyToBase64,
+  base64ToEncryptionKey,
+  encryptString,
+  decryptString,
+  calculateFileHash,
+  fileToUint8Array,
+  createDownloadBlob,
+  downloadFile
+} from '../../utils/crypto';
+import { formatFileSize, getMimeTypeFromExtension } from '../../utils/fileUtils';
+
 Object.defineProperty(global, 'File', {
   value: jest.fn().mockImplementation((parts, filename, options) => {
     const content = parts && parts.length > 0 ? parts[0] : '';
@@ -42,23 +59,6 @@ Object.defineProperty(global, 'Blob', {
   })),
   writable: true,
 });
-
-import { randomBytes } from 'tweetnacl';
-
-import {
-  generateEncryptionKey,
-  encryptFile,
-  decryptFile,
-  encryptionKeyToBase64,
-  base64ToEncryptionKey,
-  encryptString,
-  decryptString,
-  calculateFileHash,
-  fileToUint8Array,
-  createDownloadBlob,
-  downloadFile
-} from '../../utils/crypto';
-import { formatFileSize, getMimeTypeFromExtension } from '../../utils/fileUtils';
 
 // Mock randomBytes to return different values each call
 jest.mock('tweetnacl', () => ({

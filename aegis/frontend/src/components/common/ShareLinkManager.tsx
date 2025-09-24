@@ -34,7 +34,7 @@ import {
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_FILE_SHARES, DELETE_FILE_SHARE_MUTATION, CREATE_FILE_SHARE_MUTATION } from '../../apollo/queries';
 import { FileShare, UserFile, CreateFileShareInput } from '../../types';
-import { formatFileSize } from '../../shared/utils';
+
 import { ConfirmationDialog, SharePasswordDialog } from '../../shared/components';
 
 interface ShareLinkManagerProps {

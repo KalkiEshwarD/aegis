@@ -142,14 +142,6 @@ const SharedView: React.FC<SharedViewProps> = ({ onShareDeleted }) => {
     });
   };
 
-  const handleEditShare = (share: FileShare) => {
-    setEditingShare(share);
-    setEditForm({
-      max_downloads: share.max_downloads ? share.max_downloads.toString() : '',
-      expires_at: share.expires_at ? share.expires_at.split('T')[0] : '', // Format for date input
-    });
-    setEditDialogOpen(true);
-  };
 
   const handleUpdateShare = async () => {
     if (!editingShare) return;

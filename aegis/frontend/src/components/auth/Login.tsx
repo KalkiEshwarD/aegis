@@ -16,7 +16,7 @@ import {
   IconButton,
   Snackbar
 } from '@mui/material';
-import { Visibility, VisibilityOff, Storage, Email, Person } from '@mui/icons-material';
+import { Visibility, VisibilityOff, Storage, Person } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { sanitizeUserInput, isValidEmail, isValidUsername } from '../../utils/sanitization';
 

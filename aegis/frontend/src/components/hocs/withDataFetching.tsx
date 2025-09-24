@@ -1,4 +1,4 @@
-import React, { ComponentType, useState, useEffect } from 'react';
+import React, { ComponentType } from 'react';
 import { useQuery } from '@apollo/client';
 import { DocumentNode } from 'graphql';
 import { Alert } from '@mui/material';

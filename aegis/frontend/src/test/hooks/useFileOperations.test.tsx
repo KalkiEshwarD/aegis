@@ -4,6 +4,15 @@ import '@testing-library/jest-dom';
 import { useFileOperations } from '../../hooks/useFileOperations';
 import { UserFile } from '../../types';
 
+import { useMutation } from '@apollo/client';
+import {
+  decryptFile,
+  base64ToEncryptionKey,
+  createDownloadBlob,
+  downloadFile,
+  extractNonceAndData,
+} from '../../utils/crypto';
+
 // Apollo Client is already mocked in setupTests.ts
 
 // Mock the crypto utilities
@@ -21,15 +30,6 @@ jest.mock('../../contexts/AuthContext', () => ({
     token: 'mock-token',
   }),
 }));
-
-import { useMutation } from '@apollo/client';
-import {
-  decryptFile,
-  base64ToEncryptionKey,
-  createDownloadBlob,
-  downloadFile,
-  extractNonceAndData,
-} from '../../utils/crypto';
 
 const mockUseMutation = useMutation as jest.MockedFunction<typeof useMutation>;
 const mockDecryptFile = decryptFile as jest.MockedFunction<typeof decryptFile>;

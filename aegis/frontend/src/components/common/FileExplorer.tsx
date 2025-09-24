@@ -24,7 +24,6 @@ import {
    Delete as DeleteIcon,
    DeleteForever as DeleteForeverIcon,
    CloudUpload as CloudUploadIcon,
-   Folder as FolderIcon,
    Edit as EditIcon,
    ContentCut as CutIcon,
    Share as ShareIcon,
@@ -33,7 +32,6 @@ import {
    ViewList as ListIcon,
    ViewModule as GridIcon,
    Search as SearchIcon,
-   Sort as SortIcon,
    ArrowBack as ArrowBackIcon,
    ChevronRight as ChevronRightIcon,
    CreateNewFolder as CreateNewFolderIcon,
@@ -173,7 +171,6 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
   const [folderToRestore, setFolderToRestore] = useState<Folder | null>(null);
   const [folderRestoreDialogOpen, setFolderRestoreDialogOpen] = useState(false);
-  const [trashError, setTrashError] = useState<string | null>(null);
   const [emptyTrashDialogOpen, setEmptyTrashDialogOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -208,7 +205,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     fetchPolicy: 'cache-and-network',
   });
 
-  const { data: trashedFoldersData, refetch: refetchTrashedFolders } = useQuery(GET_MY_TRASHED_FOLDERS, {
+  const { data: trashedFoldersData } = useQuery(GET_MY_TRASHED_FOLDERS, {
     fetchPolicy: 'cache-and-network',
     skip: !isTrashMode, // Only fetch when in trash mode
   });
@@ -773,9 +770,6 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     });
   };
 
-  const handleContextMenuClose = () => {
-    setContextMenu(null);
-  };
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!fileToDelete) return;
@@ -814,9 +808,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       }
 
       // Delete folders (if supported)
-      for (const folder of foldersToDelete) {
-        // Note: Folder deletion might need separate handling
-        // For now, skip folders or handle them differently
+      if (foldersToDelete.length > 0) {
         console.warn('Folder deletion not implemented for bulk operations');
       }
 
@@ -854,7 +846,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     event.preventDefault();
     setIsDragOver(false);
 
-    const files = Array.from(event.dataTransfer.files);
+    const files = Array.from(event.dataTransfer.files) as File[];
     if (files.length > 0) {
       await handleFiles(files);
     }
@@ -1445,6 +1437,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     if (!fileToRestore) return;
 
     try {
+      console.log('DEBUG: Starting file restore for:', fileToRestore.filename);
       await restoreFileMutation({
         variables: { fileID: fileToRestore.id },
         refetchQueries: [{ query: GET_MY_FILES }, { query: GET_MY_TRASHED_FILES }, { query: GET_MY_STATS }],
@@ -1458,9 +1451,13 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       if (onFileRestored) {
         onFileRestored();
       }
+      console.log('DEBUG: File restore completed successfully');
     } catch (err: any) {
       console.error('Restore error:', err);
-      setTrashError(err.graphQLErrors?.[0]?.message || err.message || 'Restore failed');
+      console.log('DEBUG: Restore failed with error:', err.graphQLErrors?.[0]?.message || err.message);
+      // TODO: Add proper error state handling
+      setSnackbarMessage('Failed to restore file');
+      setSnackbarOpen(true);
     }
   }, [fileToRestore, restoreFileMutation, refetch, onFileRestored]);
 
@@ -1468,6 +1465,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     if (!folderToRestore) return;
 
     try {
+      console.log('DEBUG: Starting folder restore for:', folderToRestore.name);
       await restoreFolderMutation({
         variables: { folderID: folderToRestore.id },
         refetchQueries: [
@@ -1487,9 +1485,12 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       if (onFileRestored) {
         onFileRestored();
       }
+      console.log('DEBUG: Folder restore completed successfully');
     } catch (err: any) {
       console.error('Folder restore error:', err);
-      setTrashError(err.graphQLErrors?.[0]?.message || err.message || 'Folder restore failed');
+      console.log('DEBUG: Folder restore failed with error:', err.graphQLErrors?.[0]?.message || err.message);
+      setSnackbarMessage('Failed to restore folder');
+      setSnackbarOpen(true);
     }
   }, [folderToRestore, restoreFolderMutation, refetch, onFileRestored]);
 
@@ -1497,6 +1498,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     if (!fileToDelete) return;
 
     try {
+      console.log('DEBUG: Starting permanent delete for:', fileToDelete.filename);
       await permanentlyDeleteFileMutation({
         variables: { fileID: fileToDelete.id },
         refetchQueries: [{ query: GET_MY_TRASHED_FILES }],
@@ -1510,9 +1512,12 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       if (onFileDeleted) {
         onFileDeleted();
       }
+      console.log('DEBUG: Permanent delete completed successfully');
     } catch (err: any) {
       console.error('Permanent delete error:', err);
-      setTrashError(err.graphQLErrors?.[0]?.message || err.message || 'Permanent delete failed');
+      console.log('DEBUG: Permanent delete failed with error:', err.graphQLErrors?.[0]?.message || err.message);
+      setSnackbarMessage('Failed to permanently delete file');
+      setSnackbarOpen(true);
     }
   }, [fileToDelete, permanentlyDeleteFileMutation, refetch, onFileDeleted]);
 
@@ -1521,6 +1526,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     if (trashedFiles.length === 0) return;
 
     try {
+      console.log('DEBUG: Starting empty trash operation for', trashedFiles.length, 'files');
       // Permanently delete all files in trash
       for (const file of trashedFiles) {
         await permanentlyDeleteFileMutation({
@@ -1536,9 +1542,12 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       }
       setSnackbarMessage(`Permanently deleted ${trashedFiles.length} file(s) from trash`);
       setSnackbarOpen(true);
+      console.log('DEBUG: Empty trash completed successfully');
     } catch (err: any) {
       console.error('Empty trash error:', err);
-      setTrashError(err.graphQLErrors?.[0]?.message || err.message || 'Failed to empty trash');
+      console.log('DEBUG: Empty trash failed with error:', err.graphQLErrors?.[0]?.message || err.message);
+      setSnackbarMessage('Failed to empty trash');
+      setSnackbarOpen(true);
     }
   }, [data?.myTrashedFiles, permanentlyDeleteFileMutation, refetch, onFileDeleted]);
 
@@ -1593,7 +1602,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     event.preventDefault();
 
     if (event.clipboardData && event.clipboardData.files.length > 0) {
-      const files = Array.from(event.clipboardData.files);
+      const files = Array.from(event.clipboardData.files) as File[];
       if (files.length > 0) {
         console.log('DEBUG: Pasting files from clipboard:', files.length);
         setSnackbarMessage(`Uploading ${files.length} file(s) from clipboard...`);

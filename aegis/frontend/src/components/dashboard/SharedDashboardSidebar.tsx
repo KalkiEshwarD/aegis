@@ -29,7 +29,6 @@ import {
   Star as StarredIcon,
   Delete as TrashIcon,
   CreateNewFolder as NewFolderIcon,
-  InsertDriveFile as InsertDriveFileIcon,
 } from '@mui/icons-material';
 import { useMutation } from '@apollo/client';
 import { CREATE_FOLDER_MUTATION } from '../../apollo/queries';

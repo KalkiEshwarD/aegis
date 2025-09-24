@@ -3,6 +3,9 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 
+// Import the component after mocks
+import Dashboard from '../../../components/dashboard/Dashboard';
+
 // Mock the dependencies first
 const mockUser = {
   id: '1',
@@ -33,9 +36,6 @@ jest.mock('../../../contexts/AuthContext', () => ({
     logout: mockLogout,
   })),
 }));
-
-// Import the component after mocks
-import Dashboard from '../../../components/dashboard/Dashboard';
 
 const theme = createTheme();
 

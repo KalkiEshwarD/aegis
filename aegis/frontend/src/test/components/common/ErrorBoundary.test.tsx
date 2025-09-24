@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
-import ErrorBoundary from '../../../components/common/ErrorBoundary';
+
 
 const theme = createTheme();
 

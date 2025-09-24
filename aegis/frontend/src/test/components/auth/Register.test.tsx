@@ -1,7 +1,10 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
+
+// Import the component after mocks
+import Register from '../../../components/auth/Register';
 
 // Mock the dependencies first
 const mockRegister = jest.fn();
@@ -19,9 +22,6 @@ jest.mock('../../../contexts/AuthContext', () => ({
     register: mockRegister,
   }),
 }));
-
-// Import the component after mocks
-import Register from '../../../components/auth/Register';
 
 const theme = createTheme();
 

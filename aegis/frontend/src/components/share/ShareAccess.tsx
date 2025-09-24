@@ -64,8 +64,6 @@ const ShareAccess: React.FC = () => {
       if (data?.accessSharedFile) {
         setHasAccess(true);
         setError('');
-        // Store the download URL for later use
-        setDownloadUrl(data.accessSharedFile);
       }
     },
     onError: (error) => {
@@ -365,4 +363,4 @@ const ShareAccess: React.FC = () => {
   );
 };
 
-export default ShareAccess;
+export default ShareAccess;export default ShareAccess;

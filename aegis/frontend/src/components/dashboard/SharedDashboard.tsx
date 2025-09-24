@@ -30,7 +30,7 @@ import DashboardSidebar from './DashboardSidebar';
 const drawerWidth = 240;
 
 const SharedDashboard: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('');
+  
   
   const { data: statsData, loading: statsLoading } = useQuery(GET_MY_STATS, {
     fetchPolicy: 'cache-and-network',

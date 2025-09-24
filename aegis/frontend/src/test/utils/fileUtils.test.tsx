@@ -1,6 +1,8 @@
 import React from 'react';
 import { render } from '@testing-library/react';
 
+import { getFileIcon, formatFileSize, getMimeTypeFromExtension } from '../../utils/fileUtils';
+
 // Mock Material-UI icons
 jest.mock('@mui/icons-material', () => ({
   InsertDriveFile: () => <div data-testid="file-icon">FileIcon</div>,
@@ -12,8 +14,6 @@ jest.mock('@mui/icons-material', () => ({
   Code: () => <div data-testid="code-icon">CodeIcon</div>,
   Description: () => <div data-testid="document-icon">DocumentIcon</div>,
 }));
-
-import { getFileIcon, formatFileSize, getMimeTypeFromExtension } from '../../utils/fileUtils';
 
 /*
 describe('File Utils', () => {

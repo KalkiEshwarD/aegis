@@ -1,4 +1,4 @@
-import { ApolloClient, InMemoryCache } from '@apollo/client';
+
 
 // Mock the entire Apollo Client module to avoid instantiation issues
 jest.mock('@apollo/client', () => ({

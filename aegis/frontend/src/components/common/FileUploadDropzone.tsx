@@ -23,7 +23,7 @@ import {
 } from '../../utils/crypto';
 import { formatFileSize, calculateFileHash } from '../../shared/utils';
 import { FileUploadProgress } from '../../types';
-import { handleFileOperationError } from '../../shared/errors';
+
 import withErrorBoundary from '../hocs/withErrorBoundary';
 import withAuth from '../hocs/withAuth';
 

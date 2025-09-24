@@ -3,6 +3,9 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import '@testing-library/jest-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 
+// Import the component after mocks
+import Login from '../../../components/auth/Login';
+
 // Mock the dependencies first
 const mockLogin = jest.fn();
 const mockNavigate = jest.fn();
@@ -26,18 +29,8 @@ jest.mock('@mui/material/Snackbar', () => ({
   default: ({ open, children, ...props }: any) => open ? <div role="alert" {...props}>{children}</div> : null,
 }));
 
-// Import the component after mocks
-import Login from '../../../components/auth/Login';
-
 const theme = createTheme();
 
-const renderLogin = () => {
-  return render(
-    <ThemeProvider theme={theme}>
-      <Login />
-    </ThemeProvider>
-  );
-};
 
 /*
 describe('Login Component', () => {

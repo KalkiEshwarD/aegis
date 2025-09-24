@@ -19,7 +19,7 @@ import DashboardAppBar from '../dashboard/DashboardAppBar';
 import DashboardSidebar from '../dashboard/DashboardSidebar';
 import { useUserMenu } from '../../hooks/useUserMenu';
 
-const drawerWidth = 240;
+
 
 const Profile: React.FC = () => {
   const { user, logout } = useAuth();

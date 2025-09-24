@@ -10,7 +10,6 @@ import {
 } from '@mui/material';
 import {
   Folder as FolderIcon,
-  InsertDriveFile as FileIcon,
   Star as StarIcon,
   Download as DownloadIcon,
   Delete as DeleteIcon,

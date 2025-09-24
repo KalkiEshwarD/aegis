@@ -1,4 +1,31 @@
 // Mock File and FileReader for file utilities before any imports
+import {
+  calculateFileHash,
+  calculateMD5Hash,
+  detectMimeType,
+  getFileExtension,
+  isValidFileExtension,
+  isValidMimeType,
+  generateUniqueFilename,
+  validateFileSize,
+  getFileCategory,
+  isTextFile,
+  isImageFile,
+  isVideoFile,
+  isAudioFile,
+  isArchiveFile,
+  getFileIconType,
+  getFileInfo,
+  validateFilename,
+  sanitizePath,
+  isPathSafe,
+  readFileAsText,
+  readFileAsArrayBuffer,
+  readFileAsDataURL,
+  getFilePreview,
+  validateFileForUpload,
+} from '../../utils/fileOperations';
+
 Object.defineProperty(global, 'File', {
   value: jest.fn().mockImplementation((parts, filename, options) => {
     const content = parts && parts.length > 0 ? parts[0] : '';
@@ -50,33 +77,6 @@ Object.defineProperty(global, 'FileReader', {
   })),
   writable: true,
 });
-
-import {
-  calculateFileHash,
-  calculateMD5Hash,
-  detectMimeType,
-  getFileExtension,
-  isValidFileExtension,
-  isValidMimeType,
-  generateUniqueFilename,
-  validateFileSize,
-  getFileCategory,
-  isTextFile,
-  isImageFile,
-  isVideoFile,
-  isAudioFile,
-  isArchiveFile,
-  getFileIconType,
-  getFileInfo,
-  validateFilename,
-  sanitizePath,
-  isPathSafe,
-  readFileAsText,
-  readFileAsArrayBuffer,
-  readFileAsDataURL,
-  getFilePreview,
-  validateFileForUpload,
-} from '../../utils/fileOperations';
 
 describe('File Operations Utils', () => {
   describe('calculateFileHash', () => {

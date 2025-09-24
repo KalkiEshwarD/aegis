@@ -90,7 +90,7 @@ export const SharePasswordDialog: React.FC<SharePasswordDialogProps> = ({
       return;
     }
 
-    if (!/[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(password)) {
+    if (!/[!@#$%^&*()_+\-={}|;:,.<>?]/.test(password)) {
       setLocalError('Password must contain at least one special character');
       return;
     }

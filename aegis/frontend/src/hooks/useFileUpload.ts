@@ -2,7 +2,6 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useMutation } from '@apollo/client';
 import { UPLOAD_FILE_FROM_MAP_MUTATION, GET_MY_STATS } from '../apollo/queries';
 import {
-  cryptoManager,
   generateEncryptionKey,
   encryptFile,
 } from '../utils/cryptoManager';

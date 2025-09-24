@@ -15,7 +15,6 @@ export const getFileExtension = (filename: string): string => {
 
 // Get file category based on extension
 export const getFileCategory = (filename: string): FileCategory => {
-  const ext = getFileExtension(filename);
 
   if (isImageFile(filename)) return 'image';
   if (isVideoFile(filename)) return 'video';

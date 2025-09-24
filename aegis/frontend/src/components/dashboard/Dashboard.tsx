@@ -27,7 +27,7 @@ import { useUserMenu } from '../../hooks/useUserMenu';
 import { isFile } from '../../types';
 import withAuth from '../hocs/withAuth';
 import withErrorBoundary from '../hocs/withErrorBoundary';
-const drawerWidth = 240;
+
 
 const Dashboard: React.FC = () => {
   const location = useLocation();

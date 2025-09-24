@@ -14,7 +14,6 @@ import Profile from './components/profile/Profile';
 import SharedDashboard from './components/dashboard/SharedDashboard';
 import AdminDashboard from './components/admin/AdminDashboard';
 import ShareAccess from './components/share/ShareAccess';
-import SharedView from './components/dashboard/SharedView';
 import LoadingSpinner from './components/common/LoadingSpinner';
 import ErrorBoundary from './components/common/ErrorBoundary';
 

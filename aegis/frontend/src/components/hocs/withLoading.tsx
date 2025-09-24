@@ -1,5 +1,5 @@
 import React, { ComponentType, useState, useEffect } from 'react';
-import { Box, CircularProgress, Typography, Alert } from '@mui/material';
+import { Alert } from '@mui/material';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 interface WithLoadingOptions {

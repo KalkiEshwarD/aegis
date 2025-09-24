@@ -29,7 +29,7 @@ function withAuth<P extends object>(
           navigate(redirectTo);
         }
       }
-    }, [user, loading, navigate, requireAuth, redirectTo]);
+    }, [user, loading, navigate]);
 
     if (loading) {
       return <LoadingSpinner message="Checking authentication..." />;
