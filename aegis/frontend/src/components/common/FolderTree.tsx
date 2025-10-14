@@ -131,7 +131,16 @@ const FolderTreeItem: React.FC<FolderTreeItemProps> = ({
             primaryTypographyProps={{
               fontSize: '0.875rem',
               fontWeight: isSelected ? 600 : 400,
-              noWrap: true,
+              sx: {
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                wordBreak: 'break-word',
+                lineHeight: 1.2,
+                minHeight: '2.4em',
+              },
             }}
           />
           <IconButton
@@ -397,7 +406,16 @@ const FolderSelectionTreeItem: React.FC<FolderSelectionTreeItemProps> = ({
             primaryTypographyProps={{
               fontSize: '0.875rem',
               fontWeight: isSelected ? 600 : 400,
-              noWrap: true,
+              sx: {
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                wordBreak: 'break-word',
+                lineHeight: 1.2,
+                minHeight: '2.4em',
+              },
             }}
           />
         </ListItemButton>

@@ -229,14 +229,21 @@ const FileGrid: React.FC<FileGridProps> = ({
       e.preventDefault();
       setIsDragOver(false);
 
-      if (!isItemFolder || !onFileMove) return;
+      console.log('FileGrid handleDrop called on item:', item.id, isItemFolder ? (item as any).name : (item as any).filename);
+      if (!isItemFolder || !onFileMove) {
+        console.log('Not a folder or no onFileMove:', isItemFolder, !!onFileMove);
+        return;
+      }
 
       try {
         const dragData = JSON.parse(e.dataTransfer.getData('application/json'));
+        console.log('Drag data:', dragData);
         if (dragData.type === 'items' && dragData.itemIds) {
+          console.log('Moving items:', dragData.itemIds, 'to folder:', item.id);
           await onFileMove(dragData.itemIds, item.id);
         } else if (dragData.type === 'files' && dragData.fileIds) {
           // Backward compatibility with old format
+          console.log('Moving files (old format):', dragData.fileIds, 'to folder:', item.id);
           await onFileMove(dragData.fileIds, item.id);
         }
       } catch (error) {
@@ -303,8 +310,14 @@ const FileGrid: React.FC<FileGridProps> = ({
                 wordBreak: 'break-word',
                 maxWidth: '100%',
                 fontWeight: isItemSelected ? 600 : 400,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                lineHeight: 1.2,
+                minHeight: '2.4em', // 2 lines * 1.2 lineHeight
               }}
-              noWrap
             >
               {getItemName()}
             </Typography>
@@ -403,7 +416,7 @@ const FileGrid: React.FC<FileGridProps> = ({
 
             return (
               <FileItem
-                key={item.id}
+                key={`${isFile(item) ? 'file' : 'folder'}-${item.id}`}
                 item={item}
                 style={style}
                 selectedFiles={data.selectedFiles}
@@ -434,7 +447,7 @@ const FileGrid: React.FC<FileGridProps> = ({
     }}>
       {files.map((item, index) => (
         <FileItem
-          key={item.id}
+          key={`${isFile(item) ? 'file' : 'folder'}-${item.id}`}
           item={item}
           style={{}}
           selectedFiles={selectedFiles}

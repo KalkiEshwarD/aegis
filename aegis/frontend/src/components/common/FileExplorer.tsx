@@ -947,6 +947,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
   // Handle file/folder move via drag and drop
   const handleFileMove = useCallback(async (itemIds: string[], targetFolderId: string | null) => {
+    console.log('handleFileMove called with itemIds:', itemIds, 'targetFolderId:', targetFolderId);
     try {
       const allFiles = isStarredMode ? data?.myStarredFiles : data?.myFiles;
       const allFolders = isStarredMode ? foldersData?.myStarredFolders : foldersData?.myFolders;
@@ -958,7 +959,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         if (isFile(item)) {
           return item.folder_id !== targetFolderId;
         } else if (isFolder(item)) {
-          return item.parent_id !== targetFolderId;
+          return item.id !== targetFolderId && item.parent_id !== targetFolderId;
         }
         return false;
       });
@@ -2024,7 +2025,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {allItems.map((item, index) => (
                   <FileListItem
-                    key={item.id}
+                    key={`${isFile(item) ? 'file' : 'folder'}-${item.id}`}
                     item={item}
                     isSelected={selectedFiles.has(item.id)}
                     isDownloading={downloadingFile === item.id}

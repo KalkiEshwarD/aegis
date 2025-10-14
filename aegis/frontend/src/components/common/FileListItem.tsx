@@ -130,6 +130,7 @@ export const FileListItem: React.FC<FileListItemProps> = ({
     setIsDragging(true);
     // Set drag data with all selected item IDs (files and folders), or just this item if none selected
     const draggedItemIds = selectedFileIds.length > 0 ? selectedFileIds : [item.id];
+    console.log('Drag start on item:', item.id, 'draggedItemIds:', draggedItemIds);
 
     e.dataTransfer.setData('application/json', JSON.stringify({
       type: 'items',
@@ -158,14 +159,21 @@ export const FileListItem: React.FC<FileListItemProps> = ({
     e.preventDefault();
     setIsDragOver(false);
 
-    if (!isFolder(item) || !onFileMove) return;
+    console.log('FileListItem handleDrop called on item:', item.id);
+    if (!isFolder(item) || !onFileMove) {
+      console.log('Not a folder or no onFileMove:', isFolder(item), !!onFileMove);
+      return;
+    }
 
     try {
       const dragData = JSON.parse(e.dataTransfer.getData('application/json'));
+      console.log('Drag data:', dragData);
       if (dragData.type === 'items' && dragData.itemIds) {
+        console.log('Moving items:', dragData.itemIds, 'to folder:', item.id);
         await onFileMove(dragData.itemIds, item.id);
       } else if (dragData.type === 'files' && dragData.fileIds) {
         // Backward compatibility with old format
+        console.log('Moving files (old format):', dragData.fileIds, 'to folder:', item.id);
         await onFileMove(dragData.fileIds, item.id);
       }
     } catch (error) {
@@ -233,7 +241,17 @@ export const FileListItem: React.FC<FileListItemProps> = ({
       <ListItemText
         primary={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography variant="body1" sx={{ flex: 1 }}>
+            <Typography variant="body1" sx={{ 
+              flex: 1,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              wordBreak: 'break-word',
+              lineHeight: 1.2,
+              minHeight: '2.4em', // 2 lines * 1.2 lineHeight
+            }}>
               {isFolder(item) ? item.name : item.filename}
             </Typography>
             {isFile(item) && item.is_starred && (
