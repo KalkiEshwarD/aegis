@@ -1,4 +1,4 @@
-import React, { memo, useState } from 'react';
+import React, { memo, useState, useRef, useEffect } from 'react';
 import { FixedSizeGrid as Grid } from 'react-window';
 import {
   Box,
@@ -69,6 +69,30 @@ const FileGrid: React.FC<FileGridProps> = ({
 }) => {
   // Store click state at grid level to persist across component re-mounts
   const [clickStates, setClickStates] = useState(new Map<string, { count: number; lastTime: number; timeout: NodeJS.Timeout | null }>());
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(1200);
+  const [containerHeight, setContainerHeight] = useState(600);
+
+  // Update container dimensions on mount and resize
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.offsetWidth);
+        setContainerHeight(containerRef.current.offsetHeight || 600);
+      }
+    };
+
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    
+    // Also update after a short delay to ensure proper layout
+    const timeout = setTimeout(updateDimensions, 100);
+
+    return () => {
+      window.removeEventListener('resize', updateDimensions);
+      clearTimeout(timeout);
+    };
+  }, []);
 
   // Helper functions for click state management
   const getClickState = (itemId: string) => {
@@ -382,20 +406,22 @@ const FileGrid: React.FC<FileGridProps> = ({
   const useVirtualization = files.length > 50;
 
   if (useVirtualization) {
-    const itemWidth = 140; // Width of each item
-    const itemHeight = 140; // Height of each item
-    const columnCount = Math.floor(800 / itemWidth) || 1; // Responsive column count
+    const itemWidth = 130; // Base item width
+    const itemHeight = 150; // Item height
+    const gap = 16; // Gap between items
+    const effectiveItemWidth = itemWidth + gap; // Total width per item including gap
+    const columnCount = Math.max(1, Math.floor((containerWidth + gap) / effectiveItemWidth)); // Responsive column count
     const rowCount = Math.ceil(files.length / columnCount);
 
     return (
-      <Box sx={{ height: '100%', width: '100%' }}>
+      <Box ref={containerRef} sx={{ height: '100%', width: '100%', overflow: 'hidden' }}>
         <Grid
           columnCount={columnCount}
-          columnWidth={itemWidth}
-          height={400}
+          columnWidth={itemWidth + gap} // Column width includes gap
+          height={containerHeight}
           rowCount={rowCount}
-          rowHeight={itemHeight}
-          width={800}
+          rowHeight={itemHeight + gap} // Row height includes gap
+          width={containerWidth}
           itemData={{
             files,
             selectedFiles,
@@ -406,6 +432,7 @@ const FileGrid: React.FC<FileGridProps> = ({
             onFolderClick,
             onFileMove,
             onItemSelect,
+            gap,
           }}
         >
           {({ columnIndex, rowIndex, style, data }) => {
@@ -414,11 +441,20 @@ const FileGrid: React.FC<FileGridProps> = ({
 
             if (!item) return null;
 
+            // Position items with gap spacing
+            const itemStyle = {
+              ...style,
+              left: `${parseFloat(style.left as string)}px`,
+              top: `${parseFloat(style.top as string)}px`,
+              width: `${itemWidth}px`,
+              height: `${itemHeight}px`,
+            };
+
             return (
               <FileItem
                 key={`${isFile(item) ? 'file' : 'folder'}-${item.id}`}
                 item={item}
-                style={style}
+                style={itemStyle}
                 selectedFiles={data.selectedFiles}
                 isFocused={data.focusedIndex === index}
                 onFileClick={data.onFileClick}
@@ -441,8 +477,9 @@ const FileGrid: React.FC<FileGridProps> = ({
   return (
     <Box sx={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
       gap: 2,
+      width: '100%',
       height: '100%'
     }}>
       {files.map((item, index) => (

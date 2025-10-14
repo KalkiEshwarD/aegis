@@ -1150,7 +1150,17 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         }
         break;
     }
-  }, [focusedIndex, selectedFiles, cutItems]);
+  }, [
+    focusedIndex,
+    selectedFiles,
+    cutItems,
+    copiedItems,
+    allItems,
+    handleCreateFolderClick,
+    handleStarSelected,
+    setSnackbarMessage,
+    setSnackbarOpen,
+  ]);
 
   const handleArrowNavigation = useCallback((direction: string, shiftKey: boolean) => {
     if (allItems.length === 0) return;
@@ -1219,18 +1229,24 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
   const handleDeleteKey = useCallback(() => {
     const selectedItemIds = Array.from(selectedFiles);
+    if (selectedItemIds.length === 0) return;
+
     if (selectedItemIds.length === 1) {
+      // Single item deletion - show appropriate dialog
       const item = allItems.find(i => i.id === selectedItemIds[0]);
       if (item) {
         if (isFile(item)) {
           handleDeleteClick(item as UserFile);
         } else if (isFolder(item)) {
-          // Handle folder deletion
-          handleDeleteFolder(item as Folder);
+          setFolderToDelete(item as Folder);
+          setFolderDeleteDialogOpen(true);
         }
       }
+    } else {
+      // Multiple items - use bulk delete
+      handleDeleteSelected();
     }
-  }, [selectedFiles, allItems]);
+  }, [selectedFiles, allItems, handleDeleteClick, handleDeleteSelected]);
 
   const handleCutKey = useCallback(() => {
     const selectedItemIds = Array.from(selectedFiles);
@@ -1904,6 +1920,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
           transition: 'all 0.2s ease-in-out',
           minHeight: 400,
           position: 'relative',
+          overflow: 'hidden',
           '&:focus': {
             outline: 'none',
           },
@@ -2005,7 +2022,13 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
             </Box>
           )
         ) : (
-          <div className="file-explorer-grid-container">
+          <div className="file-explorer-grid-container" style={{ 
+            width: '100%', 
+            height: '100%', 
+            minHeight: '400px',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
             {viewMode === 'tile' ? (
               <FileGrid
                 files={allItems}

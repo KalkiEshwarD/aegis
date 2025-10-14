@@ -70,7 +70,7 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
 
   const activeTab = location.pathname === '/shared' ? 'shared' : selectedNav;
 
-  const { handleFiles } = useFileUpload(onUploadComplete);
+  const { handleFiles, processFile } = useFileUpload(onUploadComplete);
   const [createFolderMutation] = useMutation(CREATE_FOLDER_MUTATION);
 
   const handleFileUpload = () => {
@@ -78,7 +78,7 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
     fileInputRef.current?.click();
   };
 
-  const handleFolderUpload = () => {
+  const handleFolderUploadClick = () => {
     onNavChange('home');
     folderInputRef.current?.click();
   };
@@ -92,13 +92,93 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
     event.target.value = '';
   };
 
-  const handleFolderInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFolderInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files && files.length > 0) {
-      handleFiles(Array.from(files));
+      await handleFolderUpload(Array.from(files));
     }
     // Reset the input so the same file can be selected again
     event.target.value = '';
+  };
+
+  const handleFolderUpload = async (files: File[]) => {
+    if (!files || files.length === 0) return;
+
+    // Group files by their directory structure
+    const folderStructure: { [path: string]: File[] } = {};
+    const folderPaths = new Set<string>();
+
+    for (const file of files) {
+      const relativePath = (file as any).webkitRelativePath;
+      if (!relativePath) continue; // Skip if no path
+
+      const pathParts = relativePath.split('/');
+      const fileName = pathParts.pop()!; // Remove filename
+      const folderPath = pathParts.join('/');
+
+      if (folderPath) {
+        folderPaths.add(folderPath);
+      }
+
+      if (!folderStructure[folderPath]) {
+        folderStructure[folderPath] = [];
+      }
+      folderStructure[folderPath].push(file);
+    }
+
+    // Create folders recursively
+    const createdFolders: { [path: string]: string } = {}; // path -> folderId
+
+    const createFolderRecursive = async (path: string): Promise<string> => {
+      if (createdFolders[path]) return createdFolders[path];
+
+      const parts = path.split('/');
+      let currentPath = '';
+      let parentId: string | undefined;
+
+      for (const part of parts) {
+        currentPath = currentPath ? `${currentPath}/${part}` : part;
+
+        if (!createdFolders[currentPath]) {
+          try {
+            const result = await createFolderMutation({
+              variables: {
+                input: {
+                  name: part,
+                  parent_id: parentId,
+                },
+              },
+            });
+            const folderId = result.data?.createFolder?.id;
+            if (folderId) {
+              createdFolders[currentPath] = folderId;
+              parentId = folderId;
+            }
+          } catch (error) {
+            console.error('Error creating folder:', part, error);
+            // Continue with next
+          }
+        } else {
+          parentId = createdFolders[currentPath];
+        }
+      }
+
+      return createdFolders[path] || '';
+    };
+
+    // Create all folders
+    for (const path of Array.from(folderPaths).sort()) {
+      await createFolderRecursive(path);
+    }
+
+    // Upload files to their folders
+    for (const [folderPath, folderFiles] of Object.entries(folderStructure)) {
+      const folderId = createdFolders[folderPath];
+      for (const file of folderFiles) {
+        // Upload file with folder_id
+        await processFile(file, folderId);
+      }
+    }
   };
 
   const handleNewFolder = () => {
@@ -303,7 +383,7 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                 Upload files
               </Button>
               <Button
-                onClick={() => { setNewDialogOpen(false); handleFolderUpload(); }}
+                onClick={() => { setNewDialogOpen(false); handleFolderUploadClick(); }}
                 variant="text"
                 fullWidth
                 size="large"

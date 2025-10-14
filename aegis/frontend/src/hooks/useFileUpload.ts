@@ -44,7 +44,7 @@ export const useFileUpload = (onUploadComplete?: () => void) => {
     }
   }, []);
 
-  const processFile = useCallback(async (file: File): Promise<void> => {
+  const processFile = useCallback(async (file: File, folderId?: string): Promise<void> => {
     const validationError = validateFile(file);
     if (validationError) {
       safeSetUploads(prev => [...prev, {
@@ -98,7 +98,8 @@ export const useFileUpload = (onUploadComplete?: () => void) => {
         size_bytes: encryptedDataWithNonce.length,
         mime_type: mimeType,
         encrypted_key: encryptedKeyBase64,
-        file_data: encryptedDataBase64,
+        file_data: encryptedDataWithNonce,
+        ...(folderId && { folder_id: folderId }),
       };
 
       // Create a new AbortController for this specific upload
@@ -140,10 +141,10 @@ export const useFileUpload = (onUploadComplete?: () => void) => {
     }
   }, [uploadFileMutation, onUploadComplete, validateFile, safeSetUploads]);
 
-  const handleFiles = useCallback(async (files: File[]) => {
+  const handleFiles = useCallback(async (files: File[], folderId?: string) => {
     if (!files || files.length === 0) return;
     for (const file of files) {
-      await processFile(file);
+      await processFile(file, folderId);
     }
   }, [processFile]);
 
@@ -158,6 +159,7 @@ export const useFileUpload = (onUploadComplete?: () => void) => {
   return {
     uploads,
     handleFiles,
+    processFile,
     removeUpload,
     clearCompleted,
   };
