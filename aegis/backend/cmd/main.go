@@ -87,6 +87,7 @@ func main() {
 	var minioClient *minio.Client
 	var bucketName string
 	if cfg.MinIOEndpoint != "" && cfg.MinIOAccessKey != "" && cfg.MinIOSecretKey != "" && cfg.MinIOBucket != "" {
+		log.Printf("DEBUG: Initializing MinIO client with endpoint: %s, bucket: %s", cfg.MinIOEndpoint, cfg.MinIOBucket)
 		var err error
 		minioClient, err = minio.New(cfg.MinIOEndpoint, &minio.Options{
 			Creds:  credentials.NewStaticV4(cfg.MinIOAccessKey, cfg.MinIOSecretKey, ""),
@@ -96,6 +97,24 @@ func main() {
 			log.Fatalf("Failed to initialize MinIO client: %v", err)
 		}
 		bucketName = cfg.MinIOBucket
+
+		// Check if bucket exists, create if not
+		exists, err := minioClient.BucketExists(context.Background(), bucketName)
+		if err != nil {
+			log.Fatalf("Failed to check if bucket exists: %v", err)
+		}
+		if !exists {
+			err = minioClient.MakeBucket(context.Background(), bucketName, minio.MakeBucketOptions{})
+			if err != nil {
+				log.Fatalf("Failed to create bucket: %v", err)
+			}
+			log.Printf("Created MinIO bucket: %s", bucketName)
+		} else {
+			log.Printf("MinIO bucket %s already exists", bucketName)
+		}
+	} else {
+		log.Printf("DEBUG: MinIO not configured - endpoint: %s, access_key: %s, secret_key: %s, bucket: %s",
+			cfg.MinIOEndpoint, cfg.MinIOAccessKey != "", cfg.MinIOSecretKey != "", cfg.MinIOBucket)
 	}
 
 	fileStorageService := services.NewFileStorageService(minioClient, bucketName)

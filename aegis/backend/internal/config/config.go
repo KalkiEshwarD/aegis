@@ -94,6 +94,8 @@ func Load() *Config {
 
 	log.Printf("DEBUG: Configuration loaded - Port: %s, CORS Origins: %s, BaseURL: %s", config.Port, config.CORSAllowedOrigins, config.BaseURL)
 	log.Printf("DEBUG: JWT Secret length: %d characters", len(config.JWTSecret))
+	log.Printf("DEBUG: MinIO config - Endpoint: %s, Bucket: %s, AccessKey set: %t, SecretKey set: %t", 
+		config.MinIOEndpoint, config.MinIOBucket, config.MinIOAccessKey != "", config.MinIOSecretKey != "")
 
 	// Validate that sensitive values are not using known insecure defaults
 	validateSecureConfig(config)
