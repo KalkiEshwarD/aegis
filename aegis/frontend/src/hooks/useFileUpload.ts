@@ -98,7 +98,7 @@ export const useFileUpload = (onUploadComplete?: () => void) => {
         size_bytes: encryptedDataWithNonce.length,
         mime_type: mimeType,
         encrypted_key: encryptedKeyBase64,
-        file_data: encryptedDataWithNonce,
+        file_data: encryptedDataBase64,
         ...(folderId && { folder_id: folderId }),
       };
 

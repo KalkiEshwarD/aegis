@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 import React from 'react';
 import { MockedProvider } from '@apollo/client/testing';
 import { renderHook, act } from '@testing-library/react-hooks';

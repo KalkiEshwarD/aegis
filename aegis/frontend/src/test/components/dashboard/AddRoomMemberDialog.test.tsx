@@ -121,7 +121,7 @@ describe('AddRoomMemberDialog', () => {
     onMemberAdded: jest.fn(),
   };
 
-  const renderComponent = (mocks = [mockGetUsersQuery], props = {}) => {
+  const renderComponent = (mocks: any[] = [mockGetUsersQuery], props = {}) => {
     return render(
       <MockedProvider mocks={mocks} addTypename={false}>
         <AddRoomMemberDialog {...defaultProps} {...props} />

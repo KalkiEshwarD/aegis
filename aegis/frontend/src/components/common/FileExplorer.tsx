@@ -97,6 +97,7 @@ interface FileExplorerProps {
     isTrashMode?: boolean;
     onFileRestored?: () => void;
     isStarredMode?: boolean;
+    onFileSelect?: (files: File[]) => void;
 }
 
 const FileExplorer: React.FC<FileExplorerProps> = ({
@@ -123,6 +124,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     isTrashMode = false,
     onFileRestored,
     isStarredMode = false,
+    onFileSelect,
 }) => {
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<{
@@ -173,6 +175,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const [folderRestoreDialogOpen, setFolderRestoreDialogOpen] = useState(false);
   const [emptyTrashDialogOpen, setEmptyTrashDialogOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // New state for view mode, search, and sorting
   const viewMode = externalViewMode || 'tile';
@@ -610,6 +613,16 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         setSelectedFiles(new Set([fileId]));
       }
     }
+  };
+
+  // Handle file input change
+  const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files && files.length > 0 && onFileSelect) {
+      onFileSelect(Array.from(files));
+    }
+    // Reset the input so the same file can be selected again
+    event.target.value = '';
   };
 
   // Handle delete selected items
@@ -1939,6 +1952,10 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
           if (!hasFileItem && !hasButton && !hasIconButton) {
             setSelectedFiles(new Set());
+            // Trigger file selection if available
+            if (onFileSelect && fileInputRef.current) {
+              fileInputRef.current.click();
+            }
           }
         }}
         onMouseDown={handleMouseDown}
@@ -2083,6 +2100,18 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
           />
         )}
       </Paper>
+
+      {/* Hidden file input */}
+      {onFileSelect && (
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileInputChange}
+          multiple
+          style={{ display: 'none' }}
+          accept="*/*"
+        />
+      )}
 
       {/* Upload Progress */}
       {uploads.length > 0 && (

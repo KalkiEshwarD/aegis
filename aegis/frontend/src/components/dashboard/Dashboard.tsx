@@ -25,6 +25,7 @@ import DashboardSidebar from './DashboardSidebar';
 import StatsCards from './StatsCards';
 import { useDashboardNavigation } from '../../hooks/useDashboardNavigation';
 import { useUserMenu } from '../../hooks/useUserMenu';
+import { useFileUpload } from '../../hooks/useFileUpload';
 import { isFile } from '../../types';
 import withAuth from '../hocs/withAuth';
 import withErrorBoundary from '../hocs/withErrorBoundary';
@@ -72,6 +73,12 @@ const Dashboard: React.FC = () => {
 
   const handleUploadComplete = () => {
     triggerRefresh();
+  };
+
+  const { handleFiles } = useFileUpload(handleUploadComplete);
+
+  const handleFileSelect = (files: File[]) => {
+    handleFiles(files);
   };
 
   const handleFileRestored = () => {
@@ -262,6 +269,7 @@ const Dashboard: React.FC = () => {
               showNewFolderButton={true}
               onCreateFolder={handleCreateFolderClick}
               onViewModeChange={setViewMode}
+              onFileSelect={handleFileSelect}
             />
           </Paper>
         )}
