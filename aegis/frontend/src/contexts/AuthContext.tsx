@@ -77,7 +77,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (identifier: string, password: string): Promise<void> => {
     try {
       console.log('DEBUG: AuthContext.login called with identifier:', identifier);
-      setLoading(true);
       const { data, errors } = await loginMutation({
         variables: {
           input: { identifier, password }
@@ -104,8 +103,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('DEBUG: Login error:', error);
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 

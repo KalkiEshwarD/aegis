@@ -114,7 +114,15 @@ const Login: React.FC = () => {
       }
     } catch (err: any) {
       if (isMountedRef.current) {
-        setError(err.message || 'Login failed. Please check your credentials.');
+        const errorMessage = err.message || 'Login failed. Please check your credentials.';
+        // Make error messages more user-friendly
+        let userFriendlyMessage = errorMessage;
+        if (errorMessage.includes('invalid credentials')) {
+          userFriendlyMessage = 'Invalid username/email or password. Please try again.';
+        } else if (errorMessage.includes('Login failed')) {
+          userFriendlyMessage = 'Login failed. Please check your credentials.';
+        }
+        setError(userFriendlyMessage);
         setSnackbarOpen(true);
       }
     } finally {
@@ -159,6 +167,19 @@ const Login: React.FC = () => {
             <Typography variant="h6" color="#6b7280" gutterBottom>
               Sign in to your vault
             </Typography>
+
+            {error && (
+              <div style={{ 
+                backgroundColor: '#fee2e2', 
+                color: '#dc2626', 
+                padding: '12px', 
+                borderRadius: '8px', 
+                marginBottom: '16px',
+                border: '1px solid #fecaca'
+              }}>
+                {error}
+              </div>
+            )}
 
             <Box component="form" role="form" onSubmit={handleSubmit(onSubmit)} sx={{ mt: 3, width: '100%' }}>
               <Controller
