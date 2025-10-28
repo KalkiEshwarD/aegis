@@ -377,11 +377,15 @@ const SharedView: React.FC<SharedViewProps> = ({ onShareDeleted }) => {
                         Last accessed: {sharedFile.last_access_at ? new Date(sharedFile.last_access_at).toLocaleString() : 'Never'}
                       </Typography>
                     </Box>
-                    {sharedFile.max_downloads && (
+                    {sharedFile.max_downloads && sharedFile.max_downloads > 0 ? (
                       <Typography variant="body2" color="text.secondary">
                         Download limit: {sharedFile.download_count} / {sharedFile.max_downloads}
                       </Typography>
-                    )}
+                    ) : sharedFile.max_downloads === -1 ? (
+                      <Typography variant="body2" color="text.secondary">
+                        Download limit: {sharedFile.download_count} / Unlimited
+                      </Typography>
+                    ) : null}
                     {sharedFile.expires_at && (
                       <Typography variant="body2" color="text.secondary">
                         Expires: {new Date(sharedFile.expires_at).toLocaleString()}

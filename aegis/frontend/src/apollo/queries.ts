@@ -664,6 +664,7 @@ export const GET_FILE_SHARES = gql`
       expires_at
       max_downloads
       download_count
+      allowed_emails
       created_at
       updated_at
       user_file {

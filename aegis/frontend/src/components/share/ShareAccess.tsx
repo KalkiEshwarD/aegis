@@ -290,7 +290,7 @@ const ShareAccess: React.FC = () => {
               )}
               <Typography variant="body2" color="text.secondary">
                 Downloads: {sharedFile.download_count}
-                {sharedFile.max_downloads && ` / ${sharedFile.max_downloads}`}
+                {sharedFile.max_downloads && sharedFile.max_downloads > 0 ? ` / ${sharedFile.max_downloads}` : sharedFile.max_downloads === -1 ? ' / Unlimited' : ''}
               </Typography>
             </Box>
 

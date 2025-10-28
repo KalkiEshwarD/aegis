@@ -178,9 +178,12 @@ export const SharePasswordDialog: React.FC<SharePasswordDialogProps> = ({
             loading={usersLoading}
             disabled={isLoading}
             renderTags={(tagValue, getTagProps) =>
-              tagValue.map((option, index) => (
-                <Chip label={option.email} {...getTagProps({ index })} />
-              ))
+              tagValue.map((option, index) => {
+                const { key, ...chipProps } = getTagProps({ index });
+                return (
+                  <Chip key={key} label={option.email} {...chipProps} />
+                );
+              })
             }
             renderInput={(params) => (
               <TextField
@@ -190,9 +193,12 @@ export const SharePasswordDialog: React.FC<SharePasswordDialogProps> = ({
                 InputProps={{
                   ...params.InputProps,
                   startAdornment: (
-                    <InputAdornment position="start">
-                      <PeopleIcon />
-                    </InputAdornment>
+                    <>
+                      <InputAdornment position="start">
+                        <PeopleIcon />
+                      </InputAdornment>
+                      {params.InputProps.startAdornment}
+                    </>
                   ),
                 }}
               />

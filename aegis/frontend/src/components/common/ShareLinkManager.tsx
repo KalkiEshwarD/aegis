@@ -28,8 +28,6 @@ import {
   GetApp as GetAppIcon,
   ContentCopy as CopyIcon,
   Add as AddIcon,
-  Visibility as VisibilityIcon,
-  VisibilityOff as VisibilityOffIcon,
 } from '@mui/icons-material';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_FILE_SHARES, DELETE_FILE_SHARE_MUTATION, CREATE_FILE_SHARE_MUTATION } from '../../apollo/queries';
@@ -64,7 +62,8 @@ export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
   const [shareToDelete, setShareToDelete] = useState<FileShare | null>(null);
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const [createShareDialogOpen, setCreateShareDialogOpen] = useState(false);
-  const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
+  const [emailsDialogOpen, setEmailsDialogOpen] = useState(false);
+  const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
 
   const { data, loading, error, refetch } = useQuery<
     GetFileSharesResponse,
@@ -154,22 +153,25 @@ export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
       year: 'numeric',
       month: 'short',
       day: 'numeric',
+    }) + ' ' + new Date(dateString).toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
     });
   };
 
+  const handleCopyPassword = async (password: string, shareId: string) => {
+    try {
+      await navigator.clipboard.writeText(password);
+      setCopySuccess(shareId);
+      setTimeout(() => setCopySuccess(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy password:', err);
+    }
+  };
 
-  const togglePasswordVisibility = (shareId: string) => {
-    setVisiblePasswords(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(shareId)) {
-        newSet.delete(shareId);
-      } else {
-        newSet.add(shareId);
-      }
-      return newSet;
-    });
+  const handleShowEmails = (emails: string[]) => {
+    setSelectedEmails(emails);
+    setEmailsDialogOpen(true);
   };
 
   const shares = (data?.myShares || []).filter((share: FileShare) =>
@@ -211,6 +213,7 @@ export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
         <Table>
           <TableHead>
             <TableRow>
+              <TableCell>Shared With</TableCell>
               <TableCell>Created</TableCell>
               <TableCell>Expires</TableCell>
               <TableCell>Downloads</TableCell>
@@ -221,13 +224,13 @@ export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={5} align="center">
+                <TableCell colSpan={6} align="center">
                   <Typography>Loading share links...</Typography>
                 </TableCell>
               </TableRow>
             ) : shares.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} align="center">
+                <TableCell colSpan={6} align="center">
                   <Box display="flex" flexDirection="column" alignItems="center" py={4}>
                     <ShareIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
                     <Typography variant="h6" color="textSecondary">
@@ -241,16 +244,40 @@ export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
               </TableRow>
             ) : (
               shares.map((share) => {
+                const allowedEmails = share.allowed_emails || [];
+                const isEmailShare = allowedEmails.length > 0;
+                
                 return (
                   <TableRow key={share.id} hover>
                     <TableCell>
-                      <Typography variant="body2">
+                      {isEmailShare ? (
+                        <Button
+                          variant="text"
+                          size="small"
+                          onClick={() => handleShowEmails(allowedEmails)}
+                          sx={{ textTransform: 'none' }}
+                        >
+                          <Typography variant="body2" fontWeight="medium">
+                            Direct Share ({allowedEmails.length})
+                          </Typography>
+                        </Button>
+                      ) : (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <LinkIcon fontSize="small" />
+                          <Typography variant="body2" color="text.secondary">
+                            Public Link
+                          </Typography>
+                        </Box>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>
                         {formatDate(share.created_at)}
                       </Typography>
                     </TableCell>
                     <TableCell>
                       {share.expires_at ? (
-                        <Typography variant="body2">
+                        <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>
                           {formatDate(share.expires_at)}
                         </Typography>
                       ) : (
@@ -262,21 +289,21 @@ export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
                     <TableCell>
                       <Typography variant="body2">
                         {share.download_count}
-                        {share.max_downloads && ` / ${share.max_downloads}`}
+                        {share.max_downloads && share.max_downloads > 0 ? ` / ${share.max_downloads}` : ' / Unlimited'}
                       </Typography>
                     </TableCell>
                     <TableCell>
                       {share.plain_text_password ? (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}>
-                            {visiblePasswords.has(share.id) ? share.plain_text_password : '••••••••'}
+                            ••••••••
                           </Typography>
                           <IconButton
                             size="small"
-                            onClick={() => togglePasswordVisibility(share.id)}
-                            title={visiblePasswords.has(share.id) ? 'Hide password' : 'Show password'}
+                            onClick={() => handleCopyPassword(share.plain_text_password!, share.id)}
+                            title="Copy password"
                           >
-                            {visiblePasswords.has(share.id) ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                            <CopyIcon />
                           </IconButton>
                         </Box>
                       ) : (
@@ -286,20 +313,22 @@ export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
                       )}
                     </TableCell>
                     <TableCell align="right">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleCopyLink(share)}
-                        title="Copy share link"
-                      >
-                        <CopyIcon />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDeleteClick(share)}
-                        title="Delete share"
-                      >
-                        <DeleteIcon />
-                      </IconButton>
+                      <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleCopyLink(share)}
+                          title="Copy share link"
+                        >
+                          <CopyIcon />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleDeleteClick(share)}
+                          title="Delete share"
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </Box>
                     </TableCell>
                   </TableRow>
                 );
@@ -335,6 +364,25 @@ export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
         message="Create a password-protected share link for this file"
         isLoading={creatingShare}
       />
+
+      <Dialog open={emailsDialogOpen} onClose={() => setEmailsDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Shared With</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pt: 1 }}>
+            {selectedEmails.map((email, idx) => (
+              <Chip 
+                key={idx}
+                label={email} 
+                variant="outlined"
+                sx={{ width: 'fit-content' }}
+              />
+            ))}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEmailsDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Close</Button>
