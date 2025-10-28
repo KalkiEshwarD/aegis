@@ -33,7 +33,7 @@ import {
   Group as RoomsIcon,
 } from '@mui/icons-material';
 import { useMutation } from '@apollo/client';
-import { CREATE_FOLDER_MUTATION } from '../../apollo/queries';
+import { CREATE_FOLDER_MUTATION, DELETE_FILE_MUTATION, DELETE_FOLDER_MUTATION, GET_MY_FILES, GET_MY_FOLDERS, GET_MY_STATS } from '../../apollo/queries';
 import { formatFileSize } from '../../utils/fileUtils';
 
 const drawerWidth = 240;
@@ -70,10 +70,13 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [folderName, setFolderName] = useState('');
+  const [isTrashDragOver, setIsTrashDragOver] = useState(false);
 
   const activeTab = location.pathname === '/shared' ? 'shared' : selectedNav;
 
   const [createFolderMutation] = useMutation(CREATE_FOLDER_MUTATION);
+  const [deleteFileMutation] = useMutation(DELETE_FILE_MUTATION);
+  const [deleteFolderMutation] = useMutation(DELETE_FOLDER_MUTATION);
 
   const handleFileUpload = () => {
     onNavChange('home');
@@ -214,6 +217,45 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
     setFolderName('');
     setNewFolderDialogOpen(false);
   };
+
+  // Drag and drop handlers for trash
+  const handleTrashDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setIsTrashDragOver(true);
+  };
+
+  const handleTrashDragLeave = () => {
+    setIsTrashDragOver(false);
+  };
+
+  const handleTrashDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsTrashDragOver(false);
+
+    try {
+      const dragData = JSON.parse(e.dataTransfer.getData('application/json'));
+      if (dragData.type === 'items' && dragData.items) {
+        // Delete each item based on its type
+        for (const draggedItem of dragData.items) {
+          if (draggedItem.type === 'file') {
+            await deleteFileMutation({
+              variables: { id: draggedItem.id },
+              refetchQueries: [{ query: GET_MY_FILES }, { query: GET_MY_FOLDERS }, { query: GET_MY_STATS }],
+            });
+          } else if (draggedItem.type === 'folder') {
+            await deleteFolderMutation({
+              variables: { id: draggedItem.id },
+              refetchQueries: [{ query: GET_MY_FILES }, { query: GET_MY_FOLDERS }, { query: GET_MY_STATS }],
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting items:', error);
+    }
+  };
+
   const navigationItems: NavigationItem[] = [
     { id: 'home', label: 'Home', icon: <HomeIcon /> },
     { id: 'recent', label: 'Recent', icon: <RecentIcon /> },
@@ -280,8 +322,13 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                     navigate('/dashboard', { state: { selectedNav: item.id } });
                   }
                 }}
+                onDragOver={item.id === 'trash' ? handleTrashDragOver : undefined}
+                onDragLeave={item.id === 'trash' ? handleTrashDragLeave : undefined}
+                onDrop={item.id === 'trash' ? handleTrashDrop : undefined}
                 sx={{
                   borderRadius: 2,
+                  backgroundColor: item.id === 'trash' && isTrashDragOver ? '#fef2f2' : undefined,
+                  border: item.id === 'trash' && isTrashDragOver ? '2px dashed #ef4444' : undefined,
                   '&.Mui-selected': {
                     backgroundColor: '#eff6ff',
                     color: '#2563eb',
@@ -293,18 +340,22 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                     }
                   },
                   '&:hover': {
-                    backgroundColor: '#f8fafc',
+                    backgroundColor: item.id === 'trash' && isTrashDragOver ? '#fef2f2' : '#f8fafc',
                   }
                 }}
               >
-                <ListItemIcon sx={{ color: '#6b7280', minWidth: 36 }}>
+                <ListItemIcon sx={{ 
+                  color: item.id === 'trash' && isTrashDragOver ? '#ef4444' : '#6b7280', 
+                  minWidth: 36 
+                }}>
                   {item.icon}
                 </ListItemIcon>
                 <ListItemText
                   primary={item.label}
                   primaryTypographyProps={{
                     fontSize: '0.875rem',
-                    fontWeight: activeTab === item.id ? 600 : 400
+                    fontWeight: activeTab === item.id ? 600 : 400,
+                    color: item.id === 'trash' && isTrashDragOver ? '#ef4444' : undefined
                   }}
                 />
               </ListItemButton>

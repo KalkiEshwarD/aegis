@@ -221,14 +221,22 @@ const FileGrid: React.FC<FileGridProps> = ({
     // Drag and drop handlers
     const handleDragStart = (e: React.DragEvent) => {
       setIsDragging(true);
-      // Set drag data with item IDs (selected items or just this item)
+      // Set drag data with item IDs and types (selected items or just this item)
       const draggedItemIds = isItemSelected && selectedFiles.size > 1
         ? Array.from(selectedFiles)
         : [item.id];
 
+      const draggedItems = draggedItemIds.map(id => {
+        const draggedItem = files.find(f => f.id === id);
+        return {
+          id,
+          type: draggedItem ? (isFolder(draggedItem) ? 'folder' : 'file') : 'unknown'
+        };
+      });
+
       e.dataTransfer.setData('application/json', JSON.stringify({
         type: 'items',
-        itemIds: draggedItemIds
+        items: draggedItems
       }));
       e.dataTransfer.effectAllowed = 'move';
     };
@@ -262,9 +270,10 @@ const FileGrid: React.FC<FileGridProps> = ({
       try {
         const dragData = JSON.parse(e.dataTransfer.getData('application/json'));
         console.log('Drag data:', dragData);
-        if (dragData.type === 'items' && dragData.itemIds) {
-          console.log('Moving items:', dragData.itemIds, 'to folder:', item.id);
-          await onFileMove(dragData.itemIds, item.id);
+        if (dragData.type === 'items' && dragData.items) {
+          const itemIds = dragData.items.map((item: any) => item.id);
+          console.log('Moving items:', itemIds, 'to folder:', item.id);
+          await onFileMove(itemIds, item.id);
         } else if (dragData.type === 'files' && dragData.fileIds) {
           // Backward compatibility with old format
           console.log('Moving files (old format):', dragData.fileIds, 'to folder:', item.id);

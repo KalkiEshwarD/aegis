@@ -21,6 +21,7 @@ interface FileListItemProps {
   isSelected: boolean;
   isDownloading: boolean;
   selectedFileIds: string[];
+  allItems: FileExplorerItem[];
   onClick: (event: React.MouseEvent) => void;
   onContextMenu: (event: React.MouseEvent) => void;
   onDownload?: () => void;
@@ -37,6 +38,7 @@ export const FileListItem: React.FC<FileListItemProps> = ({
   isSelected,
   isDownloading,
   selectedFileIds,
+  allItems,
   onClick,
   onContextMenu,
   onDownload,
@@ -128,13 +130,21 @@ export const FileListItem: React.FC<FileListItemProps> = ({
   // Drag and drop handlers
   const handleDragStart = (e: React.DragEvent) => {
     setIsDragging(true);
-    // Set drag data with all selected item IDs (files and folders), or just this item if none selected
+    // Set drag data with all selected item IDs and types, or just this item if none selected
     const draggedItemIds = selectedFileIds.length > 0 ? selectedFileIds : [item.id];
     console.log('Drag start on item:', item.id, 'draggedItemIds:', draggedItemIds);
 
+    const draggedItems = draggedItemIds.map(id => {
+      const draggedItem = allItems.find(i => i.id === id);
+      return {
+        id,
+        type: draggedItem ? (isFolder(draggedItem) ? 'folder' : 'file') : 'unknown'
+      };
+    });
+
     e.dataTransfer.setData('application/json', JSON.stringify({
       type: 'items',
-      itemIds: draggedItemIds
+      items: draggedItems
     }));
     e.dataTransfer.effectAllowed = 'move';
   };
@@ -168,9 +178,10 @@ export const FileListItem: React.FC<FileListItemProps> = ({
     try {
       const dragData = JSON.parse(e.dataTransfer.getData('application/json'));
       console.log('Drag data:', dragData);
-      if (dragData.type === 'items' && dragData.itemIds) {
-        console.log('Moving items:', dragData.itemIds, 'to folder:', item.id);
-        await onFileMove(dragData.itemIds, item.id);
+      if (dragData.type === 'items' && dragData.items) {
+        const itemIds = dragData.items.map((item: any) => item.id);
+        console.log('Moving items:', itemIds, 'to folder:', item.id);
+        await onFileMove(itemIds, item.id);
       } else if (dragData.type === 'files' && dragData.fileIds) {
         // Backward compatibility with old format
         console.log('Moving files (old format):', dragData.fileIds, 'to folder:', item.id);

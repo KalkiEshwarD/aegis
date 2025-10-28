@@ -2072,6 +2072,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
                     isSelected={selectedFiles.has(item.id)}
                     isDownloading={downloadingFile === item.id}
                     selectedFileIds={Array.from(selectedFiles)}
+                    allItems={allItems}
                     onClick={(e) => handleFileClick(item.id, e)}
                     onContextMenu={(e) => handleContextMenu(e, item.id)}
                     onDownload={() => isFile(item) ? handleDownload(item) : undefined}
