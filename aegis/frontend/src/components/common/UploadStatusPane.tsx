@@ -72,7 +72,7 @@ const UploadStatusPane: React.FC<UploadStatusPaneProps> = ({
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <UploadIcon color="primary" fontSize="small" />
             <Typography variant="subtitle1" fontWeight={600}>
-              Uploads ({uploads.length})
+              Encrypted Uploads ({uploads.length})
             </Typography>
           </Box>
           <IconButton size="small" onClick={onClose} sx={{ p: 0.5 }}>
@@ -156,7 +156,7 @@ const UploadStatusPane: React.FC<UploadStatusPaneProps> = ({
                           color="success.main"
                           sx={{ fontWeight: 500, flexShrink: 0 }}
                         >
-                          ✓ Done
+                          Done
                         </Typography>
                       </Box>
                     ))}

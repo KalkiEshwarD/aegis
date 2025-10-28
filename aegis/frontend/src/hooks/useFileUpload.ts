@@ -46,6 +46,19 @@ export const useFileUpload = (onUploadComplete?: () => void) => {
   }, []);
 
   const processFile = useCallback(async (file: File, folderId?: string): Promise<void> => {
+    // Check if this file is already being uploaded
+    const isAlreadyUploading = uploads.some(u =>
+      u.file.name === file.name &&
+      u.file.size === file.size &&
+      u.file.lastModified === file.lastModified &&
+      (u.status === 'pending' || u.status === 'uploading' || u.status === 'encrypting')
+    );
+
+    if (isAlreadyUploading) {
+      // Skip this file as it's already being processed
+      return;
+    }
+
     const validationError = validateFile(file);
     if (validationError) {
       safeSetUploads(prev => [...prev, {
@@ -156,7 +169,7 @@ export const useFileUpload = (onUploadComplete?: () => void) => {
         u.file === file ? { ...u, status: 'error', error: errorMessage } : u
       ));
     }
-  }, [uploadFileMutation, onUploadComplete, validateFile, safeSetUploads]);
+  }, [uploadFileMutation, onUploadComplete, validateFile, safeSetUploads, uploads]);
 
   const handleFiles = useCallback(async (files: File[], folderId?: string) => {
     if (!files || files.length === 0) return;
