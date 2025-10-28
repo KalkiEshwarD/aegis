@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -36,6 +37,7 @@ import { Room } from '../../types';
 import AddRoomMemberDialog from './AddRoomMemberDialog';
 
 const RoomView: React.FC = () => {
+  const navigate = useNavigate();
   const { data, loading, refetch } = useQuery(GET_MY_ROOMS);
   const [createRoom] = useMutation(CREATE_ROOM_MUTATION);
   const [updateRoom] = useMutation(UPDATE_ROOM_MUTATION);
@@ -214,7 +216,7 @@ const RoomView: React.FC = () => {
                 </CardContent>
 
                 <CardActions sx={{ justifyContent: 'space-between', px: 2, pb: 2 }}>
-                  <Button size="small" color="primary">
+                  <Button size="small" color="primary" onClick={() => navigate(`/room/${room.id}`)}>
                     Open Room
                   </Button>
                   <Button

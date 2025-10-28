@@ -38,8 +38,8 @@ import {
    Restore as RestoreIcon,
 } from '@mui/icons-material';
 import { useQuery, useMutation } from '@apollo/client';
-import { GET_MY_FILES, MOVE_FILE_MUTATION } from '../../apollo/files';
-import { GET_MY_FOLDERS, CREATE_FOLDER_MUTATION, RENAME_FOLDER_MUTATION, MOVE_FOLDER_MUTATION, DELETE_FOLDER_MUTATION } from '../../apollo/folders';
+import { GET_MY_FILES, MOVE_FILE_MUTATION, SHARE_FILE_TO_ROOM_MUTATION } from '../../apollo/files';
+import { GET_MY_FOLDERS, CREATE_FOLDER_MUTATION, RENAME_FOLDER_MUTATION, MOVE_FOLDER_MUTATION, DELETE_FOLDER_MUTATION, SHARE_FOLDER_TO_ROOM_MUTATION } from '../../apollo/folders';
 import { STAR_FILE_MUTATION, UNSTAR_FILE_MUTATION, STAR_FOLDER_MUTATION, UNSTAR_FOLDER_MUTATION, GET_STARRED_FILES_QUERY, GET_STARRED_FOLDERS_QUERY } from '../../apollo/queries';
 import { GET_MY_TRASHED_FILES, GET_MY_TRASHED_FOLDERS, RESTORE_FILE_MUTATION, PERMANENTLY_DELETE_FILE_MUTATION, RESTORE_FOLDER_MUTATION, PERMANENTLY_DELETE_FOLDER_MUTATION, GET_MY_STATS } from '../../apollo/queries';
 import { UserFile, Folder, FileExplorerItem, isFolder, isFile } from '../../types';
@@ -48,6 +48,7 @@ import FileGrid from './FileGrid';
 import FileToolbar from './FileToolbar';
 import { FileListItem } from './FileListItem';
 import { ShareLinkManager } from './ShareLinkManager';
+import { ShareToRoomDialog } from './ShareToRoomDialog';
 
 // Helper function to calculate folder size recursively
 const calculateFolderSize = (folder: Folder): number => {
@@ -163,8 +164,6 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     console.log('DEBUG: Initializing copiedItems from localStorage:', stored, 'parsed:', Array.from(initialCopiedItems));
     return initialCopiedItems;
   });
-  const [snackbarMessage, setSnackbarMessage] = useState<string>('');
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [fileToShare, setFileToShare] = useState<UserFile | null>(null);
   const [fileToRestore, setFileToRestore] = useState<UserFile | null>(null);
@@ -174,6 +173,14 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const [emptyTrashDialogOpen, setEmptyTrashDialogOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Snackbar state
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+
+  // Share to room state
+  const [shareToRoomDialogOpen, setShareToRoomDialogOpen] = useState(false);
+  const [itemToShareToRoom, setItemToShareToRoom] = useState<FileExplorerItem | null>(null);
 
   // New state for view mode, search, and sorting
   const viewMode = externalViewMode || 'tile';
@@ -231,6 +238,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const [permanentlyDeleteFileMutation] = useMutation(PERMANENTLY_DELETE_FILE_MUTATION);
   const [restoreFolderMutation] = useMutation(RESTORE_FOLDER_MUTATION);
   const [permanentlyDeleteFolderMutation] = useMutation(PERMANENTLY_DELETE_FOLDER_MUTATION);
+  const [shareFileToRoomMutation] = useMutation(SHARE_FILE_TO_ROOM_MUTATION);
+  const [shareFolderToRoomMutation] = useMutation(SHARE_FOLDER_TO_ROOM_MUTATION);
 
   // Filter and sort folders based on current folderId and search query
   const currentFolders = useMemo(() => {
@@ -585,6 +594,12 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       }
     }
   }, [handleStarFile, handleUnstarFile, handleStarFolder, handleUnstarFolder]);
+
+  const handleShareToRoom = useCallback((item: FileExplorerItem) => {
+    setItemToShareToRoom(item);
+    setShareToRoomDialogOpen(true);
+    setContextMenu(null);
+  }, []);
 
   // Handle file selection
   const handleFileClick = (fileId: string, event: React.MouseEvent) => {
@@ -2181,6 +2196,12 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
             </MenuItem>
             <MenuItem onClick={() => {
               const item = allItems.find(i => i.id === contextMenu?.fileId);
+              if (item) handleShareToRoom(item);
+            }}>
+              <ShareIcon sx={{ mr: 1 }} /> Share to Room
+            </MenuItem>
+            <MenuItem onClick={() => {
+              const item = allItems.find(i => i.id === contextMenu?.fileId);
               if (item) handleStarToggle(item);
               setContextMenu(null);
             }}>
@@ -2328,6 +2349,13 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
           filename={fileToShare.filename}
         />
       )}
+
+      {/* Share to Room Dialog */}
+      <ShareToRoomDialog
+        open={shareToRoomDialogOpen}
+        onClose={() => setShareToRoomDialogOpen(false)}
+        item={itemToShareToRoom}
+      />
 
       {/* Restore Confirmation Dialog */}
       <Dialog

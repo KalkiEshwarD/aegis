@@ -518,6 +518,12 @@ export const SHARE_FILE_TO_ROOM_MUTATION = gql`
   }
 `;
 
+export const REMOVE_FILE_FROM_ROOM_MUTATION = gql`
+  mutation RemoveFileFromRoom($user_file_id: ID!, $room_id: ID!) {
+    removeFileFromRoom(user_file_id: $user_file_id, room_id: $room_id)
+  }
+`;
+
 // Folder Mutations
 export const CREATE_FOLDER_MUTATION = gql`
   mutation CreateFolder($input: CreateFolderInput!) {

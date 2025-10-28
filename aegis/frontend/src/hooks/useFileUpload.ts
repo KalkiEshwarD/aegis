@@ -173,7 +173,13 @@ export const useFileUpload = (onUploadComplete?: () => void) => {
 
   const handleFiles = useCallback(async (files: File[], folderId?: string) => {
     if (!files || files.length === 0) return;
-    for (const file of files) {
+
+    // Deduplicate files based on name, size, and lastModified to avoid showing duplicates in upload pane
+    const uniqueFiles = files.filter((file, index, self) =>
+      index === self.findIndex(f => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified)
+    );
+
+    for (const file of uniqueFiles) {
       await processFile(file, folderId);
     }
   }, [processFile]);

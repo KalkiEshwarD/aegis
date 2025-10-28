@@ -174,6 +174,22 @@ func (s *FileService) UploadFile(userID uint, filename, mimeType, contentHash, e
 		}
 	}
 
+	// Check for name conflict in the folder
+	query := tx.Where("user_id = ? AND filename = ?", userID, filename)
+	if folderID != nil {
+		query = query.Where("folder_id = ?", *folderID)
+	} else {
+		query = query.Where("folder_id IS NULL")
+	}
+	var existingNameUserFile models.UserFile
+	if err := query.First(&existingNameUserFile).Error; err == nil {
+		tx.Rollback()
+		return nil, apperrors.New(apperrors.ErrCodeConflict, "A file with this name already exists in this folder")
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		tx.Rollback()
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "database error checking for existing file")
+	}
+
 	userFile := &models.UserFile{
 		UserID:        userID,
 		FileID:        file.ID,

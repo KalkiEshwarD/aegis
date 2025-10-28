@@ -118,6 +118,10 @@ func (s *RoomService) GetRoomFiles(roomID, userID uint) ([]*models.UserFile, err
 	return s.roomRepo.GetRoomFiles(roomID, userID, "User", "File")
 }
 
+func (s *RoomService) GetRoomFolders(roomID, userID uint) ([]*models.Folder, error) {
+	return s.roomRepo.GetRoomFolders(roomID, userID, "User")
+}
+
 func (s *RoomService) UpdateRoom(roomID, userID uint, name string) (*models.Room, error) {
 	db := s.db.GetDB()
 
@@ -176,11 +180,24 @@ func (s *RoomService) DeleteRoom(roomID, userID uint) error {
 //================================================================================
 
 func (s *RoomService) ShareFileToRoom(userFileID, roomID, userID uint) error {
+	fmt.Printf("DEBUG: ShareFileToRoom called - userFileID: %d, roomID: %d, userID: %d\n", userFileID, roomID, userID)
+
 	var userFile models.UserFile
 	if err := s.db.GetDB().First(&userFile, userFileID).Error; err != nil {
+		fmt.Printf("DEBUG: ShareFileToRoom - file not found: %v\n", err)
 		return apperrors.Wrap(err, apperrors.ErrCodeNotFound, "file not found")
 	}
+	fmt.Printf("DEBUG: ShareFileToRoom - file found: %+v\n", userFile)
+
+	// Validate ownership before creating entity
+	if err := s.ValidateOwnership(&userFile, userFileID, userID); err != nil {
+		fmt.Printf("DEBUG: ShareFileToRoom - ValidateOwnership failed: %v\n", err)
+		return err
+	}
+	fmt.Printf("DEBUG: ShareFileToRoom - ValidateOwnership passed\n")
+
 	entity := UserFileEntity{UserFile: &userFile}
+	fmt.Printf("DEBUG: ShareFileToRoom - calling ShareEntityToRoom\n")
 	return s.ShareEntityToRoom(entity, EntityTypeFile, roomID, userID, true)
 }
 
@@ -198,6 +215,12 @@ func (s *RoomService) ShareFolderToRoom(userID, folderID, roomID uint) error {
 	if err := s.db.GetDB().First(&folder, folderID).Error; err != nil {
 		return apperrors.Wrap(err, apperrors.ErrCodeNotFound, "folder not found")
 	}
+
+	// Validate ownership before creating entity
+	if err := s.ValidateOwnership(&folder, folderID, userID); err != nil {
+		return err
+	}
+
 	entity := FolderEntity{Folder: &folder}
 	return s.ShareEntityToRoom(entity, EntityTypeFolder, roomID, userID, false)
 }
@@ -212,24 +235,32 @@ func (s *RoomService) RemoveFolderFromRoom(userID, folderID, roomID uint) error 
 }
 
 func (s *RoomService) ShareEntityToRoom(entity ShareableEntity, entityType EntityType, roomID, userID uint, requireFilePermission bool) error {
-	if err := s.ValidateOwnership(entity, entity.GetID(), userID); err != nil {
-		return err
-	}
+	fmt.Printf("DEBUG: ShareEntityToRoom - entityType: %s, roomID: %d, userID: %d, requireFilePermission: %t\n", entityType, roomID, userID, requireFilePermission)
 
 	if requireFilePermission {
+		fmt.Printf("DEBUG: ShareEntityToRoom - calling requireRoomFilePermission\n")
 		if err := s.requireRoomFilePermission(roomID, userID); err != nil {
+			fmt.Printf("DEBUG: ShareEntityToRoom - requireRoomFilePermission failed: %v\n", err)
 			return err
 		}
+		fmt.Printf("DEBUG: ShareEntityToRoom - requireRoomFilePermission passed\n")
 	} else {
+		fmt.Printf("DEBUG: ShareEntityToRoom - calling requireRoomMembership\n")
 		if err := s.requireRoomMembership(roomID, userID); err != nil {
+			fmt.Printf("DEBUG: ShareEntityToRoom - requireRoomMembership failed: %v\n", err)
 			return err
 		}
+		fmt.Printf("DEBUG: ShareEntityToRoom - requireRoomMembership passed\n")
 	}
 
+	fmt.Printf("DEBUG: ShareEntityToRoom - calling checkEntityAlreadyShared\n")
 	if err := s.checkEntityAlreadyShared(entityType, entity.GetID(), roomID); err != nil {
+		fmt.Printf("DEBUG: ShareEntityToRoom - checkEntityAlreadyShared failed: %v\n", err)
 		return err
 	}
+	fmt.Printf("DEBUG: ShareEntityToRoom - checkEntityAlreadyShared passed\n")
 
+	fmt.Printf("DEBUG: ShareEntityToRoom - calling createRoomAssociation\n")
 	return s.createRoomAssociation(entityType, entity.GetID(), roomID)
 }
 

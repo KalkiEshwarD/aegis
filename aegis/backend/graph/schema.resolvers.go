@@ -58,7 +58,9 @@ func (r *fileShareResolver) AllowedEmails(ctx context.Context, obj *models.FileS
 	}
 	var emails []string
 	if err := json.Unmarshal([]byte(obj.AllowedEmails), &emails); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal allowed emails: %w", err)
+		// Log the error but return empty array to prevent frontend crashes
+		fmt.Printf("WARNING: Failed to unmarshal allowed_emails for FileShare ID %d: %v, data: %s\n", obj.ID, err, obj.AllowedEmails)
+		return []string{}, nil
 	}
 	return emails, nil
 }
@@ -511,20 +513,6 @@ func (r *mutationResolver) DeleteRoom(ctx context.Context, input model.DeleteRoo
 	roomID, err := strconv.ParseUint(input.RoomID, 10, 32)
 	if err != nil {
 		return false, fmt.Errorf("invalid room ID: %w", err)
-	}
-
-	// Check if user is the creator of the room
-	var room models.Room
-	db := database.GetDB()
-	if err := db.Where("id = ?", roomID).First(&room).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, fmt.Errorf("room not found")
-		}
-		return false, fmt.Errorf("database error: %w", err)
-	}
-
-	if room.CreatorID != user.ID {
-		return false, fmt.Errorf("access denied: only room creator can delete the room")
 	}
 
 	err = r.Resolver.RoomService.DeleteRoom(uint(roomID), user.ID)
@@ -1533,29 +1521,18 @@ func (r *roomResolver) Folders(ctx context.Context, obj *models.Room) ([]*models
 		return nil, fmt.Errorf("unauthenticated: %w", err)
 	}
 
-	// Verify user has access to this room
-	var roomMember models.RoomMember
-	db := database.GetDB()
-	if err := db.Where("room_id = ? AND user_id = ?", obj.ID, user.ID).First(&roomMember).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("access denied: not a member of this room")
-		}
-		return nil, fmt.Errorf("database error: %w", err)
+	fmt.Printf("DEBUG: Folders resolver called for room %d, user %d\n", obj.ID, user.ID)
+	fmt.Printf("DEBUG: r = %p, r.RoomService = %p\n", r, r.RoomService)
+	if r.RoomService == nil {
+		fmt.Printf("DEBUG: RoomService is nil!\n")
+		return nil, fmt.Errorf("RoomService is not initialized")
 	}
-
-	// Get folders shared to this room
-	var roomFolders []*models.RoomFolder
-	if err := db.Where("room_id = ?", obj.ID).Preload("Folder", "deleted_at IS NULL").Find(&roomFolders).Error; err != nil {
-		return nil, fmt.Errorf("database error: %w", err)
+	folders, err := r.RoomService.GetRoomFolders(uint(obj.ID), user.ID)
+	if err != nil {
+		fmt.Printf("DEBUG: GetRoomFolders failed: %v\n", err)
+		return nil, err
 	}
-
-	var folders []*models.Folder
-	for _, rf := range roomFolders {
-		if rf.Folder.DeletedAt.Valid == false { // Only include non-deleted folders
-			folders = append(folders, &rf.Folder)
-		}
-	}
-
+	fmt.Printf("DEBUG: GetRoomFolders returned %d folders\n", len(folders))
 	return folders, nil
 }
 

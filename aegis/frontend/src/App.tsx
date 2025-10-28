@@ -14,6 +14,7 @@ import Profile from './components/profile/Profile';
 import SharedDashboard from './components/dashboard/SharedDashboard';
 import AdminDashboard from './components/admin/AdminDashboard';
 import ShareAccess from './components/share/ShareAccess';
+import RoomFileExplorer from './components/dashboard/RoomFileExplorer';
 import LoadingSpinner from './components/common/LoadingSpinner';
 import ErrorBoundary from './components/common/ErrorBoundary';
 
@@ -156,6 +157,13 @@ const AppRoutes: React.FC = () => {
         <Route path="/shared" element={
           <ProtectedRoute>
             <SharedDashboard />
+          </ProtectedRoute>
+        } />
+
+        {/* Room file explorer route */}
+        <Route path="/room/:roomId" element={
+          <ProtectedRoute>
+            <RoomFileExplorer />
           </ProtectedRoute>
         } />
 

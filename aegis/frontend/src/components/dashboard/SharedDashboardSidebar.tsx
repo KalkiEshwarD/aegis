@@ -87,17 +87,23 @@ const SharedDashboardSidebar: React.FC<SharedDashboardSidebarProps> = ({
 
   const handleUploadFiles = () => {
     setNewActionDialogOpen(false);
-    handleFileUpload();
+    setTimeout(() => {
+      handleFileUpload();
+    }, 100);
   };
 
   const handleUploadFolders = () => {
     setNewActionDialogOpen(false);
-    handleFolderUploadClick();
+    setTimeout(() => {
+      handleFolderUploadClick();
+    }, 100);
   };
 
   const handleCreateNewFolder = () => {
     setNewActionDialogOpen(false);
-    handleNewFolder();
+    setTimeout(() => {
+      handleNewFolder();
+    }, 100);
   };
 
   const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {

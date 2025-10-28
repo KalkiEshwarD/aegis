@@ -305,6 +305,7 @@ type FileResolver interface {
 type FileShareResolver interface {
 	ID(ctx context.Context, obj *models.FileShare) (string, error)
 	UserFileID(ctx context.Context, obj *models.FileShare) (string, error)
+	AllowedEmails(ctx context.Context, obj *models.FileShare) ([]string, error)
 }
 type FolderResolver interface {
 	ID(ctx context.Context, obj *models.Folder) (string, error)
@@ -3876,7 +3877,7 @@ func (ec *executionContext) _FileShare_allowed_emails(ctx context.Context, field
 		field,
 		ec.fieldContext_FileShare_allowed_emails,
 		func(ctx context.Context) (any, error) {
-			return obj.AllowedEmails, nil
+			return ec.resolvers.FileShare().AllowedEmails(ctx, obj)
 		},
 		nil,
 		ec.marshalNString2ᚕstringᚄ,

@@ -37,6 +37,7 @@ type RoomServiceInterface interface {
 	ShareFileToRoom(userFileID, roomID, userID uint) error
 	RemoveFileFromRoom(userFileID, roomID, userID uint) error
 	GetRoomFiles(roomID, userID uint) ([]*models.UserFile, error)
+	GetRoomFolders(roomID, userID uint) ([]*models.Folder, error)
 }
 
 // FolderServiceInterface defines the contract for folder management services
