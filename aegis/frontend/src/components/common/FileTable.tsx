@@ -91,7 +91,7 @@ const FileTableBase: React.FC<FileTableWithDataProps> = ({
     setShareDialogOpen(true);
   };
 
-  const handleShareConfirm = async (password: string) => {
+  const handleShareConfirm = async (password?: string) => {
     if (!fileToShare) return;
 
     const shareInput: CreateFileShareInput = {

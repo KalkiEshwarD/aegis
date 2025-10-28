@@ -232,9 +232,10 @@ export interface FileShare {
 
 export interface CreateFileShareInput {
   user_file_id: string;
-  master_password: string;
+  master_password?: string;
   expires_at?: string;
   max_downloads?: number;
+  allowed_usernames?: string[];
 }
 
 export interface UpdateFileShareInput {

@@ -43,8 +43,18 @@ func NewShareService(db *database.DB, baseURL string, cryptoManager *CryptoManag
 //================================================================================
 
 func (s *ShareService) CreateShare(userFileID uint, masterPassword string, maxDownloads int, expiresAt *time.Time, allowedUsernames []string) (*models.FileShare, error) {
-	if err := s.cryptoManager.ValidatePasswordStrength(masterPassword); err != nil {
-		return nil, err
+	// For passwordless shares, we still need a password for encryption, so generate a random one
+	isPasswordless := masterPassword == ""
+	if isPasswordless {
+		var err error
+		masterPassword, err = s.generateRandomPassword()
+		if err != nil {
+			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to generate random password for passwordless share")
+		}
+	} else {
+		if err := s.cryptoManager.ValidatePasswordStrength(masterPassword); err != nil {
+			return nil, err
+		}
 	}
 
 	var userFile models.UserFile
@@ -100,11 +110,16 @@ func (s *ShareService) CreateShare(userFileID uint, masterPassword string, maxDo
 		EnvelopeIV:        envelopeIV,
 		EncryptedPassword: encryptedPassword,
 		PasswordIV:        passwordIV,
-		PlainTextPassword: masterPassword, // Store for display purposes
-		MaxDownloads:      maxDownloads,
-		DownloadCount:     0,
-		ExpiresAt:         expiresAt,
-		AllowedUsernames:  allowedUsernames,
+		PlainTextPassword: func() string {
+			if isPasswordless {
+				return "" // Passwordless share
+			}
+			return masterPassword
+		}(), // Store for display purposes
+		MaxDownloads:     maxDownloads,
+		DownloadCount:    0,
+		ExpiresAt:        expiresAt,
+		AllowedUsernames: allowedUsernames,
 	}
 
 	if err := s.GetDB().GetDB().Create(fileShare).Error; err != nil {
@@ -229,10 +244,25 @@ func (s *ShareService) GetShareByToken(token string) (*models.FileShare, error) 
 }
 
 func (s *ShareService) DecryptFileKey(fileShare *models.FileShare, masterPassword string) ([]byte, error) {
+	// For passwordless shares, use the stored password
+	password := masterPassword
+	if fileShare.PlainTextPassword == "" && masterPassword == "" {
+		// This is a passwordless share, decrypt the stored password
+		if fileShare.EncryptedPassword != "" && fileShare.PasswordIV != "" {
+			decryptedPassword, err := s.decryptSharePassword(fileShare.EncryptedPassword, fileShare.PasswordIV)
+			if err != nil {
+				return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to decrypt stored password for passwordless share")
+			}
+			password = decryptedPassword
+		} else {
+			return nil, apperrors.New(apperrors.ErrCodeValidation, "passwordless share missing stored password")
+		}
+	}
+
 	// Use envelope key decryption for new shares
 	if fileShare.EnvelopeKey != "" && fileShare.EnvelopeSalt != "" && fileShare.EnvelopeIV != "" {
 		// Decrypt envelope key with password
-		envelopeKey, err := s.cryptoManager.DecryptEnvelopeKey(fileShare.EnvelopeKey, fileShare.EnvelopeSalt, fileShare.EnvelopeIV, masterPassword)
+		envelopeKey, err := s.cryptoManager.DecryptEnvelopeKey(fileShare.EnvelopeKey, fileShare.EnvelopeSalt, fileShare.EnvelopeIV, password)
 		if err != nil {
 			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to decrypt envelope key")
 		}
@@ -253,7 +283,7 @@ func (s *ShareService) DecryptFileKey(fileShare *models.FileShare, masterPasswor
 		IV:           fileShare.IV,
 	}
 
-	fileKey, err := s.cryptoManager.DecryptFileKeyWithPassword(encryptedKeyData, masterPassword)
+	fileKey, err := s.cryptoManager.DecryptFileKeyWithPassword(encryptedKeyData, password)
 	if err != nil {
 		return nil, err
 	}
@@ -320,6 +350,19 @@ func (s *ShareService) encryptSharePassword(password string) (encryptedPassword 
 
 func (s *ShareService) decryptSharePassword(encryptedPassword, iv string) (string, error) {
 	return s.cryptoManager.DecryptSharePassword(encryptedPassword, iv)
+}
+
+func (s *ShareService) generateRandomPassword() (string, error) {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?"
+	const length = 32
+	b := make([]byte, length)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	for i := range b {
+		b[i] = charset[b[i]%byte(len(charset))]
+	}
+	return string(b), nil
 }
 
 func (s *ShareService) generateShareToken() (string, error) {
@@ -401,14 +444,15 @@ func (s *ShareService) GetShareMetadata(token string) (*ShareMetadata, error) {
 	}
 
 	metadata := &ShareMetadata{
-		Token:         fileShare.ShareToken,
-		Filename:      fileShare.UserFile.Filename,
-		MimeType:      fileShare.UserFile.MimeType,
-		SizeBytes:     fileShare.UserFile.File.SizeBytes,
-		MaxDownloads:  fileShare.MaxDownloads,
-		DownloadCount: fileShare.DownloadCount,
-		ExpiresAt:     fileShare.ExpiresAt,
-		CreatedAt:     fileShare.CreatedAt,
+		Token:            fileShare.ShareToken,
+		Filename:         fileShare.UserFile.Filename,
+		MimeType:         fileShare.UserFile.MimeType,
+		SizeBytes:        fileShare.UserFile.File.SizeBytes,
+		MaxDownloads:     fileShare.MaxDownloads,
+		DownloadCount:    fileShare.DownloadCount,
+		ExpiresAt:        fileShare.ExpiresAt,
+		CreatedAt:        fileShare.CreatedAt,
+		RequiresPassword: fileShare.PlainTextPassword != "",
 	}
 
 	return metadata, nil
@@ -656,14 +700,15 @@ func (s *ShareService) sanitizeUserAgent(userAgent string) string {
 //================================================================================
 
 type ShareMetadata struct {
-	Token         string     `json:"token"`
-	Filename      string     `json:"filename"`
-	MimeType      string     `json:"mime_type"`
-	SizeBytes     int64      `json:"size_bytes"`
-	MaxDownloads  int        `json:"max_downloads"`
-	DownloadCount int        `json:"download_count"`
-	ExpiresAt     *time.Time `json:"expires_at"`
-	CreatedAt     time.Time  `json:"created_at"`
+	Token            string     `json:"token"`
+	Filename         string     `json:"filename"`
+	MimeType         string     `json:"mime_type"`
+	SizeBytes        int64      `json:"size_bytes"`
+	MaxDownloads     int        `json:"max_downloads"`
+	DownloadCount    int        `json:"download_count"`
+	ExpiresAt        *time.Time `json:"expires_at"`
+	CreatedAt        time.Time  `json:"created_at"`
+	RequiresPassword bool       `json:"requires_password"`
 }
 
 type ShareExpiryInfo struct {

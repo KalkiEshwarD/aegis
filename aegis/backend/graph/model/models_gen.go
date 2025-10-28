@@ -14,8 +14,8 @@ import (
 )
 
 type AccessSharedFileInput struct {
-	Token          string `json:"token"`
-	MasterPassword string `json:"master_password"`
+	Token          string  `json:"token"`
+	MasterPassword *string `json:"master_password,omitempty"`
 }
 
 type AccessStats struct {
@@ -46,7 +46,7 @@ type AuthPayload struct {
 
 type CreateFileShareInput struct {
 	UserFileID       string     `json:"user_file_id"`
-	MasterPassword   string     `json:"master_password"`
+	MasterPassword   *string    `json:"master_password,omitempty"`
 	MaxDownloads     *int       `json:"max_downloads,omitempty"`
 	ExpiresAt        *time.Time `json:"expires_at,omitempty"`
 	AllowedUsernames []string   `json:"allowed_usernames,omitempty"`
@@ -129,14 +129,15 @@ type ShareFolderToRoomInput struct {
 }
 
 type ShareMetadata struct {
-	Token         string     `json:"token"`
-	Filename      string     `json:"filename"`
-	MimeType      string     `json:"mime_type"`
-	SizeBytes     int        `json:"size_bytes"`
-	MaxDownloads  int        `json:"max_downloads"`
-	DownloadCount int        `json:"download_count"`
-	ExpiresAt     *time.Time `json:"expires_at,omitempty"`
-	CreatedAt     time.Time  `json:"created_at"`
+	Token            string     `json:"token"`
+	Filename         string     `json:"filename"`
+	MimeType         string     `json:"mime_type"`
+	SizeBytes        int        `json:"size_bytes"`
+	MaxDownloads     int        `json:"max_downloads"`
+	DownloadCount    int        `json:"download_count"`
+	ExpiresAt        *time.Time `json:"expires_at,omitempty"`
+	CreatedAt        time.Time  `json:"created_at"`
+	RequiresPassword bool       `json:"requires_password"`
 }
 
 type SharedWithMeFile struct {

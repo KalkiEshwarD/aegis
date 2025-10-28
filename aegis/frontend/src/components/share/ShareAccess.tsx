@@ -30,6 +30,7 @@ interface SharedFileData {
   download_count: number;
   expires_at: string | null;
   created_at: string;
+  requires_password: boolean;
 }
 
 const ShareAccess: React.FC = () => {
@@ -43,6 +44,7 @@ const ShareAccess: React.FC = () => {
   const [hasAccess, setHasAccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [triedPasswordless, setTriedPasswordless] = useState(false);
 
   const [getSharedFile] = useLazyQuery(GET_SHARED_FILE, {
     onCompleted: (data) => {
@@ -130,6 +132,38 @@ const ShareAccess: React.FC = () => {
     }
   }, [token, getSharedFile]);
 
+  useEffect(() => {
+    if (sharedFile && !triedPasswordless && !hasAccess) {
+      // Try passwordless access if the share doesn't require a password
+      if (!sharedFile.requires_password) {
+        setTriedPasswordless(true);
+        handlePasswordlessAccess();
+      } else {
+        // For password-protected shares, just mark as tried so we don't keep trying
+        setTriedPasswordless(true);
+      }
+    }
+  }, [sharedFile, triedPasswordless, hasAccess]);
+
+  const handlePasswordlessAccess = async () => {
+    if (!token) return;
+
+    try {
+      await accessSharedFile({
+        variables: {
+          input: {
+            token: token,
+            master_password: "" // Try with empty password for passwordless access
+          }
+        }
+      });
+      // If successful, hasAccess will be set to true by the onCompleted callback
+    } catch (error) {
+      // Passwordless access failed, will show password form
+      console.log('Passwordless access failed, showing password form');
+    }
+  };
+
     const handlePasswordSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!password.trim()) {
@@ -154,13 +188,13 @@ const ShareAccess: React.FC = () => {
             setIsLoading(false);
         }
     };  const handleDownload = async () => {
-    console.log('Download initiated:', { token, passwordLength: password?.length || 0 });
+    console.log('Download initiated:', { token, passwordLength: password?.length || 0, requiresPassword: sharedFile?.requires_password });
     try {
       await downloadSharedFile({
         variables: { 
           input: {
             token: token,
-            master_password: password
+            master_password: sharedFile?.requires_password ? password : "" // Use password if required, otherwise empty string
           }
         }
       });
@@ -279,52 +313,76 @@ const ShareAccess: React.FC = () => {
                 This shared file has reached its download limit and is no longer available.
               </Alert>
             ) : !hasAccess ? (
-              <Box component="form" onSubmit={handlePasswordSubmit}>
-                <Box display="flex" alignItems="center" mb={2}>
-                  <Lock sx={{ mr: 1, color: 'warning.main' }} />
-                  <Typography variant="h6">
-                    Password Required
+              sharedFile.requires_password ? (
+                <Box component="form" onSubmit={handlePasswordSubmit}>
+                  <Box display="flex" alignItems="center" mb={2}>
+                    <Lock sx={{ mr: 1, color: 'warning.main' }} />
+                    <Typography variant="h6">
+                      Password Required
+                    </Typography>
+                  </Box>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    This file is password protected. Enter the password to access it.
                   </Typography>
+                  
+                  {error && (
+                    <Alert severity="error" sx={{ mb: 2 }}>
+                      {error}
+                    </Alert>
+                  )}
+
+                  <TextField
+                    fullWidth
+                    label="Password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    margin="normal"
+                    InputProps={{
+                      endAdornment: (
+                        <IconButton
+                          aria-label="toggle password visibility"
+                          onClick={() => setShowPassword(!showPassword)}
+                          edge="end"
+                        >
+                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      ),
+                    }}
+                  />
+
+                  <Button
+                    type="submit"
+                    fullWidth
+                    variant="contained"
+                    sx={{ mt: 3, mb: 2 }}
+                  >
+                    Access File
+                  </Button>
                 </Box>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  This file is password protected. Enter the password to access it.
-                </Typography>
-                
-                {error && (
-                  <Alert severity="error" sx={{ mb: 2 }}>
-                    {error}
-                  </Alert>
-                )}
+              ) : (
+                <Box>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    This file is available for download without a password.
+                  </Typography>
+                  
+                  {error && (
+                    <Alert severity="error" sx={{ mb: 2 }}>
+                      {error}
+                    </Alert>
+                  )}
 
-                <TextField
-                  fullWidth
-                  label="Password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  margin="normal"
-                  InputProps={{
-                    endAdornment: (
-                      <IconButton
-                        aria-label="toggle password visibility"
-                        onClick={() => setShowPassword(!showPassword)}
-                        edge="end"
-                      >
-                        {showPassword ? <VisibilityOff /> : <Visibility />}
-                      </IconButton>
-                    ),
-                  }}
-                />
-
-                <Button
-                  type="submit"
-                  fullWidth
-                  variant="contained"
-                  sx={{ mt: 3, mb: 2 }}
-                >
-                  Access File
-                </Button>
-              </Box>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    startIcon={<Download />}
+                    onClick={handleDownload}
+                    sx={{ mt: 3, mb: 2 }}
+                  >
+                    Download File
+                  </Button>
+                </Box>
+              )
             ) : (
               <Box>
                 <Alert severity="success" sx={{ mb: 2 }}>

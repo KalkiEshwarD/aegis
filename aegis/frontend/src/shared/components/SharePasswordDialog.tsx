@@ -32,7 +32,7 @@ import { GET_USERS } from '../../apollo/queries';
 interface SharePasswordDialogProps {
   open: boolean;
   onClose: () => void;
-  onConfirm: (password: string, expiresAt?: Date, maxDownloads?: number, allowedUsernames?: string[]) => Promise<void>;
+  onConfirm: (password?: string, expiresAt?: Date, maxDownloads?: number, allowedUsernames?: string[]) => Promise<void>;
   title?: string;
   message?: string;
   confirmText?: string;
@@ -45,8 +45,8 @@ export const SharePasswordDialog: React.FC<SharePasswordDialogProps> = ({
   open,
   onClose,
   onConfirm,
-  title = 'Set Share Password',
-  message = 'Enter a password to protect this shared file. Recipients will need this password to access the file.',
+  title = 'Share File',
+  message = 'Optionally set a password to protect this shared file. Leave empty for passwordless access.',
   confirmText = 'Create Share',
   cancelText = 'Cancel',
   isLoading = false,
@@ -64,33 +64,28 @@ export const SharePasswordDialog: React.FC<SharePasswordDialogProps> = ({
   const handleConfirm = async () => {
     setLocalError(null);
 
-    if (!password.trim()) {
-      setLocalError('Password is required');
-      return;
-    }
-
-    // Validate password strength to match backend requirements
-    if (password.length < 12) {
+    // Allow empty password for passwordless shares
+    if (password.trim() !== "" && password.length < 12) {
       setLocalError('Password must be at least 12 characters long');
       return;
     }
 
-    if (!/[A-Z]/.test(password)) {
+    if (password.trim() !== "" && !/[A-Z]/.test(password)) {
       setLocalError('Password must contain at least one uppercase letter');
       return;
     }
 
-    if (!/[a-z]/.test(password)) {
+    if (password.trim() !== "" && !/[a-z]/.test(password)) {
       setLocalError('Password must contain at least one lowercase letter');
       return;
     }
 
-    if (!/\d/.test(password)) {
+    if (password.trim() !== "" && !/\d/.test(password)) {
       setLocalError('Password must contain at least one digit');
       return;
     }
 
-    if (!/[!@#$%^&*()_+\-={}|;:,.<>?]/.test(password)) {
+    if (password.trim() !== "" && !/[!@#$%^&*()_+\-={}|;:,.<>?]/.test(password)) {
       setLocalError('Password must contain at least one special character');
       return;
     }
@@ -111,7 +106,7 @@ export const SharePasswordDialog: React.FC<SharePasswordDialogProps> = ({
     const allowedUsernames = selectedUsers.length > 0 ? selectedUsers.map(user => user.username) : undefined;
 
     try {
-      await onConfirm(password, expiresAt || undefined, maxDownloadsNum, allowedUsernames);
+      await onConfirm(password.trim() || undefined, expiresAt || undefined, maxDownloadsNum, allowedUsernames);
       handleClose();
     } catch (err: any) {
       setLocalError(err.message || 'Failed to create share');
@@ -145,7 +140,7 @@ export const SharePasswordDialog: React.FC<SharePasswordDialogProps> = ({
           <TextField
             fullWidth
             type={showPassword ? 'text' : 'password'}
-            label="Password"
+            label="Password (Optional)"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             disabled={isLoading}
@@ -257,7 +252,7 @@ export const SharePasswordDialog: React.FC<SharePasswordDialogProps> = ({
           <Button
             onClick={handleConfirm}
             variant="contained"
-            disabled={isLoading || !password.trim()}
+            disabled={isLoading}
             startIcon={<ShareIcon />}
           >
             {isLoading ? 'Creating...' : confirmText}

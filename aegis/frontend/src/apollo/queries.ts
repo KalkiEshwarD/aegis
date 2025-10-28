@@ -807,6 +807,7 @@ export const GET_SHARED_FILE = gql`
       download_count
       expires_at
       created_at
+      requires_password
     }
   }
 `;
