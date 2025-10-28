@@ -109,7 +109,7 @@ export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
     }
   };
 
-  const handleCreateShare = async (password?: string, expiresAt?: Date, maxDownloads?: number, allowedUsernames?: string[]) => {
+  const handleCreateShare = async (password?: string, expiresAt?: Date, maxDownloads?: number, allowedEmails?: string[]) => {
     if (!userFileId) return;
 
     try {
@@ -120,7 +120,7 @@ export const ShareLinkManager: React.FC<ShareLinkManagerProps> = ({
             master_password: password || undefined,
             expires_at: expiresAt?.toISOString(),
             max_downloads: maxDownloads,
-            allowed_usernames: allowedUsernames,
+            allowed_emails: allowedEmails,
           }
         }
       });

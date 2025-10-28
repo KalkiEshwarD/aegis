@@ -65,7 +65,7 @@ type FileServiceInterface interface {
 
 // PasswordShareServiceInterface defines the contract for password-based file sharing services
 type PasswordShareServiceInterface interface {
-	CreateShare(userFileID uint, masterPassword string, maxDownloads int, expiresAt *time.Time) (*models.FileShare, error)
+	CreateShare(userFileID uint, masterPassword string, maxDownloads int, expiresAt *time.Time, allowedEmails []string) (*models.FileShare, error)
 	GetShareByToken(token string) (*models.FileShare, error)
 	DecryptFileKey(fileShare *models.FileShare, masterPassword string) ([]byte, error)
 	IncrementDownloadCount(shareID uint) error

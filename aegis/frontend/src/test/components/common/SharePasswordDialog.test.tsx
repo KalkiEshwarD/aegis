@@ -247,14 +247,14 @@ describe('SharePasswordDialog', () => {
     });
 
     test('maps selected users to usernames correctly', () => {
-      // Test the logic that maps user objects to username strings
+      // Test the logic that maps user objects to email strings
       const selectedUsers = [
         { id: '1', username: 'alice', email: 'alice@example.com' },
         { id: '2', username: 'bob', email: 'bob@example.com' },
       ];
 
-      const allowedUsernames = selectedUsers.length > 0 ? selectedUsers.map(user => user.username) : undefined;
-      expect(allowedUsernames).toEqual(['alice', 'bob']);
+      const allowedEmails = selectedUsers.length > 0 ? selectedUsers.map(user => user.email) : undefined;
+      expect(allowedEmails).toEqual(['alice@example.com', 'bob@example.com']);
     });
 
     test('handles empty user selection', async () => {
@@ -312,7 +312,7 @@ describe('SharePasswordDialog', () => {
 
       render(<SharePasswordDialog {...defaultProps} />);
 
-      const autocompleteInput = screen.getByLabelText('Allowed Usernames (Optional)');
+      const autocompleteInput = screen.getByLabelText('Allowed Emails (Optional)');
 
       // Type in the autocomplete input
       fireEvent.change(autocompleteInput, { target: { value: 'john' } });

@@ -160,12 +160,12 @@ type FileShare struct {
 	PasswordIV        string `json:"password_iv"`         // IV for password encryption
 	PlainTextPassword string `json:"plain_text_password"` // Plain text password for display
 
-	MaxDownloads     int        `gorm:"default:-1" json:"max_downloads"` // -1 means unlimited
-	DownloadCount    int        `gorm:"default:0" json:"download_count"`
-	ExpiresAt        *time.Time `gorm:"index" json:"expires_at"`
-	AllowedUsernames []string   `gorm:"type:text;serializer:json" json:"allowed_usernames"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
+	MaxDownloads  int        `gorm:"default:-1" json:"max_downloads"` // -1 means unlimited
+	DownloadCount int        `gorm:"default:0" json:"download_count"`
+	ExpiresAt     *time.Time `gorm:"index" json:"expires_at"`
+	AllowedEmails string     `gorm:"type:text;not null;default:'[]'" json:"allowed_emails"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 
 	// Associations
 	UserFile UserFile `gorm:"foreignKey:UserFileID" json:"user_file,omitempty"`
@@ -281,20 +281,20 @@ func (ShareRateLimit) TableName() string {
 
 // KeyRotation represents an envelope key rotation operation
 type KeyRotation struct {
-	ID                   uint      `gorm:"primaryKey" json:"id"`
-	UserID               uint      `gorm:"not null;index" json:"user_id"`
-	RotationID           string    `gorm:"uniqueIndex;not null" json:"rotation_id"` // UUID for tracking
-	Status               string    `gorm:"not null" json:"status"`                  // PENDING, IN_PROGRESS, COMPLETED, FAILED, ROLLED_BACK
-	OldEnvelopeKeyVersion int      `gorm:"not null" json:"old_envelope_key_version"`
-	NewEnvelopeKeyVersion int      `gorm:"not null" json:"new_envelope_key_version"`
-	TotalFilesAffected   int       `gorm:"not null;default:0" json:"total_files_affected"`
-	FilesProcessed       int       `gorm:"not null;default:0" json:"files_processed"`
-	StartedAt            time.Time `json:"started_at"`
-	CompletedAt          *time.Time `json:"completed_at"`
-	FailedAt             *time.Time `json:"failed_at"`
-	ErrorMessage         string    `json:"error_message"`
-	CreatedAt            time.Time `json:"created_at"`
-	UpdatedAt            time.Time `json:"updated_at"`
+	ID                    uint       `gorm:"primaryKey" json:"id"`
+	UserID                uint       `gorm:"not null;index" json:"user_id"`
+	RotationID            string     `gorm:"uniqueIndex;not null" json:"rotation_id"` // UUID for tracking
+	Status                string     `gorm:"not null" json:"status"`                  // PENDING, IN_PROGRESS, COMPLETED, FAILED, ROLLED_BACK
+	OldEnvelopeKeyVersion int        `gorm:"not null" json:"old_envelope_key_version"`
+	NewEnvelopeKeyVersion int        `gorm:"not null" json:"new_envelope_key_version"`
+	TotalFilesAffected    int        `gorm:"not null;default:0" json:"total_files_affected"`
+	FilesProcessed        int        `gorm:"not null;default:0" json:"files_processed"`
+	StartedAt             time.Time  `json:"started_at"`
+	CompletedAt           *time.Time `json:"completed_at"`
+	FailedAt              *time.Time `json:"failed_at"`
+	ErrorMessage          string     `json:"error_message"`
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
 
 	// Associations
 	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`
@@ -302,13 +302,13 @@ type KeyRotation struct {
 
 // KeyRotationBackup stores backup data for rollback operations
 type KeyRotationBackup struct {
-	ID              uint      `gorm:"primaryKey" json:"id"`
-	RotationID      string    `gorm:"not null;index" json:"rotation_id"`
-	UserFileID      uint      `gorm:"not null;index" json:"user_file_id"`
-	OldEncryptionKey string   `gorm:"not null" json:"old_encryption_key"` // Backup of old encrypted file key
-	OldKeyIV        string    `gorm:"not null" json:"old_key_iv"`         // Backup of old IV
-	BackupCreatedAt time.Time `json:"backup_created_at"`
-	CreatedAt       time.Time `json:"created_at"`
+	ID               uint      `gorm:"primaryKey" json:"id"`
+	RotationID       string    `gorm:"not null;index" json:"rotation_id"`
+	UserFileID       uint      `gorm:"not null;index" json:"user_file_id"`
+	OldEncryptionKey string    `gorm:"not null" json:"old_encryption_key"` // Backup of old encrypted file key
+	OldKeyIV         string    `gorm:"not null" json:"old_key_iv"`         // Backup of old IV
+	BackupCreatedAt  time.Time `json:"backup_created_at"`
+	CreatedAt        time.Time `json:"created_at"`
 
 	// Associations
 	UserFile UserFile `gorm:"foreignKey:UserFileID" json:"user_file,omitempty"`

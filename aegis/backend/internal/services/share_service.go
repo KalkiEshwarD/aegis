@@ -42,9 +42,14 @@ func NewShareService(db *database.DB, baseURL string, cryptoManager *CryptoManag
 // Password-based Sharing
 //================================================================================
 
-func (s *ShareService) CreateShare(userFileID uint, masterPassword string, maxDownloads int, expiresAt *time.Time, allowedUsernames []string) (*models.FileShare, error) {
-	// For passwordless shares, we still need a password for encryption, so generate a random one
-	isPasswordless := masterPassword == ""
+func (s *ShareService) CreateShare(userFileID uint, masterPassword string, maxDownloads int, expiresAt *time.Time, allowedEmails []string) (*models.FileShare, error) {
+	// For email-based shares, make them passwordless
+	isPasswordless := masterPassword == "" || len(allowedEmails) > 0
+	if isPasswordless && masterPassword != "" && len(allowedEmails) == 0 {
+		// If password is provided but no emails, still allow password
+		isPasswordless = false
+	}
+
 	if isPasswordless {
 		var err error
 		masterPassword, err = s.generateRandomPassword()
@@ -99,6 +104,18 @@ func (s *ShareService) CreateShare(userFileID uint, masterPassword string, maxDo
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to encrypt share password")
 	}
 
+	// Manually marshal allowed_emails to JSON for proper storage
+	var allowedEmailsJSON string
+	if len(allowedEmails) > 0 {
+		emailsJSON, err := json.Marshal(allowedEmails)
+		if err != nil {
+			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to marshal allowed emails")
+		}
+		allowedEmailsJSON = string(emailsJSON)
+	} else {
+		allowedEmailsJSON = "[]"
+	}
+
 	fileShare := &models.FileShare{
 		UserFileID:        userFileID,
 		ShareToken:        shareToken,
@@ -112,14 +129,14 @@ func (s *ShareService) CreateShare(userFileID uint, masterPassword string, maxDo
 		PasswordIV:        passwordIV,
 		PlainTextPassword: func() string {
 			if isPasswordless {
-				return "" // Passwordless share
+				return "" // Passwordless share (either no password provided or email-based)
 			}
 			return masterPassword
 		}(), // Store for display purposes
-		MaxDownloads:     maxDownloads,
-		DownloadCount:    0,
-		ExpiresAt:        expiresAt,
-		AllowedUsernames: allowedUsernames,
+		MaxDownloads:  maxDownloads,
+		DownloadCount: 0,
+		ExpiresAt:     expiresAt,
+		AllowedEmails: allowedEmailsJSON, // Store as JSON string
 	}
 
 	if err := s.GetDB().GetDB().Create(fileShare).Error; err != nil {
@@ -136,7 +153,7 @@ func (s *ShareService) CreateShare(userFileID uint, masterPassword string, maxDo
 	return fileShare, nil
 }
 
-func (s *ShareService) UpdateShare(userID uint, shareID uint, masterPassword *string, maxDownloads *int, expiresAt *time.Time, allowedUsernames *[]string) (*models.FileShare, error) {
+func (s *ShareService) UpdateShare(userID uint, shareID uint, masterPassword *string, maxDownloads *int, expiresAt *time.Time, allowedEmails *[]string) (*models.FileShare, error) {
 	// Get the existing share
 	var fileShare models.FileShare
 	err := s.GetDB().GetDB().
@@ -190,14 +207,14 @@ func (s *ShareService) UpdateShare(userID uint, shareID uint, masterPassword *st
 		updates["expires_at"] = *expiresAt
 	}
 
-	// Update allowed usernames if provided
-	if allowedUsernames != nil {
+	// Update allowed emails if provided
+	if allowedEmails != nil {
 		// Manually marshal to JSON for proper storage
-		usernamesJSON, err := json.Marshal(*allowedUsernames)
+		emailsJSON, err := json.Marshal(*allowedEmails)
 		if err != nil {
-			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to marshal allowed usernames")
+			return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to marshal allowed emails")
 		}
-		updates["allowed_usernames"] = string(usernamesJSON)
+		updates["allowed_emails"] = string(emailsJSON)
 	}
 
 	// Update the share

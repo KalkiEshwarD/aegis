@@ -176,7 +176,7 @@ input CreateFileShareInput {
   master_password: String
   max_downloads: Int
   expires_at: Time
-  allowed_usernames: [String!]
+  allowed_emails: [String!]
 }
 
 input UpdateFileShareInput {
@@ -184,7 +184,7 @@ input UpdateFileShareInput {
   master_password: String
   max_downloads: Int
   expires_at: Time
-  allowed_usernames: [String!]
+  allowed_emails: [String!]
 }
 
 input AccessSharedFileInput {
@@ -233,7 +233,7 @@ type FileShare {
   expires_at: Time
   created_at: Time!
   updated_at: Time!
-  allowed_usernames: [String!]!
+  allowed_emails: [String!]!
   user_file: UserFile
 }
 

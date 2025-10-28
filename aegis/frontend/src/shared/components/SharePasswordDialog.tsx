@@ -32,7 +32,7 @@ import { GET_USERS } from '../../apollo/queries';
 interface SharePasswordDialogProps {
   open: boolean;
   onClose: () => void;
-  onConfirm: (password?: string, expiresAt?: Date, maxDownloads?: number, allowedUsernames?: string[]) => Promise<void>;
+  onConfirm: (password?: string, expiresAt?: Date, maxDownloads?: number, allowedEmails?: string[]) => Promise<void>;
   title?: string;
   message?: string;
   confirmText?: string;
@@ -103,10 +103,10 @@ export const SharePasswordDialog: React.FC<SharePasswordDialogProps> = ({
       return;
     }
 
-    const allowedUsernames = selectedUsers.length > 0 ? selectedUsers.map(user => user.username) : undefined;
+    const allowedEmails = selectedUsers.length > 0 ? selectedUsers.map(user => user.email) : undefined;
 
     try {
-      await onConfirm(password.trim() || undefined, expiresAt || undefined, maxDownloadsNum, allowedUsernames);
+      await onConfirm(password.trim() || undefined, expiresAt || undefined, maxDownloadsNum, allowedEmails);
       handleClose();
     } catch (err: any) {
       setLocalError(err.message || 'Failed to create share');
@@ -167,7 +167,7 @@ export const SharePasswordDialog: React.FC<SharePasswordDialogProps> = ({
           <Autocomplete
             multiple
             options={usersData?.users || []}
-            getOptionLabel={(option) => option.username}
+            getOptionLabel={(option) => option.email}
             value={selectedUsers}
             onChange={(_, newValue) => setSelectedUsers(newValue)}
             onInputChange={(_, newInputValue) => {
@@ -179,14 +179,14 @@ export const SharePasswordDialog: React.FC<SharePasswordDialogProps> = ({
             disabled={isLoading}
             renderTags={(tagValue, getTagProps) =>
               tagValue.map((option, index) => (
-                <Chip label={option.username} {...getTagProps({ index })} />
+                <Chip label={option.email} {...getTagProps({ index })} />
               ))
             }
             renderInput={(params) => (
               <TextField
                 {...params}
-                label="Allowed Usernames (Optional)"
-                helperText="Leave empty for public access. Search and select usernames to restrict access."
+                label="Allowed Emails (Optional)"
+                helperText="Leave empty for public access. Search and select email addresses to restrict access."
                 InputProps={{
                   ...params.InputProps,
                   startAdornment: (

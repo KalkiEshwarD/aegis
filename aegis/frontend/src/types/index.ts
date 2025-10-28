@@ -226,7 +226,7 @@ export interface FileShare {
   download_count: number;
   created_at: string;
   updated_at: string;
-  allowed_usernames: string[];
+  allowed_emails: string[];
   user_file?: UserFile;
 }
 
@@ -235,7 +235,7 @@ export interface CreateFileShareInput {
   master_password?: string;
   expires_at?: string;
   max_downloads?: number;
-  allowed_usernames?: string[];
+  allowed_emails?: string[];
 }
 
 export interface UpdateFileShareInput {

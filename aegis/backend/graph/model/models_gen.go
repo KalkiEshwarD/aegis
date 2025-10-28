@@ -45,11 +45,11 @@ type AuthPayload struct {
 }
 
 type CreateFileShareInput struct {
-	UserFileID       string     `json:"user_file_id"`
-	MasterPassword   *string    `json:"master_password,omitempty"`
-	MaxDownloads     *int       `json:"max_downloads,omitempty"`
-	ExpiresAt        *time.Time `json:"expires_at,omitempty"`
-	AllowedUsernames []string   `json:"allowed_usernames,omitempty"`
+	UserFileID     string     `json:"user_file_id"`
+	MasterPassword *string    `json:"master_password,omitempty"`
+	MaxDownloads   *int       `json:"max_downloads,omitempty"`
+	ExpiresAt      *time.Time `json:"expires_at,omitempty"`
+	AllowedEmails  []string   `json:"allowed_emails,omitempty"`
 }
 
 type CreateFolderInput struct {
@@ -157,11 +157,11 @@ type SharedWithMeFile struct {
 }
 
 type UpdateFileShareInput struct {
-	ShareID          string     `json:"share_id"`
-	MasterPassword   *string    `json:"master_password,omitempty"`
-	MaxDownloads     *int       `json:"max_downloads,omitempty"`
-	ExpiresAt        *time.Time `json:"expires_at,omitempty"`
-	AllowedUsernames []string   `json:"allowed_usernames,omitempty"`
+	ShareID        string     `json:"share_id"`
+	MasterPassword *string    `json:"master_password,omitempty"`
+	MaxDownloads   *int       `json:"max_downloads,omitempty"`
+	ExpiresAt      *time.Time `json:"expires_at,omitempty"`
+	AllowedEmails  []string   `json:"allowed_emails,omitempty"`
 }
 
 type UpdateProfileInput struct {
