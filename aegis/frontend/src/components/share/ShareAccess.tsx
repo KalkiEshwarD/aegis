@@ -86,22 +86,14 @@ const ShareAccess: React.FC = () => {
           // Construct the direct download URL using the new backend endpoint
           const directDownloadUrl = `http://localhost:8080/v1/share/${token}/download?key=${encodeURIComponent(key || '')}`;
           
-          console.log('Initiating browser download from:', directDownloadUrl);
+          console.log('=== DOWNLOAD DEBUG ===');
+          console.log('Download URL:', directDownloadUrl);
+          console.log('Filename:', sharedFile?.filename);
           
-          // Use window.open with proper download attributes to trigger browser's native download dialog
-          // This ensures the file goes to the user's configured Downloads folder
-          const downloadWindow = window.open(directDownloadUrl, '_blank');
-          
-          // Close the download window after a short delay if it opened successfully
-          if (downloadWindow) {
-            setTimeout(() => {
-              try {
-                downloadWindow.close();
-              } catch (e) {
-                // Window might already be closed or restricted, ignore
-              }
-            }, 2000);
-          }
+          // Simple approach: redirect to the download URL directly
+          // The backend sets Content-Disposition: attachment, so this should trigger download
+          console.log('Redirecting to download URL...');
+          window.location.href = directDownloadUrl;
           
           // Update download count locally (optimistically)
           if (sharedFile) {
