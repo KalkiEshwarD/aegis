@@ -45,11 +45,15 @@ const UploadProgress: React.FC<UploadProgressProps> = ({
             <Box display="flex" justifyContent="space-between" alignItems="center">
               <Chip
                 size="small"
-                label={upload.status}
+                label={
+                  upload.status === 'completed' ? 'encrypted and uploaded' :
+                  upload.status === 'encrypting' ? 'encrypting' :
+                  upload.status
+                }
                 color={
                   upload.status === 'completed' ? 'success' :
                   upload.status === 'error' ? 'error' :
-                  upload.status === 'uploading' ? 'primary' : 'default'
+                  upload.status === 'uploading' || upload.status === 'encrypting' ? 'primary' : 'default'
                 }
               />
               <IconButton

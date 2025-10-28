@@ -78,6 +78,10 @@ export const useFileUpload = (onUploadComplete?: () => void) => {
       ));
 
       const fileData = await fileToUint8Array(file);
+      safeSetUploads(prev => prev.map(u =>
+        u.file === file ? { ...u, status: 'encrypting', progress: 50 } : u
+      ));
+
       const { encryptedData, nonce } = encryptFile(fileData, encryptionKey.key);
 
       const encryptedDataWithNonce = new Uint8Array(nonce.length + encryptedData.length);

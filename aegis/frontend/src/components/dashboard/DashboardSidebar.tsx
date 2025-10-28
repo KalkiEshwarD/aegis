@@ -34,7 +34,6 @@ import {
 } from '@mui/icons-material';
 import { useMutation } from '@apollo/client';
 import { CREATE_FOLDER_MUTATION } from '../../apollo/queries';
-import { useFileUpload } from '../../hooks/useFileUpload';
 import { formatFileSize } from '../../utils/fileUtils';
 
 const drawerWidth = 240;
@@ -51,6 +50,8 @@ interface DashboardSidebarProps {
   statsData?: any;
   statsLoading: boolean;
   onUploadComplete?: () => void;
+  onFileSelect?: (files: File[], folderId?: string) => void;
+  onProcessFile?: (file: File, folderId?: string) => Promise<void>;
 }
 
 const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
@@ -59,6 +60,8 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   statsData,
   statsLoading,
   onUploadComplete,
+  onFileSelect,
+  onProcessFile,
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -70,7 +73,6 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
 
   const activeTab = location.pathname === '/shared' ? 'shared' : selectedNav;
 
-  const { handleFiles, processFile } = useFileUpload(onUploadComplete);
   const [createFolderMutation] = useMutation(CREATE_FOLDER_MUTATION);
 
   const handleFileUpload = () => {
@@ -85,8 +87,8 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
 
   const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
-    if (files && files.length > 0) {
-      handleFiles(Array.from(files));
+    if (files && files.length > 0 && onFileSelect) {
+      onFileSelect(Array.from(files));
     }
     // Reset the input so the same file can be selected again
     event.target.value = '';
@@ -176,7 +178,9 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
       const folderId = createdFolders[folderPath];
       for (const file of folderFiles) {
         // Upload file with folder_id
-        await processFile(file, folderId);
+        if (onProcessFile) {
+          await onProcessFile(file, folderId);
+        }
       }
     }
   };

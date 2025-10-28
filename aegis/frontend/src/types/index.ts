@@ -205,7 +205,7 @@ export interface AuthContextType {
 export interface FileUploadProgress {
   file: File;
   progress: number;
-  status: 'pending' | 'uploading' | 'completed' | 'error';
+  status: 'pending' | 'uploading' | 'encrypting' | 'completed' | 'error';
   error?: string;
 }
 

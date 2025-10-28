@@ -44,11 +44,9 @@ import { STAR_FILE_MUTATION, UNSTAR_FILE_MUTATION, STAR_FOLDER_MUTATION, UNSTAR_
 import { GET_MY_TRASHED_FILES, GET_MY_TRASHED_FOLDERS, RESTORE_FILE_MUTATION, PERMANENTLY_DELETE_FILE_MUTATION, RESTORE_FOLDER_MUTATION, PERMANENTLY_DELETE_FOLDER_MUTATION, GET_MY_STATS } from '../../apollo/queries';
 import { UserFile, Folder, FileExplorerItem, isFolder, isFile } from '../../types';
 import { useFileOperations } from '../../hooks/useFileOperations';
-import { useFileUpload } from '../../hooks/useFileUpload';
 import FileGrid from './FileGrid';
 import FileToolbar from './FileToolbar';
 import { FileListItem } from './FileListItem';
-import UploadProgress from './UploadProgress';
 import { ShareLinkManager } from './ShareLinkManager';
 
 // Helper function to calculate folder size recursively
@@ -440,7 +438,6 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
   // Use custom hooks
   const { downloadingFile, error, downloadFile, deleteFile } = useFileOperations();
-  const { uploads, handleFiles, removeUpload, clearCompleted } = useFileUpload(onUploadComplete);
 
   // Combine folders and files for display and sort them together
   const allItems: FileExplorerItem[] = useMemo(() => {
@@ -861,9 +858,12 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
     const files = Array.from(event.dataTransfer.files) as File[];
     if (files.length > 0) {
-      await handleFiles(files);
+      // Use the parent's onFileSelect callback instead of internal upload handling
+      if (onFileSelect) {
+        onFileSelect(files);
+      }
     }
-  }, [handleFiles]);
+  }, [onFileSelect]);
 
   // Box selection handlers
   const [mouseDownPos, setMouseDownPos] = useState<{ x: number; y: number } | null>(null);
@@ -1393,8 +1393,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     moveFolderMutation,
     refetch,
     refetchFolders,
-    onUploadComplete,
-    handleFiles
+    onUploadComplete
   ]);
 
   const handleDeleteFolder = useCallback(async (folder: Folder) => {
@@ -1637,10 +1636,13 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         console.log('DEBUG: Pasting files from clipboard:', files.length);
         setSnackbarMessage(`Uploading ${files.length} file(s) from clipboard...`);
         setSnackbarOpen(true);
-        await handleFiles(files);
+        // Use the parent's onFileSelect callback instead of internal upload handling
+        if (onFileSelect) {
+          onFileSelect(files);
+        }
       }
     }
-  }, [handleFiles]);
+  }, [onFileSelect]);
 
   // Add keyboard and paste event listeners
   useEffect(() => {
@@ -1719,7 +1721,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   }, []);
 
   // Determine if drag and drop should be enabled
-  const isDragDropEnabled = !isTrashMode && !isStarredMode && (allItems.length > 0 || uploads.length > 0 || !searchQuery);
+  const isDragDropEnabled = !isTrashMode && !isStarredMode && (allItems.length > 0 || !searchQuery);
 
   // Memoized toolbar props to prevent unnecessary re-renders
   const normalToolbarProps = useMemo(() => {
@@ -1967,7 +1969,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
           onDrop: handleDrop,
         })}
       >
-        {allItems.length === 0 && uploads.length === 0 ? (
+        {allItems.length === 0 ? (
           searchQuery ? (
             // No search results
             <Box
@@ -2113,10 +2115,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         />
       )}
 
-      {/* Upload Progress */}
-      {uploads.length > 0 && (
-        <UploadProgress uploads={uploads} onRemoveUpload={removeUpload} onClearCompleted={clearCompleted} />
-      )}
+
 
       {/* Context Menu */}
       <Menu

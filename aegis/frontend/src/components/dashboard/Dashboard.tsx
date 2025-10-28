@@ -29,6 +29,7 @@ import { useFileUpload } from '../../hooks/useFileUpload';
 import { isFile } from '../../types';
 import withAuth from '../hocs/withAuth';
 import withErrorBoundary from '../hocs/withErrorBoundary';
+import UploadStatusPane from '../common/UploadStatusPane';
 
 
 const Dashboard: React.FC = () => {
@@ -38,6 +39,7 @@ const Dashboard: React.FC = () => {
   const [newFolderName, setNewFolderName] = useState('');
   const [folderCreationError, setFolderCreationError] = useState<string | null>(null);
   const [starredSidebarCollapsed, setStarredSidebarCollapsed] = useState(true);
+  const [uploadPaneOpen, setUploadPaneOpen] = useState(false);
 
   const { data: statsData, loading: statsLoading } = useQuery(GET_MY_STATS, {
     fetchPolicy: 'cache-and-network',
@@ -75,13 +77,18 @@ const Dashboard: React.FC = () => {
     triggerRefresh();
   };
 
-  const { handleFiles } = useFileUpload(handleUploadComplete);
+  const { uploads, handleFiles, processFile, removeUpload, clearCompleted } = useFileUpload(handleUploadComplete);
 
-  const handleFileSelect = (files: File[]) => {
-    handleFiles(files);
-  };
+  // Auto-open upload pane when uploads start and keep it open until user closes it
+  useEffect(() => {
+    if (uploads.length > 0 && !uploadPaneOpen) {
+      setUploadPaneOpen(true);
+    }
+  }, [uploads.length, uploadPaneOpen]);
 
-  const handleFileRestored = () => {
+  const handleFileSelect = (files: File[], folderId?: string) => {
+    handleFiles(files, folderId);
+  };  const handleFileRestored = () => {
     triggerRefresh();
   };
 
@@ -173,6 +180,8 @@ const Dashboard: React.FC = () => {
         statsData={statsData}
         statsLoading={statsLoading}
         onUploadComplete={handleUploadComplete}
+        onFileSelect={handleFileSelect}
+        onProcessFile={processFile}
       />
 
       {/* Starred Sidebar */}
@@ -307,6 +316,15 @@ const Dashboard: React.FC = () => {
           </DialogActions>
         </Dialog>
       </Box>
+
+      {/* Upload Status Pane */}
+      <UploadStatusPane
+        uploads={uploads}
+        onRemoveUpload={removeUpload}
+        onClearCompleted={clearCompleted}
+        isOpen={uploadPaneOpen}
+        onClose={() => setUploadPaneOpen(false)}
+      />
     </Box>
   );
 };
