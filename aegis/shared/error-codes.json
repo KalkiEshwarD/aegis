@@ -12,5 +12,6 @@
   "FILE_UPLOAD_ERROR": "file_upload_error",
   "FILE_DOWNLOAD_ERROR": "file_download_error",
   "PERMISSION_ERROR": "permission_error",
-  "STORAGE_QUOTA_EXCEEDED": "storage_quota_exceeded"
+  "STORAGE_QUOTA_EXCEEDED": "storage_quota_exceeded",
+  "FILE_EXISTS_IN_TRASH": "file_exists_in_trash"
 }

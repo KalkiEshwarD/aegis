@@ -10,9 +10,10 @@ import {
   DialogContent,
   DialogActions,
   TextField,
+  Snackbar,
 } from '@mui/material';
 import { useQuery, useMutation } from '@apollo/client';
-import { GET_MY_STATS } from '../../apollo/files';
+import { GET_MY_STATS, RESTORE_FILE_MUTATION, GET_MY_TRASHED_FILES, GET_MY_FILES } from '../../apollo/queries';
 import { CREATE_FOLDER_MUTATION } from '../../apollo/folders';
 import FileExplorer from '../common/FileExplorer';
 import TrashView from './TrashView';
@@ -40,12 +41,19 @@ const Dashboard: React.FC = () => {
   const [folderCreationError, setFolderCreationError] = useState<string | null>(null);
   const [starredSidebarCollapsed, setStarredSidebarCollapsed] = useState(true);
   const [uploadPaneOpen, setUploadPaneOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState<string>('');
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
 
   const { data: statsData, loading: statsLoading } = useQuery(GET_MY_STATS, {
     fetchPolicy: 'cache-and-network',
   });
 
+  const { data: trashedFilesData } = useQuery(GET_MY_TRASHED_FILES, {
+    fetchPolicy: 'cache-and-network',
+  });
+
   const [createFolderMutation] = useMutation(CREATE_FOLDER_MUTATION);
+  const [restoreFileMutation] = useMutation(RESTORE_FILE_MUTATION);
 
   // Use custom hooks
   const {
@@ -77,7 +85,7 @@ const Dashboard: React.FC = () => {
     triggerRefresh();
   };
 
-  const { uploads, handleFiles, processFile, removeUpload, clearCompleted } = useFileUpload(handleUploadComplete);
+  const { uploads, handleFiles, processFile, removeUpload, clearCompleted, trashedFileToRestore, clearTrashedFileToRestore, markUploadCompleted } = useFileUpload(handleUploadComplete);
 
   // Auto-open upload pane when uploads start and keep it open until user closes it
   useEffect(() => {
@@ -139,6 +147,39 @@ const Dashboard: React.FC = () => {
     setCreateFolderDialogOpen(false);
     setNewFolderName('');
     setFolderCreationError(null);
+  };
+
+  const handleRestoreTrashedFile = async () => {
+    if (!trashedFileToRestore || !trashedFilesData?.myTrashedFiles) return;
+
+    try {
+      // Find the trashed file with the same filename
+      const trashedFile = trashedFilesData.myTrashedFiles.find(
+        (file: any) => file.filename === trashedFileToRestore.name
+      );
+
+      if (trashedFile) {
+        await restoreFileMutation({
+          variables: { fileID: trashedFile.id },
+          refetchQueries: [{ query: GET_MY_FILES }, { query: GET_MY_TRASHED_FILES }, { query: GET_MY_STATS }],
+        });
+
+        // Show success notification
+        setSnackbarMessage(`"${trashedFileToRestore.name}" restored from trash`);
+        setSnackbarOpen(true);
+      }
+
+      clearTrashedFileToRestore();
+    } catch (error) {
+      console.error('Error restoring trashed file:', error);
+      setSnackbarMessage('Failed to restore file from trash');
+      setSnackbarOpen(true);
+      clearTrashedFileToRestore();
+    }
+  };
+
+  const handleCancelRestoreTrashedFile = () => {
+    clearTrashedFileToRestore();
   };
 
   const handleToggleStarredSidebar = () => {
@@ -317,6 +358,23 @@ const Dashboard: React.FC = () => {
         </Dialog>
       </Box>
 
+      {/* Restore Trashed File Dialog */}
+      <Dialog
+        open={!!trashedFileToRestore}
+        onClose={handleCancelRestoreTrashedFile}
+      >
+        <DialogTitle>File Exists in Trash</DialogTitle>
+        <DialogContent>
+          The file "{trashedFileToRestore?.name}" already exists in your trash. Would you like to restore it?
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelRestoreTrashedFile}>Cancel</Button>
+          <Button onClick={handleRestoreTrashedFile} color="primary">
+            Restore
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Upload Status Pane */}
       <UploadStatusPane
         uploads={uploads}
@@ -324,6 +382,15 @@ const Dashboard: React.FC = () => {
         onClearCompleted={clearCompleted}
         isOpen={uploadPaneOpen}
         onClose={() => setUploadPaneOpen(false)}
+      />
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={4000}
+        onClose={() => setSnackbarOpen(false)}
+        message={snackbarMessage}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
     </Box>
   );

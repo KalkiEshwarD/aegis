@@ -27,6 +27,7 @@ var (
 	ErrCodeFileDownload         ErrorCode = "file_download_error"
 	ErrCodePermission           ErrorCode = "permission_error"
 	ErrCodeStorageQuotaExceeded ErrorCode = "storage_quota_exceeded"
+	ErrCodeFileExistsInTrash    ErrorCode = "file_exists_in_trash"
 )
 
 func init() {
@@ -97,6 +98,9 @@ func loadSharedErrorCodes() {
 	}
 	if code, exists := codes["STORAGE_QUOTA_EXCEEDED"]; exists {
 		ErrCodeStorageQuotaExceeded = ErrorCode(code)
+	}
+	if code, exists := codes["FILE_EXISTS_IN_TRASH"]; exists {
+		ErrCodeFileExistsInTrash = ErrorCode(code)
 	}
 }
 

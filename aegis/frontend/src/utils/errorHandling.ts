@@ -79,6 +79,7 @@ let ERROR_CODES: Record<string, string> = {
   FILE_UPLOAD_ERROR: 'file_upload_error',
   FILE_DOWNLOAD_ERROR: 'file_download_error',
   PERMISSION_ERROR: 'permission_error',
+  FILE_EXISTS_IN_TRASH: 'file_exists_in_trash',
   UNKNOWN_ERROR: 'unknown_error',
 };
 
@@ -95,6 +96,7 @@ async function loadSharedErrorCodes() {
         FILE_UPLOAD_ERROR: sharedCodes.FILE_UPLOAD_ERROR || 'file_upload_error',
         FILE_DOWNLOAD_ERROR: sharedCodes.FILE_DOWNLOAD_ERROR || 'file_download_error',
         PERMISSION_ERROR: sharedCodes.PERMISSION_ERROR || 'permission_error',
+        FILE_EXISTS_IN_TRASH: sharedCodes.FILE_EXISTS_IN_TRASH || 'file_exists_in_trash',
         UNKNOWN_ERROR: sharedCodes.UNKNOWN_ERROR || 'unknown_error',
       };
     }

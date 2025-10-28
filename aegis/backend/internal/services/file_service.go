@@ -144,7 +144,7 @@ func (s *FileService) UploadFile(userID uint, filename, mimeType, contentHash, e
 
 	// Now that we have the file ID, check for existing user file with this specific file ID
 	var existingUserFile models.UserFile
-	err = tx.Where("user_id = ? AND file_id = ?", userID, file.ID).Preload("File").First(&existingUserFile).Error
+	err = tx.Where("user_id = ? AND file_id = ? AND deleted_at IS NULL", userID, file.ID).Preload("File").First(&existingUserFile).Error
 
 	if err == nil {
 		tx.Commit()
@@ -152,6 +152,18 @@ func (s *FileService) UploadFile(userID uint, filename, mimeType, contentHash, e
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		tx.Rollback()
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "database error checking for existing user file")
+	}
+
+	// Check if there's a soft-deleted user file with the same file_id
+	var trashedUserFile models.UserFile
+	err = tx.Unscoped().Where("user_id = ? AND file_id = ? AND deleted_at IS NOT NULL", userID, file.ID).Preload("File").First(&trashedUserFile).Error
+
+	if err == nil {
+		tx.Rollback()
+		return nil, apperrors.New(apperrors.ErrCodeFileExistsInTrash, "File exists in trash. Would you like to restore it?")
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		tx.Rollback()
+		return nil, apperrors.Wrap(err, apperrors.ErrCodeInternal, "database error checking for trashed user file")
 	}
 
 	if folderID != nil {

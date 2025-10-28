@@ -12,10 +12,11 @@ import {
 } from '../utils/crypto';
 import { getMimeTypeFromExtension, formatFileSize } from '../utils/fileUtils';
 import { FileUploadProgress } from '../types';
-import { getErrorMessage } from '../utils/errorHandling';
+import { getErrorMessage, getErrorCode, ERROR_CODES } from '../utils/errorHandling';
 
 export const useFileUpload = (onUploadComplete?: () => void) => {
   const [uploads, setUploads] = useState<FileUploadProgress[]>([]);
+  const [trashedFileToRestore, setTrashedFileToRestore] = useState<File | null>(null);
   const [uploadFileMutation] = useMutation(UPLOAD_FILE_FROM_MAP_MUTATION);
   const isMountedRef = useRef(true);
 
@@ -139,6 +140,18 @@ export const useFileUpload = (onUploadComplete?: () => void) => {
 
       console.error('Upload error:', err);
       const errorMessage = getErrorMessage(err) || 'Upload failed';
+      const errorCode = getErrorCode(err);
+
+      // Special handling for files that exist in trash
+      if (errorCode === ERROR_CODES.FILE_EXISTS_IN_TRASH || 
+          errorMessage.includes('File exists in trash')) {
+        safeSetUploads(prev => prev.map(u =>
+          u.file === file ? { ...u, status: 'pending' } : u
+        ));
+        setTrashedFileToRestore(file);
+        return;
+      }
+
       safeSetUploads(prev => prev.map(u =>
         u.file === file ? { ...u, status: 'error', error: errorMessage } : u
       ));
@@ -160,11 +173,24 @@ export const useFileUpload = (onUploadComplete?: () => void) => {
     setUploads(prev => prev.filter(u => u.status !== 'completed'));
   }, []);
 
+  const markUploadCompleted = useCallback((file: File) => {
+    safeSetUploads(prev => prev.map(u =>
+      u.file === file ? { ...u, status: 'completed', progress: 100 } : u
+    ));
+  }, [safeSetUploads]);
+
+  const clearTrashedFileToRestore = useCallback(() => {
+    setTrashedFileToRestore(null);
+  }, []);
+
   return {
     uploads,
     handleFiles,
     processFile,
     removeUpload,
     clearCompleted,
+    trashedFileToRestore,
+    clearTrashedFileToRestore,
+    markUploadCompleted,
   };
 };
