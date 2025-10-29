@@ -85,7 +85,7 @@ const Dashboard: React.FC = () => {
     triggerRefresh();
   };
 
-  const { uploads, handleFiles, processFile, removeUpload, clearCompleted, trashedFileToRestore, clearTrashedFileToRestore, markUploadCompleted } = useFileUpload(handleUploadComplete);
+  const { uploads, handleFiles, processFile, removeUpload, clearCompleted, trashedFileToRestore, clearTrashedFileToRestore } = useFileUpload(handleUploadComplete);
 
   // Auto-open upload pane when uploads start and keep it open until user closes it
   useEffect(() => {

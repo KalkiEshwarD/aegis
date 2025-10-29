@@ -1,6 +1,7 @@
 package services_test
 
 import (
+	"encoding/base64"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,7 +18,7 @@ import (
 type FileServiceTestSuite struct {
 	suite.Suite
 	db           *gorm.DB
-	fileService *services.FileService
+	fileService  *services.FileService
 	testUser     models.User
 	testFile     models.File
 	testUserFile models.UserFile
@@ -497,6 +498,84 @@ func (suite *FileServiceTestSuite) TestGetStarredFolders_DatabaseError() {
 
 	assert.Error(suite.T(), err)
 	assert.Contains(suite.T(), err.Error(), "database error")
+}
+
+func (suite *FileServiceTestSuite) TestUploadFileFromMap_Success_WithFolderIDAsString() {
+	// Test data with folder_id as string (as sent from frontend)
+	uploadData := map[string]interface{}{
+		"filename":      "test_upload.txt",
+		"mime_type":     "text/plain",
+		"size_bytes":    1024.0,
+		"content_hash":  "test_hash_upload",
+		"encrypted_key": "test_encryption_key_upload",
+		"folder_id":     "1", // String representation of folder ID
+		"file_data":     base64.StdEncoding.EncodeToString([]byte("test file content")),
+	}
+
+	userFile, err := suite.fileService.UploadFileFromMap(suite.testUser.ID, uploadData)
+
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), userFile)
+	assert.Equal(suite.T(), "test_upload.txt", userFile.Filename)
+	assert.Equal(suite.T(), suite.testUser.ID, userFile.UserID)
+	assert.NotNil(suite.T(), userFile.FolderID)
+	assert.Equal(suite.T(), suite.testFolder.ID, *userFile.FolderID)
+}
+
+func (suite *FileServiceTestSuite) TestUploadFileFromMap_Success_WithoutFolderID() {
+	// Test data without folder_id (upload to root)
+	uploadData := map[string]interface{}{
+		"filename":      "test_upload_root.txt",
+		"mime_type":     "text/plain",
+		"size_bytes":    1024.0,
+		"content_hash":  "test_hash_upload_root",
+		"encrypted_key": "test_encryption_key_upload",
+		"file_data":     base64.StdEncoding.EncodeToString([]byte("test file content")),
+	}
+
+	userFile, err := suite.fileService.UploadFileFromMap(suite.testUser.ID, uploadData)
+
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), userFile)
+	assert.Equal(suite.T(), "test_upload_root.txt", userFile.Filename)
+	assert.Equal(suite.T(), suite.testUser.ID, userFile.UserID)
+	assert.Nil(suite.T(), userFile.FolderID) // Should be nil for root upload
+}
+
+func (suite *FileServiceTestSuite) TestUploadFileFromMap_InvalidFolderID() {
+	// Test data with invalid folder_id string
+	uploadData := map[string]interface{}{
+		"filename":      "test_upload_invalid.txt",
+		"mime_type":     "text/plain",
+		"size_bytes":    1024.0,
+		"content_hash":  "test_hash_upload_invalid",
+		"encrypted_key": "test_encryption_key_upload",
+		"folder_id":     "invalid_string", // Invalid folder ID
+		"file_data":     base64.StdEncoding.EncodeToString([]byte("test file content")),
+	}
+
+	_, err := suite.fileService.UploadFileFromMap(suite.testUser.ID, uploadData)
+
+	assert.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "invalid folder_id")
+}
+
+func (suite *FileServiceTestSuite) TestUploadFileFromMap_FolderNotFound() {
+	// Test data with non-existent folder_id
+	uploadData := map[string]interface{}{
+		"filename":      "test_upload_missing.txt",
+		"mime_type":     "text/plain",
+		"size_bytes":    1024.0,
+		"content_hash":  "test_hash_upload_missing",
+		"encrypted_key": "test_encryption_key_upload",
+		"folder_id":     "99999", // Non-existent folder ID
+		"file_data":     base64.StdEncoding.EncodeToString([]byte("test file content")),
+	}
+
+	_, err := suite.fileService.UploadFileFromMap(suite.testUser.ID, uploadData)
+
+	assert.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "not found or access denied")
 }
 
 func TestFileServiceSuite(t *testing.T) {

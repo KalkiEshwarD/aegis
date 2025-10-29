@@ -4,36 +4,6 @@ import { MockedProvider } from '@apollo/client/testing';
 import { useFileUpload } from '../../hooks/useFileUpload';
 import { UPLOAD_FILE_FROM_MAP_MUTATION } from '../../apollo/queries';
 
-// Mock File and FileReader
-Object.defineProperty(global, 'File', {
-  value: jest.fn().mockImplementation((parts, filename, options) => ({
-    name: filename,
-    size: parts ? parts.reduce((total: number, part: any) => total + (part.length || 0), 0) : 0,
-    type: options?.type || '',
-    arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(8)),
-    text: jest.fn().mockResolvedValue('test content'),
-  })),
-  writable: true,
-});
-
-Object.defineProperty(global, 'FileReader', {
-  value: jest.fn().mockImplementation(() => ({
-    readAsArrayBuffer: jest.fn(function(this: any) {
-      setTimeout(() => {
-        if (this.onload) {
-          this.result = new ArrayBuffer(8);
-          this.onload();
-        }
-      }, 0);
-    }),
-    readAsText: jest.fn(),
-    onload: null,
-    onerror: null,
-    result: null,
-  })),
-  writable: true,
-});
-
 // Mock crypto utilities
 jest.mock('../../utils/crypto', () => ({
   generateEncryptionKey: jest.fn(() => ({
@@ -61,7 +31,6 @@ const renderHookWithProvider = (mocks: any[] = []) => {
   });
 };
 
-/*
 describe('useFileUpload', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -197,31 +166,43 @@ describe('useFileUpload', () => {
       expect(result.current.uploads[0].error).toBe('Upload failed');
     });
 
-    it('should handle GraphQL errors', async () => {
-      const mockMutation = {
-        request: {
-          query: UPLOAD_FILE_FROM_MAP_MUTATION,
-          variables: {
-            input: {
-              data: expect.any(String),
-            },
-          },
-        },
-        result: {
-          errors: [{ message: 'GraphQL upload error' }],
-        },
-      };
+    it('should handle unreadable files gracefully (directories from drag-and-drop)', async () => {
+      // Create a mock file that will cause FileReader to fail
+      const unreadableFile = new File(['test'], 'unreadable-file.txt');
+      
+      // Mock FileReader to simulate the error
+      const originalFileReader = global.FileReader;
+      global.FileReader = jest.fn().mockImplementation(() => ({
+        readAsArrayBuffer: jest.fn(function(this: any) {
+          setTimeout(() => {
+            if (this.onerror) {
+              const error = new Error('A requested file or directory could not be found at the time an operation was processed.');
+              (error as any).name = 'NotFoundError';
+              (error as any).code = 8;
+              this.error = error;
+              this.onerror(error);
+            }
+          }, 0);
+        }),
+        readAsText: jest.fn(),
+        onload: null,
+        onerror: null,
+        result: null,
+      })) as any;
 
-      const { result } = renderHookWithProvider([mockMutation]);
+      try {
+        const { result } = renderHookWithProvider();
 
-      const file = new File(['test content'], 'test.txt');
+        await act(async () => {
+          await result.current.handleFiles({ 0: unreadableFile, length: 1 } as any);
+        });
 
-      await act(async () => {
-        await result.current.handleFiles({ 0: file, length: 1 } as any);
-      });
-
-      expect(result.current.uploads[0].status).toBe('error');
-      expect(result.current.uploads[0].error).toBe('GraphQL upload error');
+        // Should not show the file in uploads list since it was skipped
+        expect(result.current.uploads).toHaveLength(0);
+      } finally {
+        // Restore original FileReader
+        global.FileReader = originalFileReader;
+      }
     });
   });
 
@@ -437,4 +418,3 @@ describe('useFileUpload', () => {
     });
   });
 });
-*/

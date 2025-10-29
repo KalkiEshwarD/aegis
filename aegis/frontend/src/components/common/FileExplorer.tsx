@@ -872,6 +872,14 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     setIsDragOver(false);
 
     const files = Array.from(event.dataTransfer.files) as File[];
+    console.log('[DEBUG] handleDrop called with files:', files.map(f => ({
+      name: f.name,
+      size: f.size,
+      type: f.type,
+      webkitRelativePath: (f as any).webkitRelativePath,
+      lastModified: f.lastModified
+    })));
+
     if (files.length > 0) {
       // Use the parent's onFileSelect callback instead of internal upload handling
       if (onFileSelect) {

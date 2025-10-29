@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strconv"
 	"strings"
 
 	apperrors "github.com/balkanid/aegis-backend/internal/errors"
@@ -44,13 +45,13 @@ func NewFileService(cfg *config.Config, db *database.DB, fileStorageService *Fil
 
 func (s *FileService) UploadFileFromMap(userID uint, data map[string]interface{}) (*models.UserFile, error) {
 	type UploadData struct {
-		Filename     string   `json:"filename"`
-		MimeType     string   `json:"mime_type"`
-		SizeBytes    float64  `json:"size_bytes"`
-		ContentHash  string   `json:"content_hash"`
-		EncryptedKey string   `json:"encrypted_key"`
-		FolderID     *float64 `json:"folder_id,omitempty"`
-		FileData     string   `json:"file_data,omitempty"`
+		Filename     string  `json:"filename"`
+		MimeType     string  `json:"mime_type"`
+		SizeBytes    float64 `json:"size_bytes"`
+		ContentHash  string  `json:"content_hash"`
+		EncryptedKey string  `json:"encrypted_key"`
+		FolderID     *string `json:"folder_id,omitempty"`
+		FileData     string  `json:"file_data,omitempty"`
 	}
 
 	jsonData, err := json.Marshal(data)
@@ -79,8 +80,12 @@ func (s *FileService) UploadFileFromMap(userID uint, data map[string]interface{}
 
 	var folderID *uint
 	if uploadData.FolderID != nil {
-		fid := uint(*uploadData.FolderID)
-		folderID = &fid
+		fid, err := strconv.ParseUint(*uploadData.FolderID, 10, 32)
+		if err != nil {
+			return nil, apperrors.Wrap(err, apperrors.ErrCodeInvalidArgument, "invalid folder_id")
+		}
+		fidUint := uint(fid)
+		folderID = &fidUint
 	}
 
 	return s.UploadFile(

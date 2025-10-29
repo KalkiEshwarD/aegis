@@ -40,7 +40,7 @@ const UploadStatusPane: React.FC<UploadStatusPaneProps> = ({
   const completedUploads = uploads.filter(u => u.status === 'completed');
 
   return (
-    <Slide direction="left" in={isOpen || uploads.length > 0} mountOnEnter unmountOnExit>
+    <Slide direction="left" in={isOpen} mountOnEnter unmountOnExit>
       <Paper
         elevation={6}
         sx={{
