@@ -31,9 +31,11 @@ import {
   Delete as TrashIcon,
   CreateNewFolder as NewFolderIcon,
   Group as RoomsIcon,
+  People as PeopleIcon,
 } from '@mui/icons-material';
 import { useMutation } from '@apollo/client';
 import { CREATE_FOLDER_MUTATION, DELETE_FILE_MUTATION, DELETE_FOLDER_MUTATION, GET_MY_FILES, GET_MY_FOLDERS, GET_MY_STATS } from '../../apollo/queries';
+import { CREATE_ROOM_MUTATION, GET_MY_ROOMS } from '../../apollo/rooms';
 import { formatFileSize } from '../../utils/fileUtils';
 
 const drawerWidth = 240;
@@ -69,12 +71,15 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [newDialogOpen, setNewDialogOpen] = useState(false);
+  const [newRoomDialogOpen, setNewRoomDialogOpen] = useState(false);
   const [folderName, setFolderName] = useState('');
+  const [roomName, setRoomName] = useState('');
   const [isTrashDragOver, setIsTrashDragOver] = useState(false);
 
   const activeTab = location.pathname === '/shared' ? 'shared' : selectedNav;
 
   const [createFolderMutation] = useMutation(CREATE_FOLDER_MUTATION);
+  const [createRoomMutation] = useMutation(CREATE_ROOM_MUTATION);
   const [deleteFileMutation] = useMutation(DELETE_FILE_MUTATION);
   const [deleteFolderMutation] = useMutation(DELETE_FOLDER_MUTATION);
 
@@ -216,6 +221,37 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   const handleCancelFolder = () => {
     setFolderName('');
     setNewFolderDialogOpen(false);
+  };
+
+  const handleNewRoom = () => {
+    setNewRoomDialogOpen(true);
+  };
+
+  const handleCreateRoom = async () => {
+    if (!roomName.trim()) return;
+
+    try {
+      await createRoomMutation({
+        variables: {
+          input: {
+            name: roomName.trim(),
+          },
+        },
+        refetchQueries: [{ query: GET_MY_ROOMS }],
+      });
+      setRoomName('');
+      setNewRoomDialogOpen(false);
+      if (onUploadComplete) {
+        onUploadComplete();
+      }
+    } catch (error) {
+      console.error('Error creating room:', error);
+    }
+  };
+
+  const handleCancelRoom = () => {
+    setRoomName('');
+    setNewRoomDialogOpen(false);
   };
 
   // Drag and drop handlers for trash
@@ -412,6 +448,35 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
           </DialogActions>
         </Dialog>
 
+        {/* New Room Dialog */}
+        <Dialog open={newRoomDialogOpen} onClose={handleCancelRoom} maxWidth="sm" fullWidth>
+          <DialogTitle>Create New Room</DialogTitle>
+          <DialogContent>
+            <TextField
+              autoFocus
+              margin="dense"
+              label="Room Name"
+              fullWidth
+              variant="outlined"
+              value={roomName}
+              onChange={(e) => setRoomName(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleCreateRoom();
+                }
+              }}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCancelRoom} color="inherit">
+              Cancel
+            </Button>
+            <Button onClick={handleCreateRoom} variant="contained" disabled={!roomName.trim()}>
+              Create
+            </Button>
+          </DialogActions>
+        </Dialog>
+
         {/* New Dialog */}
         <Dialog open={newDialogOpen} onClose={() => setNewDialogOpen(false)} maxWidth="sm" fullWidth>
           <DialogContent>
@@ -478,6 +543,27 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                 }}
               >
                 New Folder
+              </Button>
+              <Button
+                onClick={() => { setNewDialogOpen(false); handleNewRoom(); }}
+                variant="text"
+                fullWidth
+                size="large"
+                startIcon={<PeopleIcon />}
+                sx={{
+                  py: 1.5,
+                  backgroundColor: 'white',
+                  color: '#6b7280',
+                  border: '1px solid #e5e7eb',
+                  '&:hover': {
+                    backgroundColor: '#f9fafb',
+                    borderColor: '#d1d5db'
+                  },
+                  justifyContent: 'flex-start',
+                  textTransform: 'none'
+                }}
+              >
+                Create new room
               </Button>
             </Box>
           </DialogContent>

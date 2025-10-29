@@ -29,9 +29,11 @@ import {
   Star as StarredIcon,
   Delete as TrashIcon,
   CreateNewFolder as NewFolderIcon,
+  People as PeopleIcon,
 } from '@mui/icons-material';
 import { useMutation } from '@apollo/client';
 import { CREATE_FOLDER_MUTATION } from '../../apollo/queries';
+import { CREATE_ROOM_MUTATION } from '../../apollo/rooms';
 import { useFileUpload } from '../../hooks/useFileUpload';
 import { formatFileSize } from '../../utils/fileUtils';
 
@@ -63,9 +65,12 @@ const SharedDashboardSidebar: React.FC<SharedDashboardSidebarProps> = ({
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [folderName, setFolderName] = useState('');
   const [newActionDialogOpen, setNewActionDialogOpen] = useState(false);
+  const [newRoomDialogOpen, setNewRoomDialogOpen] = useState(false);
+  const [roomName, setRoomName] = useState('');
 
   const { handleFiles, processFile } = useFileUpload(onUploadComplete);
   const [createFolderMutation] = useMutation(CREATE_FOLDER_MUTATION);
+  const [createRoomMutation] = useMutation(CREATE_ROOM_MUTATION);
 
   const handleFileUpload = () => {
     onNavChange('home');
@@ -103,6 +108,13 @@ const SharedDashboardSidebar: React.FC<SharedDashboardSidebarProps> = ({
     setNewActionDialogOpen(false);
     setTimeout(() => {
       handleNewFolder();
+    }, 100);
+  };
+
+  const handleCreateNewRoom = () => {
+    setNewActionDialogOpen(false);
+    setTimeout(() => {
+      handleNewRoom();
     }, 100);
   };
 
@@ -208,6 +220,10 @@ const SharedDashboardSidebar: React.FC<SharedDashboardSidebarProps> = ({
     setNewFolderDialogOpen(true);
   };
 
+  const handleNewRoom = () => {
+    setNewRoomDialogOpen(true);
+  };
+
   const handleCreateFolder = async () => {
     if (!folderName.trim()) return;
 
@@ -229,9 +245,35 @@ const SharedDashboardSidebar: React.FC<SharedDashboardSidebarProps> = ({
     }
   };
 
+  const handleCreateRoom = async () => {
+    if (!roomName.trim()) return;
+
+    try {
+      await createRoomMutation({
+        variables: {
+          input: {
+            name: roomName.trim(),
+          },
+        },
+      });
+      setRoomName('');
+      setNewRoomDialogOpen(false);
+      if (onUploadComplete) {
+        onUploadComplete();
+      }
+    } catch (error) {
+      console.error('Error creating room:', error);
+    }
+  };
+
   const handleCancelFolder = () => {
     setFolderName('');
     setNewFolderDialogOpen(false);
+  };
+
+  const handleCancelRoom = () => {
+    setRoomName('');
+    setNewRoomDialogOpen(false);
   };
 
 
@@ -338,6 +380,23 @@ const SharedDashboardSidebar: React.FC<SharedDashboardSidebarProps> = ({
                 }}
               >
                 Create new folder
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<PeopleIcon />}
+                onClick={handleCreateNewRoom}
+                sx={{
+                  justifyContent: 'flex-start',
+                  textTransform: 'none',
+                  borderColor: '#d1d5db',
+                  color: '#6b7280',
+                  '&:hover': {
+                    borderColor: '#3b82f6',
+                    backgroundColor: '#eff6ff'
+                  }
+                }}
+              >
+                Create new room
               </Button>
             </Box>
           </DialogContent>
@@ -481,6 +540,38 @@ const SharedDashboardSidebar: React.FC<SharedDashboardSidebarProps> = ({
           <DialogActions>
             <Button onClick={handleCancelFolder}>Cancel</Button>
             <Button onClick={handleCreateFolder} variant="contained">
+              Create
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* New Room Dialog */}
+        <Dialog
+          open={newRoomDialogOpen}
+          onClose={handleCancelRoom}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>Create New Room</DialogTitle>
+          <DialogContent>
+            <TextField
+              autoFocus
+              margin="dense"
+              label="Room Name"
+              fullWidth
+              variant="outlined"
+              value={roomName}
+              onChange={(e) => setRoomName(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleCreateRoom();
+                }
+              }}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCancelRoom}>Cancel</Button>
+            <Button onClick={handleCreateRoom} variant="contained">
               Create
             </Button>
           </DialogActions>
