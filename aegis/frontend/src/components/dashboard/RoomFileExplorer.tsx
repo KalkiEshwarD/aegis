@@ -98,7 +98,7 @@ const RoomFileExplorer: React.FC<RoomFileExplorerProps> = () => {
 
   const room = roomData?.room;
 
-  const onNavigateBack = () => navigate('/dashboard');
+  const onNavigateBack = () => navigate('/dashboard', { state: { selectedNav: 'rooms' } });
 
   // Combine files and folders into items
   const allItems: FileExplorerItem[] = useMemo(() => {
@@ -374,7 +374,7 @@ const RoomFileExplorer: React.FC<RoomFileExplorerProps> = () => {
                     '&:hover': { textDecoration: 'underline' },
                   }}
                 >
-                  <HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" />
+                  <GroupIcon sx={{ mr: 0.5 }} fontSize="inherit" />
                   Rooms
                 </Link>
                 <Typography color="text.primary" variant="body1">

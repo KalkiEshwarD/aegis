@@ -1977,10 +1977,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
           if (!hasFileItem && !hasButton && !hasIconButton) {
             setSelectedFiles(new Set());
-            // Trigger file selection if available
-            if (onFileSelect && fileInputRef.current) {
-              fileInputRef.current.click();
-            }
+            // Removed file upload trigger on click
           }
         }}
         onMouseDown={handleMouseDown}
