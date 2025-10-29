@@ -1,51 +1,49 @@
-import React, { useState, useCallback, memo, useMemo } from 'react';
+import React, { useState, memo, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
-  Typography,
   Paper,
   Toolbar,
+  Alert,
+  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  List,
+  ListItem,
+  ListItemAvatar,
+  ListItemText,
+  Avatar,
+  Typography,
+  Chip,
   Breadcrumbs,
   Link,
-  Alert,
   Snackbar,
-  IconButton,
-  Chip,
-  Avatar,
-  CircularProgress,
   Menu,
   MenuItem,
-  TextField,
-  InputAdornment,
-  FormControl,
-  Select,
   ToggleButtonGroup,
   ToggleButton,
 } from '@mui/material';
 import {
-  Home as HomeIcon,
-  ArrowBack as ArrowBackIcon,
   Group as GroupIcon,
   ChevronRight as ChevronRightIcon,
-  CreateNewFolder as CreateNewFolderIcon,
   Download as DownloadIcon,
   Delete as DeleteIcon,
-  Search as SearchIcon,
-  Sort as SortIcon,
   ViewList as ListIcon,
   ViewModule as GridIcon,
 } from '@mui/icons-material';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_ROOM } from '../../apollo/rooms';
 import { REMOVE_FILE_FROM_ROOM_MUTATION, REMOVE_FOLDER_FROM_ROOM_MUTATION } from '../../apollo/queries';
-import { UserFile, Folder, FileExplorerItem, isFolder, isFile, RoomMember } from '../../types';
-import { useFileOperations } from '../../hooks/useFileOperations';
-import { formatFileSize, formatDateTime } from '../../shared/utils';
-import FileGrid from '../common/FileGrid';
-import FileToolbar from '../common/FileToolbar';
+import { RoomMember, FileExplorerItem, isFile, isFolder } from '../../types';
 import DashboardAppBar from './DashboardAppBar';
 import DashboardSidebar from './DashboardSidebar';
 import { useUserMenu } from '../../hooks/useUserMenu';
+import { useFileOperations } from '../../hooks/useFileOperations';
+import FileGrid from '../common/FileGrid';
+import FileToolbar from '../common/FileToolbar';
 
 interface RoomFileExplorerProps {
 }
@@ -53,7 +51,7 @@ interface RoomFileExplorerProps {
 const RoomFileExplorer: React.FC<RoomFileExplorerProps> = () => {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
-
+  const [showAllMembers, setShowAllMembers] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'tile'>('tile');
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -66,15 +64,39 @@ const RoomFileExplorer: React.FC<RoomFileExplorerProps> = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'date' | 'size' | 'type'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [isDragOver, setIsDragOver] = useState(false);
 
-  const { data: roomData, loading: roomLoading, error: roomError, refetch: refetchRoom } = useQuery(GET_ROOM, {
+  // Drag and drop handlers for external files
+  const handleDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    setIsDragOver(false);
+
+    const files = Array.from(event.dataTransfer.files);
+    if (files.length > 0) {
+      // Show message that files cannot be uploaded directly to rooms
+      setSnackbarMessage('Files cannot be uploaded directly to rooms. Please upload them to your personal vault first, then share them to this room.');
+      setSnackbarOpen(true);
+    }
+  }, []);
+
+  const { data: roomData, loading: roomLoading, error: roomError, refetch } = useQuery(GET_ROOM, {
     variables: { id: roomId },
     fetchPolicy: 'cache-and-network',
   });
 
   const [removeFileFromRoom] = useMutation(REMOVE_FILE_FROM_ROOM_MUTATION, {
     onCompleted: () => {
-      refetchRoom();
+      refetch();
       setSnackbarMessage('File removed from room');
       setSnackbarOpen(true);
     },
@@ -82,11 +104,13 @@ const RoomFileExplorer: React.FC<RoomFileExplorerProps> = () => {
 
   const [removeFolderFromRoom] = useMutation(REMOVE_FOLDER_FROM_ROOM_MUTATION, {
     onCompleted: () => {
-      refetchRoom();
+      refetch();
       setSnackbarMessage('Folder removed from room');
       setSnackbarOpen(true);
     },
   });
+
+  const { downloadFile } = useFileOperations();
 
   const {
     anchorEl,
@@ -94,13 +118,11 @@ const RoomFileExplorer: React.FC<RoomFileExplorerProps> = () => {
     handleMenuClose,
   } = useUserMenu();
 
-  const { downloadFile } = useFileOperations();
-
   const room = roomData?.room;
 
   const onNavigateBack = () => navigate('/dashboard', { state: { selectedNav: 'rooms' } });
 
-  // Combine files and folders into items
+  // Combine room files and folders
   const allItems: FileExplorerItem[] = useMemo(() => {
     const items: FileExplorerItem[] = [];
     if (room?.files) items.push(...room.files);
@@ -221,7 +243,6 @@ const RoomFileExplorer: React.FC<RoomFileExplorerProps> = () => {
   };
 
   const handleFileClick = (itemId: string, event: React.MouseEvent) => {
-    // Handle file/folder selection
     setSelectedFiles(prev => {
       const newSet = new Set(prev);
       if (newSet.has(itemId)) {
@@ -237,6 +258,10 @@ const RoomFileExplorer: React.FC<RoomFileExplorerProps> = () => {
     // For now, folders in rooms are not navigable
     console.log('Folder clicked:', folderId, folderName);
   };
+
+  const handleToggleSortDirection = useCallback(() => {
+    setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+  }, []);
 
   if (!roomId) {
     return <div>Room ID not found</div>;
@@ -312,141 +337,107 @@ const RoomFileExplorer: React.FC<RoomFileExplorerProps> = () => {
         }}>
           {/* Room Header with Members */}
           <Box sx={{ mb: 3, pb: 3, borderBottom: '1px solid #e5e7eb' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              <Typography variant="body2" color="text.secondary">
-                Created by {room.creator?.username || 'Unknown'}
-              </Typography>
-              <Chip
-                icon={<GroupIcon />}
-                label={`${room.members?.length || 0} members`}
-                size="small"
-                variant="outlined"
-                sx={{ ml: 2 }}
-              />
-            </Box>
-
-            {/* Members */}
-            {room.members && room.members.length > 0 && (
-              <Box>
-                <Typography variant="subtitle2" gutterBottom sx={{ mb: 1 }}>
-                  Members
-                </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  {room.members.slice(0, 5).map((member: RoomMember) => (
-                    <Chip
-                      key={member.id}
-                      avatar={<Avatar sx={{ width: 24, height: 24 }}>{member.user?.username?.[0]?.toUpperCase()}</Avatar>}
-                      label={member.user?.username || 'Unknown'}
-                      size="small"
-                      variant="outlined"
-                    />
-                  ))}
-                  {room.members.length > 5 && (
-                    <Chip
-                      label={`+${room.members.length - 5} more`}
-                      size="small"
-                      variant="outlined"
-                    />
-                  )}
-                </Box>
-              </Box>
-            )}
-          </Box>
-
-          {/* File Explorer - Custom implementation for room files */}
-          <Box>
-            {/* Header with Breadcrumbs */}
-            <Box sx={{ mb: 3 }}>
-              <Breadcrumbs
-                separator={<ChevronRightIcon fontSize="small" />}
-                aria-label="breadcrumb"
-                sx={{ mb: 2 }}
+            {/* Breadcrumbs */}
+            <Breadcrumbs
+              separator={<ChevronRightIcon fontSize="small" />}
+              aria-label="breadcrumb"
+              sx={{ mb: 2 }}
+            >
+              <Link
+                component="button"
+                variant="body1"
+                onClick={onNavigateBack}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  textDecoration: 'none',
+                  color: 'primary.main',
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer',
+                  '&:hover': { textDecoration: 'underline' },
+                }}
               >
-                <Link
-                  component="button"
-                  variant="body1"
-                  onClick={onNavigateBack}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    textDecoration: 'none',
-                    color: 'primary.main',
-                    '&:hover': { textDecoration: 'underline' },
-                  }}
-                >
-                  <GroupIcon sx={{ mr: 0.5 }} fontSize="inherit" />
-                  Rooms
-                </Link>
-                <Typography color="text.primary" variant="body1">
-                  {room.name}
-                </Typography>
-              </Breadcrumbs>
+                <GroupIcon sx={{ mr: 0.5 }} fontSize="inherit" />
+                Rooms
+              </Link>
+              <Typography color="text.primary" variant="body1">
+                {room.name}
+              </Typography>
+            </Breadcrumbs>
 
-              <Typography variant="h6" fontWeight={600}>
+            {/* Room Info */}
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6" fontWeight={600} sx={{ flexGrow: 1 }}>
                 {room.name}
               </Typography>
             </Box>
 
-            {/* Toolbar */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, flexWrap: 'wrap' }}>
-              {/* Search */}
-              <TextField
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Typography variant="body2" color="text.secondary">
+                Created by {room.creator?.username || room.creator?.email || 'Unknown'}
+              </Typography>
+              <Chip
+                icon={<GroupIcon />}
+                label={`Members ${room.members?.length || 0}`}
                 size="small"
-                placeholder="Search files..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{ minWidth: 300, flexGrow: 1 }}
+                variant="outlined"
+                clickable
+                onClick={() => setShowAllMembers(true)}
+                sx={{ cursor: 'pointer' }}
               />
+            </Box>
+          </Box>
 
-              {/* Sort */}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Sort by
-                </Typography>
-                <FormControl size="small" sx={{ minWidth: 120 }}>
-                  <Select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as 'name' | 'date' | 'size' | 'type')}
-                  >
-                    <MenuItem value="name">Name</MenuItem>
-                    <MenuItem value="date">Date</MenuItem>
-                    <MenuItem value="size">Size</MenuItem>
-                    <MenuItem value="type">Type</MenuItem>
-                  </Select>
-                </FormControl>
-                <IconButton
-                  size="small"
-                  onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                >
-                  <SortIcon sx={{ transform: sortOrder === 'desc' ? 'rotate(180deg)' : 'none' }} />
-                </IconButton>
-              </Box>
-
-              {/* View Toggle */}
+          {/* File Explorer - Showing room files */}
+          <Box>
+            {/* Toolbar */}
+            <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="body2" color="text.secondary">
+                {filteredAndSortedItems.length} item(s) in this room
+              </Typography>
               <ToggleButtonGroup
                 value={viewMode}
                 exclusive
                 onChange={(_, newMode) => newMode && setViewMode(newMode)}
                 size="small"
               >
-                <ToggleButton value="tile">
-                  <GridIcon />
-                </ToggleButton>
                 <ToggleButton value="list">
-                  <ListIcon />
+                  <ListIcon fontSize="small" />
+                </ToggleButton>
+                <ToggleButton value="tile">
+                  <GridIcon fontSize="small" />
                 </ToggleButton>
               </ToggleButtonGroup>
             </Box>
 
+            {/* File Toolbar with search and sort */}
+            <FileToolbar
+              searchQuery={searchQuery}
+              sortBy={sortBy}
+              sortDirection={sortOrder}
+              onSearchChange={setSearchQuery}
+              onSortChange={setSortBy}
+              onToggleSortDirection={handleToggleSortDirection}
+              canCut={false}
+              canPaste={false}
+              canDelete={false}
+              canStar={false}
+            />
+
             {/* File Grid/List */}
-            <Box sx={{ mt: 3 }}>
+            <Paper
+              sx={{
+                p: 2,
+                border: isDragOver ? '2px dashed #10b981' : '1px solid #e5e7eb',
+                backgroundColor: isDragOver ? '#d1fae5' : 'background.paper',
+                transition: 'all 0.2s ease-in-out',
+                minHeight: 400,
+              }}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
               {filteredAndSortedItems.length === 0 ? (
                 <Box sx={{ textAlign: 'center', py: 8 }}>
                   <GroupIcon sx={{ fontSize: 64, color: 'grey.400', mb: 2 }} />
@@ -454,7 +445,7 @@ const RoomFileExplorer: React.FC<RoomFileExplorerProps> = () => {
                     {searchQuery ? 'No items match your search' : 'No files or folders shared in this room yet'}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {searchQuery ? 'Try a different search term' : 'Share files and folders to collaborate with room members'}
+                    {searchQuery ? 'Try a different search term' : 'Share files and folders from your vault to collaborate with room members'}
                   </Typography>
                 </Box>
               ) : (
@@ -469,7 +460,7 @@ const RoomFileExplorer: React.FC<RoomFileExplorerProps> = () => {
                   onFolderClick={handleFolderClick}
                 />
               )}
-            </Box>
+            </Paper>
           </Box>
         </Paper>
 
@@ -488,12 +479,12 @@ const RoomFileExplorer: React.FC<RoomFileExplorerProps> = () => {
             <>
               {isFile(contextMenu.item) && (
                 <MenuItem onClick={handleDownload}>
-                  <DownloadIcon sx={{ mr: 1 }} />
+                  <DownloadIcon sx={{ mr: 1 }} fontSize="small" />
                   Download
                 </MenuItem>
               )}
               <MenuItem onClick={handleRemoveFromRoom}>
-                <DeleteIcon sx={{ mr: 1 }} />
+                <DeleteIcon sx={{ mr: 1 }} fontSize="small" />
                 Remove from Room
               </MenuItem>
             </>
@@ -508,6 +499,37 @@ const RoomFileExplorer: React.FC<RoomFileExplorerProps> = () => {
           message={snackbarMessage}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         />
+
+        {/* Members Dialog */}
+        <Dialog
+          open={showAllMembers}
+          onClose={() => setShowAllMembers(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>Room Members ({room.members?.length || 0})</DialogTitle>
+          <DialogContent>
+            <List>
+              {room.members?.map((member: RoomMember) => (
+                <ListItem key={member.id}>
+                  <ListItemAvatar>
+                    <Avatar sx={{ bgcolor: 'primary.main' }}>
+                      {member.user?.username?.[0]?.toUpperCase() || member.user?.email?.[0]?.toUpperCase() || '?'}
+                    </Avatar>
+                  </ListItemAvatar>
+                  <ListItemText
+                    primary={member.user?.username || member.user?.email || 'Unknown'}
+                    secondary={member.user?.email && member.user?.username ? member.user.email : undefined}
+                  />
+                  <Chip label={member.role} size="small" variant="outlined" />
+                </ListItem>
+              ))}
+            </List>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setShowAllMembers(false)}>Close</Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </Box>
   );

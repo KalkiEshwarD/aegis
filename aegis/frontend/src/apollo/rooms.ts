@@ -11,6 +11,16 @@ export const GET_MY_ROOMS = gql`
       creator {
         id
         email
+        username
+      }
+      members {
+        id
+        role
+        user {
+          id
+          email
+          username
+        }
       }
     }
   }
@@ -26,6 +36,7 @@ export const GET_ROOM = gql`
       creator {
         id
         email
+        username
       }
       members {
         id
@@ -33,6 +44,7 @@ export const GET_ROOM = gql`
         user {
           id
           email
+          username
         }
       }
       files {
@@ -42,6 +54,7 @@ export const GET_ROOM = gql`
         encryption_key
         folder_id
         created_at
+        is_starred
         file {
           id
           size_bytes
@@ -49,6 +62,7 @@ export const GET_ROOM = gql`
         user {
           id
           email
+          username
         }
         folder {
           id
@@ -61,9 +75,11 @@ export const GET_ROOM = gql`
         parent_id
         created_at
         updated_at
+        is_starred
         user {
           id
           email
+          username
         }
         parent {
           id

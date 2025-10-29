@@ -35,6 +35,7 @@ import {
 import { GET_MY_ROOMS, CREATE_ROOM_MUTATION, UPDATE_ROOM_MUTATION, DELETE_ROOM_MUTATION } from '../../apollo/rooms';
 import { Room } from '../../types';
 import AddRoomMemberDialog from './AddRoomMemberDialog';
+import ViewRoomMembersDialog from './ViewRoomMembersDialog';
 
 const RoomView: React.FC = () => {
   const navigate = useNavigate();
@@ -52,6 +53,8 @@ const RoomView: React.FC = () => {
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
   const [roomForAddingMember, setRoomForAddingMember] = useState<Room | null>(null);
+  const [viewMembersDialogOpen, setViewMembersDialogOpen] = useState(false);
+  const [roomForViewingMembers, setRoomForViewingMembers] = useState<Room | null>(null);
 
   const handleCreateRoom = async () => {
     if (!roomName.trim()) return;
@@ -179,40 +182,29 @@ const RoomView: React.FC = () => {
                   </Box>
 
                   <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Created by {room.creator?.username || 'Unknown'}
+                    Created by {room.creator?.username || room.creator?.email || 'Unknown'}
                   </Typography>
 
                   <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
                     <GroupIcon sx={{ mr: 1, fontSize: 18, color: 'text.secondary' }} />
-                    <Typography variant="body2" color="text.secondary">
-                      {room.members?.length || 0} members
+                    <Typography 
+                      variant="body2" 
+                      color="primary"
+                      sx={{ 
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                        '&:hover': {
+                          color: 'primary.dark'
+                        }
+                      }}
+                      onClick={() => {
+                        setRoomForViewingMembers(room);
+                        setViewMembersDialogOpen(true);
+                      }}
+                    >
+                      Members {room.members?.length || 0}
                     </Typography>
                   </Box>
-
-                  {room.members && room.members.length > 0 && (
-                    <Box sx={{ mt: 2 }}>
-                      <Typography variant="body2" color="text.secondary" gutterBottom>
-                        Members:
-                      </Typography>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                        {room.members.slice(0, 3).map((member) => (
-                          <Chip
-                            key={member.id}
-                            label={member.user?.username || 'Unknown'}
-                            size="small"
-                            variant="outlined"
-                          />
-                        ))}
-                        {room.members.length > 3 && (
-                          <Chip
-                            label={`+${room.members.length - 3} more`}
-                            size="small"
-                            variant="outlined"
-                          />
-                        )}
-                      </Box>
-                    </Box>
-                  )}
                 </CardContent>
 
                 <CardActions sx={{ justifyContent: 'space-between', px: 2, pb: 2 }}>
@@ -347,6 +339,18 @@ const RoomView: React.FC = () => {
         onClose={() => setAddMemberDialogOpen(false)}
         room={roomForAddingMember}
         onMemberAdded={refetch}
+      />
+
+      {/* View Members Dialog */}
+      <ViewRoomMembersDialog
+        open={viewMembersDialogOpen}
+        onClose={() => setViewMembersDialogOpen(false)}
+        room={roomForViewingMembers}
+        onAddMember={() => {
+          setViewMembersDialogOpen(false);
+          setRoomForAddingMember(roomForViewingMembers);
+          setAddMemberDialogOpen(true);
+        }}
       />
     </Box>
   );
