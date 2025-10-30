@@ -44,9 +44,30 @@ func (h *FileHandler) DownloadFile(c *gin.Context) {
 
 	// Get user file info for filename
 	var userFile models.UserFile
-	if err := h.fileService.GetDB().GetDB().Preload("File").Where("id = ? AND user_id = ?", fileID, user.ID).First(&userFile).Error; err != nil {
+	db := h.fileService.GetDB().GetDB()
+	if err := db.Preload("File").First(&userFile, fileID).Error; err != nil {
 		c.Error(errors.New(errors.ErrCodeNotFound, "File not found"))
 		return
+	}
+
+	// Check if user owns the file OR is a member of a room that has access to this file
+	if userFile.UserID != user.ID {
+		// Check if file is shared to any room that the user is a member of
+		var count int64
+		err := db.Table("room_files").
+			Joins("INNER JOIN room_members ON room_files.room_id = room_members.room_id").
+			Where("room_files.user_file_id = ? AND room_members.user_id = ?", fileID, user.ID).
+			Count(&count).Error
+
+		if err != nil {
+			c.Error(errors.Wrap(err, errors.ErrCodeInternal, "Database error"))
+			return
+		}
+
+		if count == 0 {
+			c.Error(errors.New(errors.ErrCodeNotFound, "File not found"))
+			return
+		}
 	}
 
 	// Get the file reader

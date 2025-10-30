@@ -437,11 +437,6 @@ func (r *mutationResolver) CreateRoom(ctx context.Context, input model.CreateRoo
 
 // AddRoomMember is the resolver for the addRoomMember field.
 func (r *mutationResolver) AddRoomMember(ctx context.Context, input model.AddRoomMemberInput) (bool, error) {
-	_, err := middleware.RequireAdmin(ctx)
-	if err != nil {
-		return false, fmt.Errorf("admin access required: %w", err)
-	}
-
 	user, err := middleware.GetUserFromContext(ctx)
 	if err != nil {
 		return false, fmt.Errorf("unauthenticated: %w", err)
@@ -1593,12 +1588,29 @@ func (r *userFileResolver) EncryptionKey(ctx context.Context, obj *models.UserFi
 		return "", fmt.Errorf("unauthenticated: %w", err)
 	}
 
-	// Ensure the user owns this file
-	if user.ID != obj.UserID {
-		return "", fmt.Errorf("access denied: file does not belong to user")
+	// Allow access if the user owns the file
+	if user.ID == obj.UserID {
+		return obj.EncryptionKey, nil
 	}
 
-	return obj.EncryptionKey, nil
+	// Check if the file is shared to any room that the user is a member of
+	db := r.Resolver.DB.GetDB()
+	var count int64
+	err = db.Table("room_files").
+		Joins("INNER JOIN room_members ON room_files.room_id = room_members.room_id").
+		Where("room_files.user_file_id = ? AND room_members.user_id = ?", obj.ID, user.ID).
+		Count(&count).Error
+
+	if err != nil {
+		return "", fmt.Errorf("database error: %w", err)
+	}
+
+	if count > 0 {
+		// User is a member of a room that has access to this file
+		return obj.EncryptionKey, nil
+	}
+
+	return "", fmt.Errorf("access denied: file does not belong to user")
 }
 
 // FolderID is the resolver for the folder_id field.

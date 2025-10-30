@@ -537,10 +537,31 @@ func (s *FileService) StreamFile(userID, userFileID uint) (io.ReadCloser, string
 	db := s.db.GetDB()
 
 	var userFile models.UserFile
-	if err := s.ValidateOwnership(&userFile, userFileID, userID); err != nil {
-		return nil, "", err
+	// First, try to get the file
+	if err := db.Preload("File").First(&userFile, userFileID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, "", apperrors.New(apperrors.ErrCodeNotFound, "not found or access denied")
+		}
+		return nil, "", apperrors.Wrap(err, apperrors.ErrCodeInternal, "database error")
 	}
-	db.Preload("File").First(&userFile, userFile.ID)
+
+	// Check if user owns the file OR is a member of a room that has access to this file
+	if userFile.UserID != userID {
+		// Check if file is shared to any room that the user is a member of
+		var count int64
+		err := db.Table("room_files").
+			Joins("INNER JOIN room_members ON room_files.room_id = room_members.room_id").
+			Where("room_files.user_file_id = ? AND room_members.user_id = ?", userFileID, userID).
+			Count(&count).Error
+
+		if err != nil {
+			return nil, "", apperrors.Wrap(err, apperrors.ErrCodeInternal, "database error")
+		}
+
+		if count == 0 {
+			return nil, "", apperrors.New(apperrors.ErrCodeNotFound, "not found or access denied")
+		}
+	}
 
 	object, err := s.fileStorageService.DownloadFile(context.Background(), userFile.File.StoragePath)
 	if err != nil {
@@ -554,10 +575,31 @@ func (s *FileService) GetFileDownloadURL(ctx context.Context, user *models.User,
 	db := s.db.GetDB()
 
 	var userFile models.UserFile
-	if err := s.ValidateOwnership(&userFile, userFileID, user.ID); err != nil {
-		return "", err
+	// First, try to get the file
+	if err := db.Preload("File").First(&userFile, userFileID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", apperrors.New(apperrors.ErrCodeNotFound, "not found or access denied")
+		}
+		return "", apperrors.Wrap(err, apperrors.ErrCodeInternal, "database error")
 	}
-	db.Preload("File").First(&userFile, userFile.ID)
+
+	// Check if user owns the file OR is a member of a room that has access to this file
+	if userFile.UserID != user.ID {
+		// Check if file is shared to any room that the user is a member of
+		var count int64
+		err := db.Table("room_files").
+			Joins("INNER JOIN room_members ON room_files.room_id = room_members.room_id").
+			Where("room_files.user_file_id = ? AND room_members.user_id = ?", userFileID, user.ID).
+			Count(&count).Error
+
+		if err != nil {
+			return "", apperrors.Wrap(err, apperrors.ErrCodeInternal, "database error")
+		}
+
+		if count == 0 {
+			return "", apperrors.New(apperrors.ErrCodeNotFound, "not found or access denied")
+		}
+	}
 
 	token, err := s.authService.GenerateToken(user)
 	if err != nil {

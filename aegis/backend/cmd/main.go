@@ -138,6 +138,7 @@ func main() {
 
 	// Initialize GraphQL resolver
 	resolver := &graph.Resolver{
+		DB:                 db,
 		FileService:        fileService,
 		UserService:        userService,
 		RoomService:        roomService,
