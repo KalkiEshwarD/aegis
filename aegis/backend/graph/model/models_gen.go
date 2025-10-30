@@ -176,6 +176,12 @@ type UpdateRoomInput struct {
 	Name   string `json:"name"`
 }
 
+type UpdateRoomMemberRoleInput struct {
+	RoomID string          `json:"room_id"`
+	UserID string          `json:"user_id"`
+	Role   models.RoomRole `json:"role"`
+}
+
 type UploadFileFromMapInput struct {
 	Data string `json:"data"`
 }

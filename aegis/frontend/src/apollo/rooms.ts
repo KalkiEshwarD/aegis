@@ -139,3 +139,15 @@ export const REMOVE_ROOM_MEMBER_MUTATION = gql`
     removeRoomMember(room_id: $room_id, user_id: $user_id)
   }
 `;
+
+export const UPDATE_ROOM_MEMBER_ROLE_MUTATION = gql`
+  mutation UpdateRoomMemberRole($input: UpdateRoomMemberRoleInput!) {
+    updateRoomMemberRole(input: $input)
+  }
+`;
+
+export const LEAVE_ROOM_MUTATION = gql`
+  mutation LeaveRoom($room_id: ID!) {
+    leaveRoom(room_id: $room_id)
+  }
+`;

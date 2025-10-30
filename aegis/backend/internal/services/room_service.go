@@ -114,6 +114,68 @@ func (s *RoomService) RemoveRoomMember(roomID, userID, requesterID uint) error {
 	return db.Where("room_id = ? AND user_id = ?", roomID, userID).Delete(&models.RoomMember{}).Error
 }
 
+func (s *RoomService) UpdateRoomMemberRole(roomID, targetUserID, requesterID uint, newRole models.RoomRole) error {
+	db := s.db.GetDB()
+
+	// Only room admins can change roles
+	if err := s.requireRoomAdmin(roomID, requesterID); err != nil {
+		return err
+	}
+
+	// Check if target user is a member of the room
+	var member models.RoomMember
+	if err := db.Where("room_id = ? AND user_id = ?", roomID, targetUserID).First(&member).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperrors.New(apperrors.ErrCodeNotFound, "user is not a member of this room")
+		}
+		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "database error")
+	}
+
+	// Don't allow changing the creator's role
+	var room models.Room
+	if err := db.First(&room, roomID).Error; err != nil {
+		return apperrors.Wrap(err, apperrors.ErrCodeNotFound, "room not found")
+	}
+
+	if room.CreatorID == targetUserID {
+		return apperrors.New(apperrors.ErrCodeForbidden, "cannot change room creator's role")
+	}
+
+	// Update the role
+	member.Role = newRole
+	if err := db.Save(&member).Error; err != nil {
+		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "failed to update member role")
+	}
+
+	return nil
+}
+
+func (s *RoomService) LeaveRoom(roomID, userID uint) error {
+	db := s.db.GetDB()
+
+	// Check if user is a member
+	var member models.RoomMember
+	if err := db.Where("room_id = ? AND user_id = ?", roomID, userID).First(&member).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperrors.New(apperrors.ErrCodeNotFound, "you are not a member of this room")
+		}
+		return apperrors.Wrap(err, apperrors.ErrCodeInternal, "database error")
+	}
+
+	// Check if user is the creator
+	var room models.Room
+	if err := db.First(&room, roomID).Error; err != nil {
+		return apperrors.Wrap(err, apperrors.ErrCodeNotFound, "room not found")
+	}
+
+	if room.CreatorID == userID {
+		return apperrors.New(apperrors.ErrCodeForbidden, "room creator cannot leave the room. Please delete the room or transfer ownership first.")
+	}
+
+	// Remove the member
+	return db.Delete(&member).Error
+}
+
 func (s *RoomService) GetRoomFiles(roomID, userID uint) ([]*models.UserFile, error) {
 	return s.roomRepo.GetRoomFiles(roomID, userID, "User", "File")
 }
@@ -125,14 +187,14 @@ func (s *RoomService) GetRoomFolders(roomID, userID uint) ([]*models.Folder, err
 func (s *RoomService) UpdateRoom(roomID, userID uint, name string) (*models.Room, error) {
 	db := s.db.GetDB()
 
-	// Check if user is the creator of the room
+	// Only room admins can update the room
+	if err := s.requireRoomAdmin(roomID, userID); err != nil {
+		return nil, err
+	}
+
 	var room models.Room
 	if err := db.First(&room, roomID).Error; err != nil {
 		return nil, apperrors.Wrap(err, apperrors.ErrCodeNotFound, "room not found")
-	}
-
-	if room.CreatorID != userID {
-		return nil, apperrors.New(apperrors.ErrCodeForbidden, "only room creator can update room")
 	}
 
 	// Update room name
@@ -147,14 +209,14 @@ func (s *RoomService) UpdateRoom(roomID, userID uint, name string) (*models.Room
 func (s *RoomService) DeleteRoom(roomID, userID uint) error {
 	db := s.db.GetDB()
 
-	// Check if user is the creator of the room
+	// Only room admins can delete the room
+	if err := s.requireRoomAdmin(roomID, userID); err != nil {
+		return err
+	}
+
 	var room models.Room
 	if err := db.First(&room, roomID).Error; err != nil {
 		return apperrors.Wrap(err, apperrors.ErrCodeNotFound, "room not found")
-	}
-
-	if room.CreatorID != userID {
-		return apperrors.New(apperrors.ErrCodeForbidden, "only room creator can delete room")
 	}
 
 	// Check if room has other members besides creator
@@ -164,7 +226,7 @@ func (s *RoomService) DeleteRoom(roomID, userID uint) error {
 	}
 
 	if memberCount > 1 {
-		return apperrors.New(apperrors.ErrCodeForbidden, "cannot delete room with other members")
+		return apperrors.New(apperrors.ErrCodeForbidden, "cannot delete room with other members. Please remove all members first.")
 	}
 
 	// Delete room (cascade will handle members and associations)
@@ -265,17 +327,24 @@ func (s *RoomService) ShareEntityToRoom(entity ShareableEntity, entityType Entit
 }
 
 func (s *RoomService) RemoveEntityFromRoom(entity ShareableEntity, entityType EntityType, roomID, userID uint, requireFilePermission bool) error {
-	if err := s.ValidateOwnership(entity, entity.GetID(), userID); err != nil {
-		return err
-	}
+	// Check room permissions first - if user has required room permissions, they can remove any file
+	// Otherwise, they must own the entity
+	hasRoomPermission := false
 
 	if requireFilePermission {
-		if err := s.requireRoomFilePermission(roomID, userID); err != nil {
-			return err
+		if err := s.requireRoomFilePermission(roomID, userID); err == nil {
+			hasRoomPermission = true
 		}
 	} else {
-		if err := s.requireRoomMembership(roomID, userID); err != nil {
-			return err
+		if err := s.requireRoomMembership(roomID, userID); err == nil {
+			hasRoomPermission = true
+		}
+	}
+
+	// If user doesn't have room permissions, check if they own the entity
+	if !hasRoomPermission {
+		if err := s.ValidateOwnership(entity, entity.GetID(), userID); err != nil {
+			return apperrors.New(apperrors.ErrCodeForbidden, "access denied: insufficient permissions to remove from room")
 		}
 	}
 

@@ -42,6 +42,7 @@ import DashboardAppBar from './DashboardAppBar';
 import DashboardSidebar from './DashboardSidebar';
 import { useUserMenu } from '../../hooks/useUserMenu';
 import { useFileOperations } from '../../hooks/useFileOperations';
+import { useAuth } from '../../contexts/AuthContext';
 import FileGrid from '../common/FileGrid';
 import FileToolbar from '../common/FileToolbar';
 
@@ -51,6 +52,7 @@ interface RoomFileExplorerProps {
 const RoomFileExplorer: React.FC<RoomFileExplorerProps> = () => {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [showAllMembers, setShowAllMembers] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'tile'>('tile');
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -129,6 +131,13 @@ const RoomFileExplorer: React.FC<RoomFileExplorerProps> = () => {
     if (room?.folders) items.push(...room.folders);
     return items;
   }, [room?.files, room?.folders]);
+
+  // Get current user's role in this room
+  const currentUserRole = useMemo(() => {
+    if (!room?.members || !user) return null;
+    const member = room.members.find((m: RoomMember) => m.user?.id === user.id);
+    return member?.role || null;
+  }, [room?.members, user]);
 
   // Filter and sort items
   const filteredAndSortedItems = useMemo(() => {
@@ -483,10 +492,12 @@ const RoomFileExplorer: React.FC<RoomFileExplorerProps> = () => {
                   Download
                 </MenuItem>
               )}
-              <MenuItem onClick={handleRemoveFromRoom}>
-                <DeleteIcon sx={{ mr: 1 }} fontSize="small" />
-                Remove from Room
-              </MenuItem>
+              {currentUserRole !== 'CONTENT_VIEWER' && (
+                <MenuItem onClick={handleRemoveFromRoom}>
+                  <DeleteIcon sx={{ mr: 1 }} fontSize="small" />
+                  Remove from Room
+                </MenuItem>
+              )}
             </>
           )}
         </Menu>

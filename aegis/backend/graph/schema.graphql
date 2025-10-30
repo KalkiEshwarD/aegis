@@ -135,6 +135,12 @@ input AddRoomMemberInput {
    role: RoomRole!
 }
 
+input UpdateRoomMemberRoleInput {
+   room_id: ID!
+   user_id: ID!
+   role: RoomRole!
+}
+
 input UpdateRoomInput {
    room_id: ID!
    name: String!
@@ -371,9 +377,11 @@ type Mutation {
   # Room operations
   createRoom(input: CreateRoomInput!): Room!
   addRoomMember(input: AddRoomMemberInput!): Boolean!
+  updateRoomMemberRole(input: UpdateRoomMemberRoleInput!): Boolean!
   updateRoom(input: UpdateRoomInput!): Room!
   deleteRoom(input: DeleteRoomInput!): Boolean!
   removeRoomMember(room_id: ID!, user_id: ID!): Boolean!
+  leaveRoom(room_id: ID!): Boolean!
   shareFileToRoom(user_file_id: ID!, room_id: ID!): Boolean!
   removeFileFromRoom(user_file_id: ID!, room_id: ID!): Boolean!
 
